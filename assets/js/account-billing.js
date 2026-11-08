@@ -22,7 +22,7 @@ function invoiceModal(i){
  <div><small>ISSUED</small><strong>${fmt(i.issued_at||i.sent_at)}</strong></div>
  <div><small>DUE DATE</small><strong>${fmt(i.due_at)}</strong></div>
  <div><small>STATUS</small>${badge(i.status)}</div></div>
- <div class="workforce-invoice-section-label">Invoice details</div>
+ <div class="workforce-invoice-billto"><div><small>ISSUED BY</small><strong>Workforce</strong></div><div><small>BILL TO</small><strong>${esc(i.customer_name||i.company_name||i.bill_to_name||"C/TPA Account")}</strong>${i.customer_email?`<span>${esc(i.customer_email)}</span>`:""}</div></div><div class="workforce-invoice-section-label">Invoice details</div>
  <div class="workforce-invoice-table-scroll"><table class="workforce-invoice-items"><thead><tr><th>DESCRIPTION</th><th>QTY</th><th>RATE</th><th>AMOUNT</th></tr></thead><tbody>${items.map(x=>`<tr><td>${esc(x.description||'Service')}</td><td>${esc(x.quantity??1)}</td><td>${money(x.unit_amount,i.currency)}</td><td>${money(x.amount,i.currency)}</td></tr>`).join('')||'<tr><td colspan="4">No line-item detail was supplied.</td></tr>'}</tbody></table></div>
  <div class="workforce-invoice-bottom"><div class="workforce-invoice-instructions"><strong>Issued by Workforce</strong><p>For account billing support, contact Workforce through your secure customer portal.</p>${i.notes?`<div><small>NOTES</small><p>${esc(i.notes)}</p></div>`:''}</div>
  <div class="workforce-invoice-totals"><div><span>Subtotal</span><strong>${money(i.subtotal,i.currency)}</strong></div><div><span>Tax</span><strong>${money(i.tax,i.currency)}</strong></div><div><span>Credits</span><strong>−${money(i.credits,i.currency)}</strong></div><div class="grand"><span>Invoice Total</span><strong>${money(i.total,i.currency)}</strong></div><div class="balance"><span>Balance Due</span><strong>${money(i.amount_due,i.currency)}</strong></div></div></div></div>
@@ -67,7 +67,7 @@ async function invoicePdf(i){
  doc.text(String(i.invoice_number||'—'),42,184);doc.text(fmt(i.issued_at||i.sent_at),300,184);doc.text(fmt(i.due_at),430,184);
  doc.setTextColor(95,108,129);doc.setFont('helvetica','normal');doc.setFontSize(9);doc.text('ISSUED BY',42,224);
  doc.text('STATUS',325,224);doc.setFont('helvetica','bold');doc.setFontSize(12);doc.setTextColor(1,18,47);
- doc.text('Workforce',42,245);doc.text(pretty(i.status||'draft'),325,245);
+ doc.text('Workforce',42,245);doc.setTextColor(95,108,129);doc.setFont('helvetica','normal');doc.setFontSize(9);doc.text('BILL TO',205,224);doc.setTextColor(1,18,47);doc.setFont('helvetica','bold');doc.setFontSize(11);doc.text(doc.splitTextToSize(String(i.customer_name||i.company_name||i.bill_to_name||'C/TPA Account'),155).slice(0,2),205,245);doc.setFontSize(11);doc.text(pretty(i.status||'draft'),425,245);
  let y=290;
  const headers=()=>{doc.setFillColor(242,245,249);doc.rect(42,y-17,528,29,'F');doc.setFont('helvetica','bold');doc.setTextColor(1,18,47);doc.setFontSize(9);doc.text('DESCRIPTION',53,y);doc.text('QTY',380,y);doc.text('RATE',450,y);doc.text('AMOUNT',560,y,{align:'right'});y+=25};
  headers();doc.setFont('helvetica','normal');doc.setFontSize(10);
