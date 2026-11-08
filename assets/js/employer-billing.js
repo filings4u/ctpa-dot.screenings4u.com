@@ -12,7 +12,7 @@ function remittanceText(r={}){return [r.remit_name,r.remit_address1,r.remit_addr
 function featureCard(d){
  const f=d.payment_processing_feature||{},req=d.payment_processing_request||null,enterprise=String(d.plan_code||'').toLowerCase()==='dot_ctpa_enterprise';
  if(d.client_payments){return `<div class="billing-capability ${d.payments_ready?'good':'warn'}"><div><small>PAYMENT PROCESSING</small><strong>${d.payments_ready?'Active':'Setup Pending'}</strong></div><p>${d.payments_ready?'Integrated Client Payments is active. Employers and Owner-Operators can pay eligible invoices online.':'The feature is enabled, but the payment processor profile still requires activation.'}</p></div>`}
- if(req?.status==='pending')return `<div class="billing-capability warn"><div><small>ENTERPRISE FEATURE</small><strong>Payment Processing — Pending</strong></div><p>Your Integrated Client Payments request is awaiting screenings4u approval.</p></div>`;
+ if(req?.status==='pending')return `<div class="billing-capability warn"><div><small>ENTERPRISE FEATURE</small><strong>Payment Processing — Pending</strong></div><p>Your Integrated Client Payments request is awaiting Workforce approval.</p></div>`;
  if(!enterprise)return `<div class="billing-capability"><div><small>ENTERPRISE FEATURE</small><strong>Payment Processing</strong></div><p>Integrated Client Payments is available only with the C/TPA Enterprise plan.</p></div>`;
  return `<div class="billing-capability"><div><small>ENTERPRISE FEATURE</small><strong>Payment Processing</strong></div><p>${esc(f.description||'Accept online payments from Employer and Owner-Operator customers.')}</p><button class="btn primary" id="requestPaymentsBtn">Add Feature</button></div>`;
 }
