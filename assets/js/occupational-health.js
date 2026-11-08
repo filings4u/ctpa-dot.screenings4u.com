@@ -49,8 +49,8 @@ function bindForm(d,record){
 }
 function showPass(r){
  const p=r.donor_pass;if(!p)return notify('Testing Management has not issued a donor pass for this physical.');
- const win=window.open('','_blank','noopener,noreferrer');
- if(!win)return notify('Allow popups to open the donor pass.');
+ const win=window.open('','_blank');
+ if(!win)return notify('Allow popups to open the donor pass.');win.opener=null;
  const doc='<!doctype html><html><head><title>screenings4u Donor Pass</title><style>body{font-family:Arial,sans-serif;color:#102f55;padding:35px;max-width:740px;margin:auto}h1{color:#ff6b00}table{width:100%;border-collapse:collapse}td{padding:12px;border-bottom:1px solid #ddd}.brand{background:#102f55;color:#fff;padding:22px;font-size:24px;font-weight:800}.note{margin-top:20px;padding:14px;background:#eef3f9}@media print{.print{display:none}}</style></head><body><div class="brand">screenings4u | OCCUPATIONAL HEALTH</div><h1>Donor Pass</h1><table><tr><td>Pass Number</td><td>'+esc(p.pass_number)+'</td></tr><tr><td>Employee</td><td>'+esc(r.donor_name)+'</td></tr><tr><td>Employer</td><td>'+esc(r.company_name)+'</td></tr><tr><td>Physical</td><td>'+esc(r.physical_type==='NON_DOT'?'Non-DOT':'DOT')+' — '+esc(pretty(r.exam_type))+'</td></tr><tr><td>Collection Site</td><td>'+esc(p.collection_site_name||'To be assigned')+'</td></tr><tr><td>Address</td><td>'+esc(p.collection_site_address||'')+'</td></tr><tr><td>Confirmation</td><td>'+esc(p.confirmation_code||'')+'</td></tr></table><p class="note">'+esc(p.instructions||'Present this donor pass at the designated collection location.')+'</p><button class="print" onclick="window.print()">Print / Save as PDF</button></body></html>';
  win.document.open();win.document.write(doc);win.document.close();
 }
