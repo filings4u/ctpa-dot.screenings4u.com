@@ -671,7 +671,7 @@ async function navigatePortal(url,{replace=false,pop=false}={}){
 }
 function installFastNavigation(){
   document.addEventListener('click',e=>{const a=e.target.closest?.('a[href]');if(!a||e.defaultPrevented||e.button!==0||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey||a.target||a.hasAttribute('download'))return;const u=new URL(a.href,location.href);if(u.origin!==location.origin||!u.pathname.endsWith('.html')||u.pathname==='/workforce-context.html')return;e.preventDefault();navigatePortal(u.href).catch(err=>{console.warn('Soft navigation fallback',err);location.href=u.href})},true);
-  const pre=e=>{const a=e.target.closest?.('a[href]');if(!a)return;const u=new URL(a.href,location.href);if(u.origin!==location.origin||!u.pathname.endsWith('.html'))return;prepareTarget(u.href).then(({targetPage,u})=>loadPageDataCached(targetPage,u.search,{force:false})).catch(()=>{})};
+  const pre=e=>{const a=e.target.closest?.('a[href]');if(!a)return;const u=new URL(a.href,location.href);if(u.origin!==location.origin||!u.pathname.endsWith('.html')||u.pathname==='/workforce-context.html')return;prepareTarget(u.href).then(({targetPage,u})=>loadPageDataCached(targetPage,u.search,{force:false})).catch(()=>{})};
   document.addEventListener('pointerenter',pre,true);document.addEventListener('focusin',pre,true);document.addEventListener('touchstart',pre,{capture:true,passive:true});
   addEventListener('popstate',()=>navigatePortal(location.href,{pop:true}).catch(()=>location.reload()));
 }
