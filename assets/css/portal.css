@@ -1571,3 +1571,11 @@ body[data-portal-page="billing"] .billing-row-actions .mini-btn.primary{backgrou
 .workforce-invoice-modal :focus-visible{outline:3px solid #FDC102;outline-offset:3px}
 @media(max-width:960px){body[data-portal-page="billing"] .account-billing-shell .billing-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.workforce-invoice-summary{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:650px){body[data-portal-page="billing"] .billing-search{flex-wrap:wrap}body[data-portal-page="billing"] .billing-search input,body[data-portal-page="billing"] .billing-search select{width:100%;max-width:none;flex:1 1 100%}.workforce-invoice-header{padding:16px;gap:10px}.workforce-invoice-brand{gap:11px;align-items:flex-start;flex-direction:column}.workforce-invoice-brand img{width:115px;max-height:38px}.workforce-invoice-content{padding:15px}.workforce-invoice-summary{grid-template-columns:1fr 1fr}.workforce-invoice-bottom{grid-template-columns:1fr}.workforce-invoice-actions{padding:12px 15px;gap:7px}.workforce-invoice-actions .btn{flex:1 1 110px}.workforce-invoice-modal{max-height:calc(100dvh - 18px)!important}}
+
+/* Workforce document issuer and recipient blocks */
+.workforce-invoice-billto{display:grid;grid-template-columns:1fr 1fr;gap:15px;margin:0 0 21px;padding:15px 0;border-top:1px solid #e4e9ef;border-bottom:1px solid #e4e9ef}
+.workforce-invoice-billto>div{min-width:0;display:flex;flex-direction:column;gap:5px}
+.workforce-invoice-billto small{font-size:.64rem;font-weight:850;color:#708099;letter-spacing:.05em}
+.workforce-invoice-billto strong{font-size:.9rem;color:#01122F;overflow-wrap:anywhere}
+.workforce-invoice-billto span{font-size:.72rem;color:#62758c;overflow-wrap:anywhere}
+@media(max-width:570px){.workforce-invoice-billto{grid-template-columns:1fr;gap:14px}}
