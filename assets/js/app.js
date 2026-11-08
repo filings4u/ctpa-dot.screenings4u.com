@@ -533,7 +533,7 @@ async function render(ctx,prefetched){
   else if(C.kind==='ctpa'&&p==='pool_form'&&window.CtpaPoolForm){setSubtitle('Configure the consortium Pool created from its Program.');html=window.CtpaPoolForm.render(d,ctx);}
   else if(C.kind==='ctpa'&&p==='pool_detail'&&window.CtpaPoolDetail){setSubtitle('View and manage people in this random pool.');html=window.CtpaPoolDetail.render(d,ctx);}
   else if(p==='pools'&&window.PortalPools){setSubtitle(C.kind==='ctpa'?'Create consortium pools and manage eligible pool membership.':'Manage random pools and pool participation for this Employer.');html=window.PortalPools.render(d,ctx);}
-  else if(C.kind==='ctpa'&&p==='branding'&&window.CtpaBranding){setSubtitle('Control the logo and colors your sponsored Employers see in the DOT Employer portal.');html=window.CtpaBranding.render(d,ctx);}
+  else if(C.kind==='ctpa'&&p==='branding'&&window.CtpaBranding){setSubtitle('Manage your Workforce branding and the identity your sponsored Employers see in their portal.');html=window.CtpaBranding.render(d,ctx);}
   else if(C.kind==='self'){
     if(p==='profile')html=profileView(d);
     else if(p==='my-testing')html=table('My Testing',d.testing_orders||[],COLS.testing);
