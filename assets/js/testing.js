@@ -29,8 +29,8 @@ async function archiveOrder(id,btn){if(!await window.S4UDialog.confirm('Archive 
 function bind(d){
  const actions=$('#actions');if(actions){actions.innerHTML='';if(d.can_manage){const b=document.createElement('a');b.className='btn primary';b.textContent='Create Testing Order';b.href='/testing-order.html';actions.appendChild(b)}}
  const q=$('#testing-search');q?.addEventListener('input',()=>{const s=q.value.trim().toLowerCase();$$('[data-test-row]').forEach(r=>r.hidden=!!s&&!r.dataset.search.includes(s))});
- $('[data-send-testing]').forEach(b=>b.onclick=()=>sendToTesting(b.dataset.sendTesting,b));
- $('[data-archive-order]').forEach(b=>b.onclick=()=>archiveOrder(b.dataset.archiveOrder,b));
+ $$('[data-send-testing]').forEach(b=>b.onclick=()=>sendToTesting(b.dataset.sendTesting,b));
+ $$('[data-archive-order]').forEach(b=>b.onclick=()=>archiveOrder(b.dataset.archiveOrder,b));
 }
 window.CtpaTesting={render,bind};
 })();
