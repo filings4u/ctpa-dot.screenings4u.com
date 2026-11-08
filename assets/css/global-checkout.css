@@ -9,3 +9,20 @@
 .checkout-main{max-width:1450px}
 .checkout-copy span{color:#896a00}
 button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid #FDC102;outline-offset:2px}
+
+/* Workforce secure checkout refinement */
+.checkout-header img{width:155px!important;max-height:45px!important}
+.checkout-header small{color:#FDC102}
+.checkout-header{background:#01122F;border-color:#FDC102}
+.checkout-main{max-width:1450px}
+.checkout-grid{gap:22px}
+.checkout-copy{margin:4px 0 22px}
+.checkout-copy h2{font-size:clamp(26px,3vw,36px);letter-spacing:-.7px}
+.card{border-color:#D4D3D4;border-radius:12px;box-shadow:0 3px 14px #01122F0a}
+.detail{border-color:#e0e5eb;background:#f9fafc}
+.pay{background:#FDC102!important;color:#01122F!important;font-weight:900;border-radius:9px}
+.pay:not(:disabled):hover{background:#eeb200!important}
+.back{border:1px solid #ffffff38;background:#ffffff12;color:#fff}
+.back:hover{background:#ffffff24}
+.summary{top:22px}
+@media(max-width:620px){.checkout-header img{width:125px!important}.checkout-header{padding:15px 17px}.checkout-main{padding:17px}.checkout-grid{grid-template-columns:1fr}}
