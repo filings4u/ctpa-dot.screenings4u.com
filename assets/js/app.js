@@ -506,7 +506,7 @@ async function render(ctx,prefetched){
   else if(C.kind==='ctpa'&&p==='integration_workspace'&&window.CtpaIntegrations){setSubtitle('Manage, test, and use this connected integration.');html=window.CtpaIntegrations.renderWorkspace(d,ctx);}
   else if(C.kind==='ctpa'&&p==='location_form'&&window.CtpaLocations){setSubtitle('Add or edit a location for your C/TPA, an Employer, or an Owner-Operator.');html=window.CtpaLocations.renderForm(d,ctx);}
   else if(C.kind==='ctpa'&&p==='lab_accounts'&&window.CtpaLabAccounts){setSubtitle('View the laboratory accounts and account numbers configured for your C/TPA.');html=window.CtpaLabAccounts.render(d,ctx);}
-  else if(C.kind==='ctpa'&&p==='schedule_demo'&&window.CtpaDemos){setSubtitle('Choose a date and time for a live screenings4u DOT platform demonstration.');html=window.CtpaDemos.renderSchedule(d,ctx);}
+  else if(C.kind==='ctpa'&&p==='schedule_demo'&&window.CtpaDemos){setSubtitle('Choose a date and time for a live Workforce platform demonstration.');html=window.CtpaDemos.renderSchedule(d,ctx);}
   else if(C.kind==='ctpa'&&p==='attend_demo'&&window.CtpaDemos){setSubtitle('View your confirmed demonstration and join it from your portal on the scheduled day.');html=window.CtpaDemos.renderAttend(d,ctx);}
   else if(C.kind==='ctpa'&&p==='staff_form'&&window.CtpaStaff){setSubtitle('Add an internal C/TPA staff member and assign their roles.');html=window.CtpaStaff.form(d,ctx);}
   else if(C.kind==='ctpa'&&p==='staff_view'&&window.CtpaStaff){setSubtitle('View and manage this internal C/TPA staff member and their assigned roles.');html=window.CtpaStaff.view(d,ctx);}
@@ -514,11 +514,11 @@ async function render(ctx,prefetched){
   else if(C.kind==='ctpa'&&p==='staff_delete'&&window.CtpaStaff){setSubtitle('Permanently remove this internal staff member from the C/TPA account.');html=window.CtpaStaff.del(d,ctx);}
   else if(isUtilityPage(p))html=renderUtilityPage(p,d);
   else if(p==='dashboard')html=dashboard(ctx,d);
-  else if(C.kind==='ctpa'&&p==='create_order'&&window.CtpaStoreOrders){setSubtitle('Create a screenings4u order for supplies and approved testing products.');html=window.CtpaStoreOrders.render(d,ctx);}
+  else if(C.kind==='ctpa'&&p==='create_order'&&window.CtpaStoreOrders){setSubtitle('Create a Workforce order for supplies and approved testing products.');html=window.CtpaStoreOrders.render(d,ctx);}
   else if(C.kind==='ctpa'&&p==='price_list'&&window.CtpaPriceList){setSubtitle('View the testing prices assigned to your C/TPA account.');html=window.CtpaPriceList.render(d,ctx);}
-  else if(C.kind==='ctpa'&&p==='order_services'&&window.CtpaFeatures){setSubtitle('Review available account features and submit requests for screenings4u approval.');html=window.CtpaFeatures.render(d,ctx);}
-  else if(C.kind==='ctpa'&&p==='order_history'&&window.AccountOrderHistory){setSubtitle('View and download receipts for your screenings4u DOT C/TPA account.');html=window.AccountOrderHistory.render(d,ctx);}
-  else if(C.kind==='ctpa'&&p==='subscription'&&window.AccountSubscription){setSubtitle('Review your current screenings4u DOT C/TPA software subscription.');html=window.AccountSubscription.render(d,ctx);}
+  else if(C.kind==='ctpa'&&p==='order_services'&&window.CtpaFeatures){setSubtitle('Review available account features and submit requests for Workforce approval.');html=window.CtpaFeatures.render(d,ctx);}
+  else if(C.kind==='ctpa'&&p==='order_history'&&window.AccountOrderHistory){setSubtitle('View and download receipts for your Workforce C/TPA account.');html=window.AccountOrderHistory.render(d,ctx);}
+  else if(C.kind==='ctpa'&&p==='subscription'&&window.AccountSubscription){setSubtitle('Review your current Workforce C/TPA software subscription.');html=window.AccountSubscription.render(d,ctx);}
   else if(C.kind==='ctpa'&&p==='billing'&&window.AccountBilling){setSubtitle('View, download, and pay invoices issued to your C/TPA account by Workforce.');html=window.AccountBilling.render(d,ctx);}
   else if(C.kind==='ctpa'&&p==='employer_billing'&&window.CtpaBilling){setSubtitle('Create, manage, download, and send invoices to your client Employers.');html=window.CtpaBilling.render(d,ctx);}
   else if(C.kind==='ctpa'&&['employer_invoice_form','employer_invoice_view','employer_invoice_send','employer_invoice_delete','employer_remittance'].includes(p)&&window.CtpaInvoicePages){setSubtitle('Manage Employer and Owner-Operator invoices and remittance information.');html=window.CtpaInvoicePages.render(p,d,ctx);}
@@ -530,7 +530,7 @@ async function render(ctx,prefetched){
   else if(C.kind==='ctpa'&&p==='programs'&&window.CtpaPrograms){setSubtitle('Create C/TPA DOT programs and assign Employers to them.');html=window.CtpaPrograms.render(d,ctx);}
   else if(C.kind==='ctpa'&&p==='program_form'&&window.CtpaProgramForm){setSubtitle('Create or edit a C/TPA DOT program.');html=window.CtpaProgramForm.render(d,ctx);}
   else if(C.kind==='ctpa'&&p==='program_detail'&&window.CtpaProgramDetail){setSubtitle('Manage Employers assigned to this DOT program.');html=window.CtpaProgramDetail.render(d,ctx);}
-  else if(C.kind==='ctpa'&&p==='testing_order'&&window.CtpaTestingOrder){setSubtitle('Create a screenings4u DOT testing order.');html=window.CtpaTestingOrder.render(d,ctx);}
+  else if(C.kind==='ctpa'&&p==='testing_order'&&window.CtpaTestingOrder){setSubtitle('Create a Workforce DOT testing order.');html=window.CtpaTestingOrder.render(d,ctx);}
   else if(C.kind==='ctpa'&&p==='testing_document_edit'&&window.CtpaTestingDocumentEdit){setSubtitle('Edit a C/TPA-owned testing document.');html=window.CtpaTestingDocumentEdit.render(d,ctx);}
   else if(C.kind==='ctpa'&&p==='result_detail'&&window.CtpaResultDetail){setSubtitle('View read-only finalized result details and download the official report.');html=window.CtpaResultDetail.render(d,ctx);}
   else if(C.kind==='ctpa'&&p==='owner_operators'&&window.CtpaOwnerOperators){setSubtitle('Manage Owner-Operator customers sponsored by this C/TPA.');html=window.CtpaOwnerOperators.render(d,ctx);}
@@ -538,8 +538,8 @@ async function render(ctx,prefetched){
   else if(C.kind==='ctpa'&&p==='selections'&&window.CtpaSelections){setSubtitle('Run auditable random selections by consortium pool, create testing orders, export records, and deliver selections to Employer portals.');html=window.CtpaSelections.render(d,ctx);}
   else if(C.kind==='ctpa'&&p==='selection_detail'&&window.CtpaSelectionDetail){setSubtitle('Review the locked selection population, selected people, testing orders, and Employer notices.');html=window.CtpaSelectionDetail.render(d,ctx);}
   else if(C.kind==='ctpa'&&p==='occupational_health'&&window.CtpaOccupationalHealth){setSubtitle('Manage DOT and non-DOT occupational physicals, submissions and donor passes.');html=window.CtpaOccupationalHealth.render(d,ctx);}
-  else if(C.kind==='ctpa'&&p==='testing'&&window.CtpaTesting){setSubtitle('Create and monitor DOT testing orders and their screenings4u fulfillment handoffs.');html=window.CtpaTesting.render(d,ctx);}
-  else if(C.kind==='ctpa'&&p==='results'&&window.CtpaResults){setSubtitle('View finalized screenings4u results and download official reports.');html=window.CtpaResults.render(d,ctx);}
+  else if(C.kind==='ctpa'&&p==='testing'&&window.CtpaTesting){setSubtitle('Create and monitor DOT testing orders and their Workforce fulfillment handoffs.');html=window.CtpaTesting.render(d,ctx);}
+  else if(C.kind==='ctpa'&&p==='results'&&window.CtpaResults){setSubtitle('View finalized Workforce results and download official reports.');html=window.CtpaResults.render(d,ctx);}
   else if(C.kind==='ctpa'&&p==='compliance'&&window.CtpaCompliance){setSubtitle('Monitor Employer compliance health, cases, documents, events, and communicate with client Employers.');html=window.CtpaCompliance.render(d,ctx);}
   else if(C.kind==='ctpa'&&p==='documents'&&window.CtpaDocuments){setSubtitle('Upload private documents or send PDFs to Employer and Owner-Operator portals.');html=window.CtpaDocuments.render(d,ctx);}
   else if(C.kind==='ctpa'&&p==='reports'&&window.CtpaReports){setSubtitle('Generate and manage DOT compliance reports across your entire C/TPA account.');html=window.CtpaReports.render(d,ctx);}
@@ -560,7 +560,7 @@ async function render(ctx,prefetched){
     else if(p==='credentials')html=table('My Credentials',d.credentials||[],COLS.credentials);
     else if(p==='training')html=table('Training Records',d.training||[],COLS.training)+`<div class="section"><a class="btn primary" href="https://training.screenings4u.com/" target="_blank" rel="noopener">Open Training Portal</a></div>`;
     else if(p==='consents')html=table('Consents & Acknowledgments',d.policies||[],COLS.policies);
-    else if(p==='medical')html=`<div class="notice">Medical records are view-only here. Use Order Services to purchase a DOT physical from screenings4u, LLC.</div><div class="section">${table('Credentials',d.credentials||[],COLS.credentials)}</div>`;
+    else if(p==='medical')html=`<div class="notice">Medical records are view-only here. Use Order Services to purchase a DOT physical from Workforce.</div><div class="section">${table('Credentials',d.credentials||[],COLS.credentials)}</div>`;
     else html=dashboard(ctx,d);
     wireSelfActions(p,d,ctx);
   }
