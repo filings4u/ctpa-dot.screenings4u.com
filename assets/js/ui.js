@@ -3,7 +3,7 @@ const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 function close(backdrop,value,resolve){backdrop.remove();resolve(value)}
 function dialog(opts={}){
   return new Promise(resolve=>{
-    const title=opts.title||'screenings4u';
+    const title=opts.title||'Workforce';
     const message=opts.message||'';
     const fields=Array.isArray(opts.fields)?opts.fields:[];
     const backdrop=document.createElement('div');
@@ -15,7 +15,7 @@ function dialog(opts={}){
         :`<input type="${esc(type)}" name="${esc(f.name)}" value="${esc(f.value||'')}" ${f.required?'required':''} placeholder="${esc(f.placeholder||'')}">`;
       return `<label class="field ${f.full?'full':''}"><span>${esc(f.label||'')}</span>${control}</label>`;
     }).join('');
-    backdrop.innerHTML=`<form class="modal s4u-dialog ${opts.wide?'s4u-dialog-wide':''}"><div class="s4u-dialog-head"><div><span class="s4u-dialog-kicker">screenings4u</span><h2>${esc(title)}</h2></div><button type="button" class="modal-x" data-ui-close aria-label="Close">×</button></div>${message?`<p class="s4u-dialog-message">${esc(message)}</p>`:''}${fields.length?`<div class="modal-grid s4u-dialog-fields">${fieldHtml}</div>`:''}<div class="modal-actions">${opts.mode==='alert'?'':`<button type="button" class="btn ghost" data-ui-cancel>${esc(opts.cancelText||'Cancel')}</button>`}<button type="submit" class="btn ${opts.danger?'danger':'primary'}">${esc(opts.confirmText||'OK')}</button></div></form>`;
+    backdrop.innerHTML=`<form class="modal s4u-dialog ${opts.wide?'s4u-dialog-wide':''}"><div class="s4u-dialog-head"><div><span class="s4u-dialog-kicker">Workforce</span><h2>${esc(title)}</h2></div><button type="button" class="modal-x" data-ui-close aria-label="Close">×</button></div>${message?`<p class="s4u-dialog-message">${esc(message)}</p>`:''}${fields.length?`<div class="modal-grid s4u-dialog-fields">${fieldHtml}</div>`:''}<div class="modal-actions">${opts.mode==='alert'?'':`<button type="button" class="btn ghost" data-ui-cancel>${esc(opts.cancelText||'Cancel')}</button>`}<button type="submit" class="btn ${opts.danger?'danger':'primary'}">${esc(opts.confirmText||'OK')}</button></div></form>`;
     document.body.appendChild(backdrop);
     const form=backdrop.querySelector('form');
     const cancel=()=>close(backdrop,opts.mode==='confirm'?false:null,resolve);
