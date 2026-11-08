@@ -16,7 +16,7 @@
 <div class="checkout-shell">
 <header class="checkout-header">
   <div><img src="images/logo2.png" alt="Workforce"><div><small>SECURE CHECKOUT</small><h1>Global Checkout</h1></div></div>
-  <a class="back" href="/subscription.html">Back to Subscription</a>
+  <a class="back" id="checkoutBack" href="/subscription.html">Back to Subscription</a>
 </header>
 <main class="checkout-main">
   <section class="checkout-copy"><span>WORKFORCE C/TPA</span><h2 id="pageTitle">Secure account checkout</h2><p id="pageText">Renew subscriptions, pay Workforce invoices, and complete approved add-on payments from one secure checkout.</p></section>
@@ -31,6 +31,6 @@
   </div>
 </main>
 </div>
-<script src="/assets/js/global-checkout.js?v=20261108-billing-brand2"></script>
+<script>if(new URLSearchParams(location.search).get('mode')==='invoice'){const b=document.getElementById('checkoutBack');b.href='/billing.html';b.textContent='← Back to Billing';}</script><script src="/assets/js/global-checkout.js?v=20261108-billing-brand2"></script>
 </body>
 </html>
