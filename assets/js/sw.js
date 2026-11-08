@@ -1,5 +1,5 @@
 'use strict';
-const CACHE='s4u-ctpa-workforce-brand-v21';
+const CACHE='s4u-ctpa-workforce-standalone-v22';
 const CORE=[
   '/assets/css/portal.css','/assets/css/testing-page.css','/assets/css/global-checkout.css',
   '/images/logo.png','/images/logo2.png','/images/fav.png',
