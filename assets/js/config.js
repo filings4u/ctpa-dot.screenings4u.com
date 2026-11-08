@@ -1,7 +1,7 @@
 window.PORTAL_CONFIG=Object.freeze({
   domain:"ctpa-dot.screenings4u.com",
   portalCode:"ctpa_dot",
-  label:"screenings4u DOT C/TPA",
+  label:"Workforce C/TPA",
   kind:"ctpa",
   surface:"dot",
   workforceUrl:"https://elpbnytpciqnbexiaebp.supabase.co",
