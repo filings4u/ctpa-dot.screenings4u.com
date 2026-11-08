@@ -1416,3 +1416,46 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .document-choice.active{background:#fffbe8;box-shadow:0 0 0 2px #FDC10230}
 .chat-thread.active{box-shadow:inset 4px 0 0 #FDC102}
 .store-card:has(.store-check:checked){border-color:#FDC102;box-shadow:0 0 0 1px #FDC102 inset}
+
+/* Standalone Workforce portal: legacy application shell/sidebar removed. */
+:root{--navy:#01122F;--navy2:#01122F;--orange:#FDC102;--brand-silver:#D4D3D4;--brand-gold:#FDC102;--brand-navy:#01122F}
+html,body{min-height:100%;overflow-x:hidden}
+body:not(.login-page):not(.loading){background:#f7f9fc}
+.portal-standalone{width:100%;min-height:100vh;display:block}
+.portal-standalone .main{display:block;grid-column:auto;width:100%;min-width:0}
+.portal-standalone .top{width:100%;position:sticky;top:0;left:0;z-index:90;padding:0 max(24px,calc((100vw - 1450px)/2));background:#fff;border-bottom:1px solid #D4D3D4;height:70px}
+.portal-standalone .top-left{flex:0 0 auto}
+.portal-standalone .top .menu{display:flex!important;align-items:center;justify-content:center;flex:none;width:42px;height:40px;padding:9px;border:1px solid #D4D3D4;background:#fff;color:#01122F;border-radius:9px}
+.portal-standalone .top .menu:hover,.portal-standalone .top .menu.open{background:#fff8e1;border-color:#FDC102}
+.portal-standalone .top-context{display:flex;flex-direction:column;min-width:0}
+.portal-standalone .content{width:min(1450px,calc(100% - 48px));max-width:1450px;padding:28px 0 54px;margin:0 auto}
+.portal-standalone .content>.hero{background:transparent!important;box-shadow:none!important;border-radius:0;border:0;border-bottom:1px solid #D4D3D4;min-height:0;padding:9px 0 21px;margin:0 0 24px;color:#01122F;overflow:visible}
+.portal-standalone .content>.hero::before,.portal-standalone .content>.hero::after{display:none!important;content:none!important}
+.portal-standalone .hero-kicker{color:#957400!important;letter-spacing:.13em}
+.portal-standalone .hero h1{color:#01122F!important;font-weight:850;font-size:clamp(1.7rem,2.4vw,2.45rem);margin:6px 0 5px}
+.portal-standalone .hero p{color:#56647a!important}
+.portal-standalone .hero-actions{position:relative;z-index:1}
+.portal-standalone .mobile-nav{display:block!important;position:fixed!important;inset:70px auto 0 0!important;width:min(360px,100vw)!important;z-index:88;background:#01122F;color:#fff;opacity:0;visibility:hidden;pointer-events:none;transform:translateX(-20px);transition:opacity .2s ease,transform .2s ease,visibility .2s;overflow-y:auto;overscroll-behavior:contain;box-shadow:18px 15px 45px #01122f22}
+.portal-standalone .mobile-nav.open{opacity:1!important;visibility:visible!important;pointer-events:auto!important;transform:translateX(0)!important}
+.portal-standalone .mobile-nav-inner{min-height:100%;padding:19px 17px 26px}
+.portal-standalone .mobile-nav-links{display:grid;gap:4px}
+.portal-standalone .mobile-nav-links a{color:#e5eaf3}
+.portal-standalone .mobile-nav-links a:hover{background:#ffffff13;color:#fff}
+.portal-standalone .mobile-nav-links a.active{background:#FDC102;color:#01122F}
+.portal-standalone .mobile-nav-head{color:#fff}
+.portal-standalone .mobile-nav-current{color:#FDC102}
+.portal-standalone .mobile-nav-foot{color:#bec9d8}
+.portal-standalone .top [id="s4uSwitchPortal"]{background:#FDC102!important;color:#01122F!important}
+.portal-standalone .top [id="s4uSwitchPortal"]:hover{background:#e5b000!important}
+@media(max-width:1100px){
+ .portal-standalone .top{padding:0 17px}
+ .portal-standalone .content{width:calc(100% - 34px)}
+}
+@media(max-width:820px){
+ .portal-standalone .top{height:auto;min-height:64px;padding:10px 14px;gap:9px;flex-wrap:wrap}
+ .portal-standalone .top-right{flex-wrap:wrap;justify-content:flex-end}
+ .portal-standalone .mobile-nav{top:64px!important;inset-block-start:64px!important}
+ .portal-standalone .content{width:calc(100% - 28px);padding:22px 0 42px}
+ .portal-standalone .content>.hero{padding-bottom:17px}
+}
+@media(prefers-reduced-motion:reduce){.portal-standalone .mobile-nav{transition:none!important}}
