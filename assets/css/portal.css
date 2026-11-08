@@ -1416,3 +1416,8 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .document-choice.active{background:#fffbe8;box-shadow:0 0 0 2px #FDC10230}
 .chat-thread.active{box-shadow:inset 4px 0 0 #FDC102}
 .store-card:has(.store-check:checked){border-color:#FDC102;box-shadow:0 0 0 1px #FDC102 inset}
+
+/* Unified Workforce portal mark: compact, consistent on desktop and mobile. */
+.side .brand{height:62px;min-height:62px;padding:10px 14px;background:#01122F;border-bottom:1px solid rgba(255,255,255,.13)}
+.side .brand img{display:block!important;width:auto!important;max-width:132px!important;height:auto!important;max-height:38px!important;object-fit:contain!important;object-position:center}
+@media(max-width:768px){.side .brand{height:58px;min-height:58px;padding:9px 12px}.side .brand img{max-width:113px!important;max-height:34px!important}}
