@@ -1459,3 +1459,9 @@ body:not(.login-page):not(.loading){background:#f7f9fc}
  .portal-standalone .content>.hero{padding-bottom:17px}
 }
 @media(prefers-reduced-motion:reduce){.portal-standalone .mobile-nav{transition:none!important}}
+
+/* Standalone masthead: preserve approved Workforce mark without a sidebar shell. */
+.portal-standalone .standalone-brand{display:inline-flex;align-items:center;flex-shrink:0;margin-right:12px}
+.portal-standalone .standalone-brand img{display:block;width:172px;max-height:51px;object-fit:contain}
+@media(max-width:1050px){.portal-standalone .standalone-brand img{width:146px}}
+@media(max-width:650px){.portal-standalone .standalone-brand img{width:132px}.portal-standalone .standalone-brand{margin-right:2px}}
