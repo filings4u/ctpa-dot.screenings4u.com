@@ -1,7 +1,19 @@
 <!doctype html>
 <html class="s4u-auth-pending" lang="en">
 <head><link rel="preconnect" href="https://elpbnytpciqnbexiaebp.supabase.co" crossorigin><link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin><meta name="robots" content="noindex,nofollow,noarchive,nosnippet"><meta name="googlebot" content="noindex,nofollow,noarchive,nosnippet">
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#01122F">
+<meta charset="utf-8"><script>
+/* Legacy New Entrant checkout URLs now use embedded payment on the audit page. */
+(function(){
+ const q=new URLSearchParams(location.search);
+ if(q.get('mode')!=='new_entrant')return;
+ const p=new URLSearchParams();
+ p.set('purchase',q.get('product')==='staff'?'staff':'addon');
+ const id=q.get('audit_id');
+ if(id&&/^[0-9a-f-]{36}$/i.test(id))p.set('id',id);
+ if(q.get('payment_id')){p.set('audit_payment',q.get('product')==='staff'?'staff':'addon');p.set('payment_id',q.get('payment_id'))}
+ location.replace('/new-entrant-audits.html?'+p.toString());
+})();
+</script><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#01122F">
 <title>Workforce Checkout | Workforce C/TPA DOT</title>
 <link rel="icon" type="image/png" href="/images/fav.png">
 <link rel="stylesheet" href="/assets/css/global-checkout.css?v=20261108-billing-brand2">
