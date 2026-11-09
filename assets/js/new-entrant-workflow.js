@@ -44,9 +44,8 @@ function profilePanel(d){
 function templatesPanel(){
  return '<section class="section panel nea-workflow-card" id="nea-resources"><div class="panel-head"><div><span class="nea-eyebrow">TEMPLATES & GUIDANCE</span><h2>Downloadable audit preparation templates</h2><p>Starter CSV worksheets for gathering records. These are preparation aids and are not official FMCSA forms.</p></div></div><div class="nea-resource-grid">'+
  Object.entries(templates).map(([id,v])=>'<button type="button" class="btn secondary nea-resource-btn" data-nea-template="'+E(id)+'"><span>↓</span> '+E(v.name)+'.csv</button>').join('')+
- '<button type="button" class="btn secondary nea-resource-btn" data-nea-template="authorization">↓ Carrier authorization letter (.txt)</button>'+
  '<button type="button" class="btn secondary nea-resource-btn" data-nea-export>↓ Export audit checklist (.csv)</button>'+
- '</div><p class="nea-note">Download and complete the templates, then upload the relevant records to their checklist items below. Keep original signed and dated records where FMCSA requires them.</p></section>';
+ '</div><div class="nea-authorization-panel"><div class="nea-authorization-title"><span class="nea-eyebrow">ELECTRONIC CUSTOMER CONSENT</span><h3>Send carrier authorization for signature</h3><p>Create a secure, expiring signing link to send to your carrier. Their signature, date, and time are recorded, and the signed record remains accessible in this audit file.</p></div><div class="nea-authorization-controls"><label><span>Carrier signer name (optional)</span><input type="text" id="neaAuthName" autocomplete="off" placeholder="Carrier representative"></label><label><span>Carrier signer email *</span><input type="email" id="neaAuthEmail" autocomplete="off" placeholder="name@carrier.com"></label><button type="button" class="btn primary" id="neaAuthCreate">Create signing link</button></div><p id="neaAuthMessage" role="status" class="nea-auth-message"></p><div id="neaAuthShare" class="nea-auth-share" hidden><label><span>Customer signing link</span><input id="neaAuthLink" type="text" readonly aria-label="Customer signing link"></label><div class="nea-auth-actions"><button type="button" id="neaAuthCopy" class="btn secondary">Copy signing link</button><a id="neaAuthEmailLink" class="btn secondary" href="#">Share by email</a></div></div><div class="nea-auth-history" id="neaAuthHistory"></div></div><p class="nea-note">Download and complete the CSV templates, then upload the relevant records to the checklist. Keep signed authorization records where FMCSA requires them.</p></section>';
 }
 function authPanel(d){
  const p=d.audit?.metadata?.profile||{},value=(k)=>p[k]||'';
@@ -113,15 +112,57 @@ function enhance(html,d){
  return root.innerHTML;
 }
 async function saveProfile(){const fields={};for(const el of $$('[data-nea-profile]'))fields[el.dataset.neaProfile]=el.value.trim();const output=$('#neaProfileMsg');if(output)output.textContent='Saving…';try{await api({action:'update_audit',audit_id:aid(),profile:fields});if(output)output.textContent='Saved securely';await window.Portal.refresh()}catch(e){if(output)output.textContent=e.message||'Unable to save'}}
+const authEndpoint="https://elpbnytpciqnbexiaebp.supabase.co/functions/v1/ctpa-new-entrant-authorization";
+async function authRequest(action,extra={}){
+ const session=(await window.Portal.sb.auth.getSession()).data?.session;
+ if(!session?.access_token)throw Error("Your session expired. Sign in again to continue.");
+ const r=await fetch(authEndpoint,{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+session.access_token},body:JSON.stringify({action,audit_id:aid(),...extra}),cache:"no-store"});
+ const d=await r.json().catch(()=>({}));if(!r.ok||d.error)throw Error(d.error||"Unable to process authorization");return d;
+}
+function renderAuthHistory(list){
+ const root=$("#neaAuthHistory");if(!root)return;
+ root.innerHTML=list.length?'<h4>Authorization requests</h4>'+list.map(x=>'<div class="nea-auth-record"><div><strong>'+E(x.recipient_name||x.recipient_email)+'</strong><small>'+E(x.recipient_email)+' · '+E(x.status)+' · '+E(x.signed_at?new Date(x.signed_at).toLocaleString():'Expires '+new Date(x.expires_at).toLocaleDateString())+'</small></div><div class="nea-auth-record-actions">'+(x.status==='signed'?'<button type="button" class="btn secondary btn-sm" data-nea-auth-pdf="'+E(x.id)+'">Print / Save PDF</button>':'')+(x.status==='pending'?'<button type="button" class="btn secondary btn-sm" data-nea-auth-revoke="'+E(x.id)+'">Revoke link</button>':'')+'</div></div>').join(''):'<p class="nea-note">No authorization requests yet.</p>';
+ root.querySelectorAll('[data-nea-auth-pdf]').forEach(b=>b.addEventListener('click',()=>printAuth(list.find(x=>x.id===b.dataset.neaAuthPdf))));
+ root.querySelectorAll('[data-nea-auth-revoke]').forEach(b=>b.addEventListener('click',async()=>{b.disabled=true;try{await authRequest('revoke',{authorization_id:b.dataset.neaAuthRevoke});await loadAuthHistory()}catch(e){$("#neaAuthMessage").textContent=e.message||"Unable to revoke request"}finally{b.disabled=false}}));
+}
+async function loadAuthHistory(){
+ try{const r=await authRequest("status");renderAuthHistory(r.authorizations||[])}catch(e){const msg=$("#neaAuthMessage");if(msg)msg.textContent=e.message||"Unable to load signing requests"}
+}
+function printAuth(x){
+ if(!x||x.status!=="signed")return;
+ const w=window.open("","_blank");if(!w){$("#neaAuthMessage").textContent="Allow popups to print the signed record";return}
+ w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>Signed carrier audit authorization</title><style>body{font:14px/1.55 Arial,sans-serif;max-width:760px;margin:48px auto;color:#01122f}header{border-bottom:4px solid #fdc102;padding:0 0 15px}h1{font-size:24px}.label{font-size:11px;font-weight:800;text-transform:uppercase;color:#64758b;margin-top:18px}.signature{font:36px cursive;border-bottom:1px solid #aab5c5;padding:15px 0}.note{font-size:12px;color:#55677d}@media print{button{display:none}}</style></head><body><header><strong>WORKFORCE by screenings4u</strong><p>FMCSA NEW ENTRANT SAFETY AUDIT</p></header><h1>Signed Limited Carrier Authorization</h1><p class="label">Carrier and USDOT</p><p>'+E(x.carrier_legal_name)+' · '+E(x.carrier_usdot)+'</p><p class="label">Authorized C/TPA</p><p>'+E(x.ctpa_legal_name)+'</p><p class="label">Authorized activities</p><p>'+E(x.scope_text)+'</p><p class="label">Signing official</p><p>'+E(x.signer_name)+' · '+E(x.signer_title)+' · '+E(x.signer_email)+'</p><p class="label">Electronic signature</p><div class="signature">'+E(x.signer_signature)+'</div><p><strong>Signed at (UTC):</strong> '+E(x.signed_at?new Date(x.signed_at).toISOString():'')+'</p><p class="note">Electronic signature and signer authority affirmed. Consent version: '+E(x.consent_version)+'. No access to government credentials is conveyed.</p><button onclick="window.print()">Print / Save PDF</button></body></html>');w.document.close();w.focus();
+}
+async function setupAuth(d){
+ const email=$("#neaAuthEmail");if(!email)return;
+ email.value=d.audit?.metadata?.profile?.contact_email||"";
+ $("#neaAuthCreate")?.addEventListener("click",async()=>{
+  const b=$("#neaAuthCreate"),msg=$("#neaAuthMessage");b.disabled=true;msg.textContent="Generating secure signing link…";
+  try{
+   const recipient_email=email.value.trim(),recipient_name=$("#neaAuthName").value.trim();
+   if(!recipient_email)throw Error("Enter the carrier's signing email.");
+   const r=await authRequest("create",{recipient_email,recipient_name});
+   $("#neaAuthLink").value=r.signing_url;
+   $("#neaAuthShare").hidden=false;
+   $("#neaAuthEmailLink").href="mailto:"+encodeURIComponent(recipient_email)+"?subject="+encodeURIComponent("Carrier authorization for FMCSA New Entrant Safety Audit")+"&body="+encodeURIComponent("Please review and electronically sign or decline the limited authorization for "+r.authorization.carrier_legal_name+":\n\n"+r.signing_url+"\n\nThis secure signing link expires in 14 days. Do not share your government login credentials.");
+   msg.textContent="Signing link created. Copy it or share it by email. No email has been sent automatically.";
+   await loadAuthHistory();
+  }catch(e){msg.textContent=e.message||"Unable to generate signing link"}finally{b.disabled=false}
+ });
+ $("#neaAuthCopy")?.addEventListener("click",async()=>{
+  const value=$("#neaAuthLink").value;try{await navigator.clipboard.writeText(value);$("#neaAuthMessage").textContent="Signing link copied."}catch(e){$("#neaAuthLink").select();$("#neaAuthMessage").textContent="Copy the selected signing link manually."}
+ });
+ await loadAuthHistory();
+}
 async function showDoc(id){try{const response=await api({action:'document_url_by_id',audit_id:aid(),document_id:id});window.open(response.url,'_blank','noopener')}catch(e){await window.S4UDialog?.alert(e.message||'Unable to open document')}}
 function bind(d){
  base.bind(d);if(!d?.audit)return;
  $('#neaSaveProfile')?.addEventListener('click',saveProfile);$('#neaSaveSubmission')?.addEventListener('click',saveProfile);
  $('#neaRefreshDocs')?.addEventListener('click',()=>window.Portal.refresh());
+ setupAuth(d);
  $$('[data-nea-doc]').forEach(btn=>btn.addEventListener('click',()=>showDoc(btn.dataset.neaDoc)));
  $$('[data-nea-template]').forEach(btn=>btn.addEventListener('click',()=>{
   const kind=btn.dataset.neaTemplate;
-  if(kind==='authorization'){dl('workforce-carrier-submission-authorization.txt','CARRIER AUTHORIZATION TO ASSIST WITH FMCSA NEW ENTRANT AUDIT\n\nCarrier legal name: ___________________\nUSDOT number: ___________________\n\nI authorize [C/TPA legal name] to assist with preparation of audit records and, where permitted by FMCSA and granted through appropriate official access, to submit records on behalf of the carrier.\n\nThis letter does not grant password access. Both parties use their own authorized credentials.\n\nAuthorized representative: ___________________\nCarrier official name and title: ___________________\nSignature: ___________________\nDate: ___________________\n\nRetain signed authorization in the carrier records. Confirm official FMCSA role requirements before submitting.', 'text/plain;charset=utf-8');return}
   const t=templates[kind];if(t)dl('workforce-'+kind+'-template.csv',[t.head,t.row].map(csvLine).join('\r\n'));
  }));
  $('[data-nea-export]')?.addEventListener('click',()=>exportItems(d));
