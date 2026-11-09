@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow,noarchive">
+<meta name="theme-color" content="#01122F"><link rel="icon" href="/images/fav.png" type="image/png">
+<title>Carrier Audit Authorization | Workforce C/TPA</title>
+<link rel="stylesheet" href="/assets/css/new-entrant-authorization.css?v=20261109-a1">
+</head>
+<body><header class="auth-top"><div class="auth-container auth-top-inner"><a href="https://workforce.screenings4u.com/" class="brand" aria-label="Workforce home"><strong><span class="mark">◢</span> Workforce</strong><small>by screenings4u</small></a><span class="auth-secure">Secure carrier authorization</span></div></header>
+<main class="auth-container">
+<div class="intro"><span class="eyebrow">FMCSA NEW ENTRANT SAFETY AUDIT</span><h1>Carrier authorization to assist with audit preparation</h1><p>Review the request from your C/TPA, confirm your authority to sign, and electronically sign or decline. You do not need to create an account or share government login credentials.</p></div>
+<div id="authStatus" class="status" role="status" aria-live="polite">Loading authorization request…</div>
+<section id="authCard" class="card" hidden>
+<div class="section-header"><div><span class="eyebrow">LIMITED AUTHORIZATION REQUEST</span><h2>Authorization details</h2></div><span class="request-pill" id="authExpires"></span></div>
+<div class="details"><div><small>Carrier / motor carrier</small><strong id="carrierName"></strong></div><div><small>USDOT number</small><strong id="carrierDot"></strong></div><div><small>Authorized C/TPA</small><strong id="ctpaName"></strong></div><div><small>Requested recipient</small><strong id="recipientName"></strong></div></div>
+<div class="scope"><h3>Specific powers being granted</h3><p id="scopeText"></p><p class="notice"><strong>Important:</strong> This authorization does not substitute for FMCSA-required access, separate agency permissions, notarization if required, or other legal requirements. Neither party should share Login.gov passwords, recovery codes, or MFA codes.</p></div>
+<form id="signForm" class="sign-form">
+<div class="form-grid">
+<label><span>Authorized representative's legal name *</span><input name="signer_name" id="signerName" required autocomplete="name"></label>
+<label><span>Title or signing capacity *</span><input name="signer_title" required placeholder="Owner, President, Authorized Officer"></label>
+<label class="wide"><span>Email address receiving this request *</span><input name="signer_email" id="signerEmail" type="email" required autocomplete="email"></label>
+</div>
+<div class="signature"><label><span>Type your full legal name to sign *</span><input name="signer_signature" id="signerSignature" required placeholder="Your full legal name"></label><div class="signature-preview" id="signaturePreview" aria-label="Cursive signature preview">Signature preview</div><small>The signature you enter will be stored with the exact date and time of signing.</small></div>
+<label class="check"><input type="checkbox" id="signAuthority" required><span>I confirm that I am authorized to act on behalf of the carrier identified above.</span></label>
+<label class="check"><input type="checkbox" id="signConsent" required><span>I consent to using an electronic signature and electronic records for this limited authorization, and intend my typed signature to be legally binding to the extent permitted by law.</span></label>
+<div class="actions"><button type="submit" class="button primary" id="signButton">Sign authorization</button><button type="button" class="button secondary" id="declineButton">Decline authorization</button></div>
+<p class="disclaimer">Signing authorizes only the expressly described audit-preparation tasks. It does not confer unrestricted power of attorney or authorize unrelated government filings. Contact your C/TPA to revoke permission or correct the record.</p>
+</form>
+</section>
+<section id="completedCard" class="card completed" hidden><span class="eyebrow">AUTHORIZATION RESPONSE RECORDED</span><h2 id="completedTitle"></h2><p id="completedText"></p><div id="completedDetails" class="details"></div><button type="button" id="printSigned" class="button primary" hidden>Print / Save signed record as PDF</button></section>
+</main>
+<footer><div class="auth-container">Workforce by screenings4u · Electronic records are maintained for authorized audit preparation. This service does not replace FMCSA's official authorization requirements.</div></footer>
+<script src="/assets/js/new-entrant-authorization.js?v=20261109-a1" defer></script>
+</body></html>
