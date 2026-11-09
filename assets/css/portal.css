@@ -1623,3 +1623,47 @@ body[data-portal-page="billing"] .billing-row-actions .mini-btn.primary{backgrou
 .nea-staff-paid strong{color:#1f6c3a}
 .nea-staff-paid p{margin:6px 0 0;color:#375e46}
 @media(max-width:750px){.audit-intake-actions{width:100%;flex-direction:column}.audit-intake-actions .btn{width:100%}}
+
+/* Unified Workforce visual system for alerts, confirmations, prompts and notifications */
+.wf-dialog-backdrop{z-index:2147483646!important;display:grid!important;place-items:center!important;overflow-y:auto;background:rgba(1,18,47,.73)!important;backdrop-filter:blur(4px);padding:18px!important}
+.wf-dialog{width:min(470px,100%);max-height:min(90dvh,760px);overflow:auto;background:#fff;border:1px solid #D4D3D4;border-top:4px solid #FDC102;border-radius:15px;box-shadow:0 24px 75px rgba(1,18,47,.31);color:#01122F;font-family:inherit}
+.wf-dialog-brand{display:flex;align-items:center;justify-content:space-between;gap:12px;background:#01122F;padding:17px 23px;border-bottom:2px solid #FDC102}
+.wf-dialog-brand img{width:150px;max-width:60%;height:auto;max-height:50px;object-fit:contain}
+.wf-dialog-brand-label{font-size:9px;font-weight:900;letter-spacing:.15em;color:#FDC102}
+.wf-dialog-content{padding:23px 25px 13px}
+.wf-dialog-content h2{font-size:clamp(18px,2vw,22px)!important;line-height:1.3!important;letter-spacing:-.025em;color:#01122F!important;margin:0 0 10px!important;font-weight:850!important}
+.wf-dialog-content p{font-size:14px!important;line-height:1.65;color:#4e6178!important;white-space:pre-wrap;margin:0!important;overflow-wrap:anywhere}
+.wf-dialog-field{display:block;margin:17px 0 0;color:#01122F;font-size:12px;font-weight:800}
+.wf-dialog-field span{display:block;margin:0 0 8px}
+.wf-dialog-field input{width:100%;min-height:44px;padding:10px 12px;border:1px solid #cbd6e3;border-radius:9px;background:#fff;color:#01122F;font:inherit;font-size:14px}
+.wf-dialog-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px;padding:11px 25px 22px}
+.wf-dialog-button{display:inline-flex;align-items:center;justify-content:center;min-width:81px;min-height:41px;border-radius:9px;padding:10px 17px;font:800 13px/1.3 inherit;cursor:pointer;transition:background .15s,border-color .15s,transform .15s}
+.wf-dialog-button:hover{transform:translateY(-1px)}
+.wf-dialog-primary{background:#FDC102;color:#01122F;border:1px solid #FDC102}
+.wf-dialog-primary:hover{background:#eab000;border-color:#eab000}
+.wf-dialog-secondary{background:#fff;border:1px solid #ced7e1;color:#01122F}
+.wf-dialog-secondary:hover{background:#f3f6f9;border-color:#9daec1}
+.wf-dialog-danger{background:#b42318;border:1px solid #b42318;color:#fff}
+.wf-dialog-danger:hover{background:#921d16}
+.wf-dialog :focus-visible,.s4u-dialog :focus-visible{outline:3px solid #FDC102;outline-offset:3px}
+.s4u-dialog-backdrop{z-index:2147483645!important;display:grid!important;place-items:center!important;padding:18px!important;background:rgba(1,18,47,.73)!important;backdrop-filter:blur(4px)}
+.s4u-dialog{width:min(580px,100%)!important;max-height:90dvh!important;background:#fff;border:1px solid #D4D3D4;border-top:4px solid #FDC102;border-radius:15px!important;padding:0!important;overflow:auto;box-shadow:0 24px 75px rgba(1,18,47,.31)}
+.s4u-dialog-wide{width:min(750px,100%)!important}
+.s4u-dialog-head{background:#01122F;color:#fff;padding:18px 23px;border-bottom:2px solid #FDC102;display:flex;justify-content:space-between;gap:15px;align-items:center}
+.wf-ui-dialog-brand{display:flex;align-items:center;gap:19px}
+.wf-ui-dialog-brand img{width:136px;height:auto;max-height:48px;object-fit:contain}
+.s4u-dialog-kicker{font-size:10px;color:#FDC102;font-weight:850;letter-spacing:.12em}
+.s4u-dialog-head h2{color:#fff!important;margin:4px 0 0;font-size:18px!important;line-height:1.3}
+.s4u-dialog-head .modal-x{border:1px solid #ffffff66;background:#ffffff18;color:white;border-radius:8px;min-width:32px;min-height:32px}
+.s4u-dialog-message{font-size:14px!important;color:#4e6178!important;line-height:1.6;padding:20px 24px 4px;margin:0!important;white-space:pre-wrap}
+.s4u-dialog-fields{padding:16px 24px 0}
+.s4u-dialog-fields .field span{color:#01122F;font-weight:750}
+.s4u-dialog .modal-actions{margin:0;padding:19px 24px 24px}
+.s4u-dialog .modal-actions .btn.primary{background:#FDC102!important;border-color:#FDC102!important;color:#01122F!important}
+.s4u-dialog .modal-actions .btn.ghost{background:#fff!important;border:1px solid #cbd6e3!important;color:#01122F!important}
+.s4u-toast-stack{position:fixed;right:20px;bottom:22px;display:grid;gap:10px;max-width:min(400px,calc(100vw - 36px));z-index:2147483644}
+.s4u-toast{font-size:13px;line-height:1.5;font-weight:750;border:1px solid #D4D3D4;border-left:4px solid #FDC102;border-radius:10px;padding:13px 16px;background:#fff;color:#01122F;box-shadow:0 8px 28px rgba(1,18,47,.18);transition:opacity .2s,transform .2s}
+.s4u-toast.bad{border-left-color:#b42318}.s4u-toast.warn{border-left-color:#e1a600}.s4u-toast.leaving{opacity:0;transform:translateY(8px)}
+body.loading::before{content:"Loading Workforce C/TPA…"}
+@media(max-width:640px){.wf-dialog-backdrop,.s4u-dialog-backdrop{place-items:center!important;align-items:center!important;padding:12px!important}.wf-dialog-brand{padding:14px 18px}.wf-dialog-content{padding:19px 18px 11px}.wf-dialog-actions{padding:10px 18px 18px}.s4u-dialog{max-height:calc(100dvh - 24px)!important;border-radius:13px!important}.s4u-dialog-head{padding:14px 16px}.wf-ui-dialog-brand{gap:10px}.wf-ui-dialog-brand img{width:105px}.s4u-dialog-message{padding:16px 17px 0}.s4u-dialog-fields{padding:13px 17px 0}.s4u-dialog .modal-actions{padding:16px 17px 19px}.s4u-toast-stack{right:12px;bottom:12px}}
+@media(prefers-reduced-motion:reduce){.wf-dialog-button,.s4u-toast{transition:none}}
