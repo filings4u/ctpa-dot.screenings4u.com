@@ -121,18 +121,18 @@ async function authRequest(action,extra={}){
 }
 function renderAuthHistory(list){
  const root=$("#neaAuthHistory");if(!root)return;
- root.innerHTML=list.length?'<h4>Authorization requests</h4>'+list.map(x=>'<div class="nea-auth-record"><div><strong>'+E(x.recipient_name||x.recipient_email)+'</strong><small>'+E(x.recipient_email)+' · '+E(x.status)+' · '+E(x.signed_at?new Date(x.signed_at).toLocaleString():'Expires '+new Date(x.expires_at).toLocaleDateString())+'</small></div><div class="nea-auth-record-actions">'+(x.status==='signed'?'<button type="button" class="btn secondary btn-sm" data-nea-auth-pdf="'+E(x.id)+'">Print / Save PDF</button>':'')+(x.status==='pending'?'<button type="button" class="btn secondary btn-sm" data-nea-auth-revoke="'+E(x.id)+'">Revoke link</button>':'')+'</div></div>').join(''):'<p class="nea-note">No authorization requests yet.</p>';
+ root.innerHTML=list.length?'<h4>Authorization requests</h4>'+list.map(x=>'<div class="nea-auth-record"><div><strong>'+E(x.recipient_name||x.recipient_email)+'</strong><small>'+E(x.recipient_email)+' · '+E(x.status)+' · '+E(x.signed_at?new Date(x.signed_at).toLocaleString():'Expires '+new Date(x.expires_at).toLocaleDateString())+'</small></div><div class="nea-auth-record-actions">'+(x.status==='signed'?'<button type="button" class="btn secondary btn-sm" data-nea-auth-pdf="'+E(x.id)+'">Download</button>':'')+(x.status==='pending'?'<button type="button" class="btn secondary btn-sm" data-nea-auth-revoke="'+E(x.id)+'">Revoke link</button>':'')+'</div></div>').join(''):'<p class="nea-note">No authorization requests yet.</p>';
  root.querySelectorAll('[data-nea-auth-pdf]').forEach(b=>b.addEventListener('click',()=>printAuth(list.find(x=>x.id===b.dataset.neaAuthPdf))));
  root.querySelectorAll('[data-nea-auth-revoke]').forEach(b=>b.addEventListener('click',async()=>{b.disabled=true;try{await authRequest('revoke',{authorization_id:b.dataset.neaAuthRevoke});await loadAuthHistory()}catch(e){$("#neaAuthMessage").textContent=e.message||"Unable to revoke request"}finally{b.disabled=false}}));
 }
 async function loadAuthHistory(){
  try{const r=await authRequest("status");renderAuthHistory(r.authorizations||[])}catch(e){const msg=$("#neaAuthMessage");if(msg)msg.textContent=e.message||"Unable to load signing requests"}
 }
-function printAuth(x){
+async function printAuth(x){
  if(!x||x.status!=="signed")return;
- const w=window.open("","_blank");if(!w){$("#neaAuthMessage").textContent="Allow popups to print the signed record";return}
- w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>Signed carrier audit authorization</title><style>body{font:14px/1.55 Arial,sans-serif;max-width:760px;margin:48px auto;color:#01122f}header{border-bottom:4px solid #fdc102;padding:0 0 15px}h1{font-size:24px}.label{font-size:11px;font-weight:800;text-transform:uppercase;color:#64758b;margin-top:18px}.signature{font:36px cursive;border-bottom:1px solid #aab5c5;padding:15px 0}.note{font-size:12px;color:#55677d}@media print{button{display:none}}</style></head><body><header><strong>WORKFORCE by screenings4u</strong><p>FMCSA NEW ENTRANT SAFETY AUDIT</p></header><h1>Signed Limited Carrier Authorization</h1><p class="label">Carrier and USDOT</p><p>'+E(x.carrier_legal_name)+' · '+E(x.carrier_usdot)+'</p><p class="label">Authorized C/TPA</p><p>'+E(x.ctpa_legal_name)+'</p><p class="label">Authorized activities</p><p>'+E(x.scope_text)+'</p><p class="label">Signing official</p><p>'+E(x.signer_name)+' · '+E(x.signer_title)+' · '+E(x.signer_email)+'</p><p class="label">Electronic signature</p><div class="signature">'+E(x.signer_signature)+'</div><p><strong>Signed at (UTC):</strong> '+E(x.signed_at?new Date(x.signed_at).toISOString():'')+'</p><p class="note">Electronic signature and signer authority affirmed. Consent version: '+E(x.consent_version)+'. No access to government credentials is conveyed.</p><button onclick="window.print()">Print / Save PDF</button></body></html>');w.document.close();w.focus();
+ try{await window.CtpaAuthorizationPDF.download(x)}catch(e){const msg=$("#neaAuthMessage");if(msg)msg.textContent=e.message||"Unable to download the signed PDF"}
 }
+
 async function setupAuth(d){
  const email=$("#neaAuthEmail");if(!email)return;
  email.value=d.audit?.metadata?.profile?.contact_email||"";
