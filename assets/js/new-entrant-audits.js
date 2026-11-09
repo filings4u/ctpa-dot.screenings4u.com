@@ -74,7 +74,15 @@ function bind(d){
   }catch(err){alert(err.message||'Please save your audit information before continuing.')}
   finally{button.disabled=false}
  });
- if(new URLSearchParams(location.search).has('audit_payment'))window.CtpaNewEntrantPayment?.resume();
+ const params=new URLSearchParams(location.search);
+ if(params.has('audit_payment')){window.CtpaNewEntrantPayment?.resume()}
+ else if(params.has('purchase')){
+  const product=params.get('purchase')==='staff'?'staff':'addon';
+  const id=params.get('id');
+  const clean=new URL(location.href);clean.searchParams.delete('purchase');
+  history.replaceState(history.state,'',clean.pathname+clean.search+clean.hash);
+  queueMicrotask(()=>window.CtpaNewEntrantPayment?.open(product,product==='staff'?id:null));
+ }
  $('#startAudit')?.addEventListener('click',()=>startAudit('self_service'));
  $('#startStaffIntake')?.addEventListener('click',()=>startAudit('staff'));
  if(!d?.audit)return;
