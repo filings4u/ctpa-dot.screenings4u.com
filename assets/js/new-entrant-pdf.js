@@ -16,7 +16,7 @@ async function download(row){
  const pdf=new JsPDF({unit:"pt",format:"letter",compress:true});
  const W=612,P=45,R=W-P,MAX=740;let y=132;const logo=await logoData();
  function header(){pdf.setFillColor(1,18,47);pdf.rect(0,0,W,105,"F");pdf.setFillColor(253,193,2);pdf.rect(0,104,W,4,"F");
- if(logo){const width=Math.min(205,logo.aspect*65),height=width/logo.aspect;pdf.addImage(logo.data,"PNG",P,18,width,height)}
+ if(logo){const width=Math.min(132,logo.aspect*42),height=width/logo.aspect;pdf.addImage(logo.data,"PNG",P,22,width,height)}
  else {pdf.setTextColor(255);pdf.setFont("helvetica","bold");pdf.setFontSize(18);pdf.text("WORKFORCE by screenings4u",P,52)}
  pdf.setTextColor(255);pdf.setFont("helvetica","normal");pdf.setFontSize(10);pdf.text("FMCSA NEW ENTRANT SAFETY AUDIT  |  LIMITED AUTHORIZATION",P,94);}
  function next(n){if(y+n>MAX){pdf.addPage();header();y=132}}
