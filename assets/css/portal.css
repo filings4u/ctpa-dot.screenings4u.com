@@ -1611,3 +1611,15 @@ body[data-portal-page="billing"] .billing-row-actions .mini-btn.primary{backgrou
 .audit-addon-notice>div{min-width:0;flex:1 1 300px}
 .audit-addon-notice .btn{flex:0 0 auto;white-space:nowrap}
 @media(max-width:620px){.nea-checkout-backdrop{padding:10px;align-items:center}.nea-checkout-modal{max-height:calc(100dvh - 20px)}.nea-checkout-head{padding:16px 17px}.nea-checkout-head h2{font-size:17px}.nea-checkout-summary{padding:12px 17px}.nea-checkout-summary strong{font-size:21px}.nea-checkout-body{padding:18px 17px 20px}.audit-staff-intake{padding:14px}.audit-staff-intake .btn,.audit-addon-notice .btn{width:100%;white-space:normal}}
+
+/* Two paths for New Entrant: own workspace vs. paid staff preparation */
+.audit-intake-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-width:250px}
+.audit-intake-actions .btn{min-height:38px;white-space:normal;text-align:center}
+.audit-intake-actions .btn.secondary{background:#fff;border:1px solid #b7c6d7;color:#01122F;font-weight:800}
+.audit-intake-actions .btn.secondary:hover{border-color:#FDC102;background:#fff7d6}
+.audit-intake-actions .btn:disabled{opacity:.48;cursor:not-allowed}
+.audit-staff-intake strong{display:block;margin:0 0 6px;font-size:13px;color:#01122F}
+.nea-staff-paid{width:100%;background:#eff8f1;border:1px solid #cee9d4;border-radius:9px;padding:13px 16px}
+.nea-staff-paid strong{color:#1f6c3a}
+.nea-staff-paid p{margin:6px 0 0;color:#375e46}
+@media(max-width:750px){.audit-intake-actions{width:100%;flex-direction:column}.audit-intake-actions .btn{width:100%}}
