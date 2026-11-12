@@ -123,7 +123,7 @@ async function nondotWorkspaceAccess(){
 async function saveNondotRecord(payload){
  const w=workspace(),session=await getSession();
  if(w?.surface!=='nondot'||!w.ctpa_id||!w.subscription_id||!session?.access_token)throw Error("Select your authorized NON-DOT workspace through Workforce.");
- if(!['save_employee','save_program','save_pool','create_test_order'].includes(payload?.action))throw Error("Unsupported NON-DOT operation");
+ if(!['save_employee','save_program','save_pool','create_test_order','update_employee','update_program','add_pool_member','remove_pool_member'].includes(payload?.action))throw Error("Unsupported NON-DOT operation");
  const response=await fetch(C.workforceUrl+"/functions/v1/workforce-ctpa-nondot-workspace",{
   method:"POST",cache:"no-store",headers:{"Content-Type":"application/json",apikey:C.workforceKey,Authorization:"Bearer "+session.access_token},
   body:JSON.stringify({...payload,ctpa_id:w.ctpa_id,subscription_id:w.subscription_id,operating_context:"nondot"})
