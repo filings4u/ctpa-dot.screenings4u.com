@@ -54,7 +54,21 @@ Deno.serve(async(req:Request)=>{
    authorized:true,features:{lab_account:true},
    lab_accounts:(labs.data||[]).map((x:any)=>({
     id:x.id,lab_name:x.lab_name,account_code:x.account_code,is_primary:x.is_primary,status:x.status,
-    account_numbers:{dot:String(x.config?.account_numbers?.dot||x.account_code||""),non_dot:String(x.config?.account_numbers?.non_dot||""),hair:String(x.config?.account_numbers?.hair||""),oral:String(x.config?.account_numbers?.oral||"")}
+    account_numbers:(()=>{
+     // A single-number lab assignment may be NON-DOT, hair, or oral.
+     // Never relabel it as a DOT account merely because account_code exists.
+     const config=x.config&&typeof x.config==="object"?x.config:{};
+     const configured=config.account_numbers&&typeof config.account_numbers==="object"?config.account_numbers:{};
+     const allowed=["dot","non_dot","hair","oral"];
+     const numbers:Record<string,string>={dot:"",non_dot:"",hair:"",oral:""};
+     for(const key of allowed)numbers[key]=String(configured[key]||"");
+     const accountType=String(config.account_type||"").toLowerCase();
+     if(allowed.includes(accountType)&&x.account_code&&!numbers[accountType])
+      numbers[accountType]=String(x.account_code);
+     else if(!accountType&&!allowed.some(key=>numbers[key])&&x.account_code)
+      numbers.dot=String(x.account_code); // legacy untyped DOT assignment
+     return numbers;
+    })()
    })),
    setup_records:intake.data||[],shipments:shipment.data||[],
    note:"This migration view is read-only. Test orders, CCFs, results, and supply requests remain in their existing authorized workflows until integrated and tested."
