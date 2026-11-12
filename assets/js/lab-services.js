@@ -16,9 +16,12 @@ const card=(label,value)=>'<div class="metric"><small>'+esc(label)+'</small><str
 const sections=[
  {id:"overview",label:"Overview"},
  {id:"accounts",label:"Laboratory accounts"},
+ {id:"clients",label:"Lab client directory"},
  {id:"orders",label:"Order a test"},
  {id:"tracking",label:"Testing & donor passes"},
+ {id:"deliveries",label:"Result delivery"},
  {id:"supplies",label:"Supplies"},
+ {id:"alerts",label:"Supply alerts"},
  {id:"documents",label:"Documents & CCFs"},
  {id:"billing",label:"Billing"},
  {id:"support",label:"Support"}
@@ -26,6 +29,8 @@ const sections=[
 const tabLinks=()=>'<nav class="lab-section-nav" aria-label="Lab Account sections">'+sections.map(x=>'<button class="btn ghost lab-section-tab" type="button" data-lab-tab="'+esc(x.id)+'">'+esc(x.label)+'</button>').join('')+'</nav>';
 const labForm=()=>'<section class="section" data-lab-panel="orders"><h2>Order a laboratory test</h2><p>Submit a request into Workforce Testing Management. Scheduling and donor-pass issuance follow staff review.</p><p id="lab-order-message" role="status" aria-live="polite"></p><form id="lab-order-form" class="panel"><div class="lab-migration-grid"><label>Test service <select name="service_id" required id="lab-order-service"><option value="">Loading available services…</option></select></label><label>First name <input name="first_name" maxlength="100" required></label><label>Last name <input name="last_name" maxlength="100" required></label><label>Donor email <input name="donor_email" type="email" required></label><label>Donor phone <input name="donor_phone" type="tel" maxlength="35"></label><label>Date of birth <input name="date_of_birth" type="date" required></label><label>State of residence <input name="state_of_residence" maxlength="2" pattern="[A-Za-z]{2}" placeholder="IL" required></label><label>Reason for testing <select name="reason_for_test" required><option value="">Choose reason</option><option value="PE">Pre-employment</option><option value="RN">Random</option><option value="PA">Post-accident</option><option value="RS">Reasonable suspicion</option><option value="RT">Return to duty</option><option value="FU">Follow-up</option><option value="NI">Other / not indicated</option></select></label><label id="lab-authority-wrap" hidden>DOT authority <select name="testing_authority"><option value="">Choose agency</option><option value="FMCSA">FMCSA</option><option value="FAA">FAA</option><option value="FRA">FRA</option><option value="FTA">FTA</option><option value="PHMSA">PHMSA</option><option value="USCG">USCG</option></select></label></div><label>Notes for Workforce Testing <textarea name="notes" maxlength="1000" rows="3"></textarea></label><div><button class="btn primary" type="submit" id="lab-order-submit">Submit testing request</button></div></form></section>';
 const supplyForm=()=>'<section class="section" data-lab-panel="supplies"><h2>Request testing supplies</h2><p>Choose physical supply items and provide the shipping destination. Workforce Testing Management handles fulfillment and tracking.</p><p id="lab-supply-status" role="status" aria-live="polite"></p><form id="lab-supply-form" class="panel"><div id="lab-supply-catalog">Open the Supplies tab to load available items.</div><div class="lab-migration-grid"><label>Recipient <input name="recipient" required maxlength="180"></label><label>Street address <input name="line1" required maxlength="180"></label><label>Address line 2 <input name="line2" maxlength="180"></label><label>City <input name="city" required maxlength="180"></label><label>State <input name="state" required minlength="2" maxlength="2" pattern="[A-Za-z]{2}"></label><label>ZIP code <input name="postal_code" required pattern="[0-9]{5}(-[0-9]{4})?"></label></div><label>Special instructions <textarea name="notes" maxlength="1000" rows="3"></textarea></label><button class="btn primary" type="submit" id="lab-supply-submit">Request supplies</button></form></section>';
+const legacyRecordPanel=(section,label,description)=>
+ '<section class="section" data-lab-panel="'+esc(section)+'"><h2>'+esc(label)+'</h2><p>'+esc(description)+'</p><div id="lab-records-'+esc(section)+'" class="lab-record-list" aria-live="polite">Loading existing Lab Account records…</div></section>';
 const scopedLink=(href,label,detail)=>'<a class="panel lab-feature-link" href="'+esc(href)+'"><strong>'+esc(label)+'</strong><small>'+esc(detail)+'</small></a>';
 function render(d){
  if(d?.authorized!==true)return '<section class="panel"><h2>Lab Account access unavailable</h2><p>Your company must have an active purchased Lab Account add-on.</p></section>';
@@ -54,6 +59,10 @@ function render(d){
  '<section class="section" data-lab-panel="tracking"><h2>Lab Account testing requests</h2><p>Read-only request status for records linked to this C/TPA. Requests without verified company linkage stay in the original Lab Account portal until Workforce completes the account mapping.</p>'+
  (requests.length?requests.map(r=>'<div class="panel lab-migration-row"><div><strong>'+esc(r.case_number||"Testing request")+'</strong><small>'+esc(r.test_type||"Test type pending")+' · Submitted '+date(r.created_at)+'</small><small>Donor pass: '+esc(tag(r.donor_pass_status||"not_issued"))+(r.donor_pass_issued_at?' · Issued '+date(r.donor_pass_issued_at):'')+'</small></div><span class="badge">'+esc(tag(r.status))+'</span></div>').join(''):'<div class="panel">No testing requests are currently verified for this C/TPA. Existing orders remain available in the original Lab Account portal during migration.</div>')+'</section>'+
  labForm()+ 
+ legacyRecordPanel('clients','Lab client directory','Previously saved Lab Account contacts. Use the existing C/TPA Employers module for current company management; these legacy contact records are retained separately until reconciled.')+
+ legacyRecordPanel('deliveries','Lab result delivery history','Previously requested result deliveries associated with your original Lab Account. Actual testing results remain in authorized Workforce Results workflows.')+
+ legacyRecordPanel('alerts','Supply reorder alerts','Existing Lab Account supply alert records are preserved while laboratory supplies are consolidated.')+
+
  '<section class="section" data-lab-panel="documents"><h2>Lab Account documents and collection forms</h2><p>View Workforce-published laboratory account documents. Existing C/TPA and testing documents remain available in their original Workforce modules.</p><div id="lab-published-documents" class="lab-document-list" aria-live="polite">Loading published documents…</div><dialog id="lab-document-preview" class="lab-document-dialog"><div class="lab-document-dialog-bar"><h3 id="lab-document-title">Document preview</h3><button class="btn ghost" type="button" id="lab-document-close">Close</button></div><iframe title="Lab Account document preview" id="lab-document-frame"></iframe></dialog>'+scopedLink('/documents.html','C/TPA Documents','Existing company documents workspace')+scopedLink('/testing-documents.html','Testing documents','Existing C/TPA testing documentation')+'</section>'+
  '<section class="section" data-lab-panel="billing"><h2>Account billing</h2><p>Workforce C/TPA already has billing and order history. Laboratory-specific charges must remain identifiable separately from unrelated subscriptions.</p>'+scopedLink('/billing.html','Workforce Billing','Existing C/TPA billing and invoices')+scopedLink('/order-history.html','Order history','Existing C/TPA purchase records')+'</section>'+
  '<section class="section" data-lab-panel="support"><h2>Lab Account support</h2><p>Contact Workforce support for test registration, collection instructions, or laboratory-account issues.</p>'+scopedLink('/support.html','Contact Support','Existing C/TPA support workflow')+'</section>'+
@@ -70,6 +79,7 @@ function bind(call){
   if(selected==='supplies')loadSupplies();
   if(selected==='documents')loadDocuments();
   if(selected==='tracking')loadPasses();
+  if(['clients','alerts','deliveries'].includes(selected))loadLegacyRecords(selected);
  }
  buttons.forEach(button=>button.addEventListener('click',()=>selectTab(button.dataset.labTab)));
  const form=root.querySelector('#lab-order-form'),select=root.querySelector('#lab-order-service'),message=root.querySelector('#lab-order-message');
@@ -92,6 +102,28 @@ function bind(call){
   wrap.hidden=!dot;const authority=wrap.querySelector('select');authority.required=dot;
   if(!dot)authority.value='';
  });
+ const legacyConfig={
+  clients:{action:'legacy_clients',fields:[['Company','company_name'],['Contact','contact_name'],['Email','contact_email'],['Phone','phone'],['Program','program_type']]},
+  alerts:{action:'legacy_supply_alerts',fields:[['Supply','supply_name'],['On hand','estimated_on_hand'],['Reorder threshold','reorder_threshold'],['Enabled','enabled']]},
+  deliveries:{action:'legacy_deliveries',fields:[['Recipient','recipient_name'],['Email','recipient_email'],['Purpose','purpose'],['Status','status'],['Submitted','created_at']]}
+ };
+ const legacyCache={};
+ async function loadLegacyRecords(section){
+  if(legacyCache[section])return;
+  const spec=legacyConfig[section],host=root.querySelector('#lab-records-'+section);
+  if(!spec||!host)return;
+  host.textContent='Loading saved Lab Account records…';
+  try{
+   const result=await call(spec.action),records=result.records||[];
+   legacyCache[section]=records;
+   host.innerHTML=records.length?records.map(record=>
+    '<article class="panel lab-legacy-card"><div class="lab-migration-grid">'+spec.fields.map(([label,key])=>{
+     const value=record[key]===true?'Yes':record[key]===false?'No':record[key];
+     return '<div><small>'+esc(label)+'</small><strong>'+esc(value===null||value===undefined||value===''?'—':value)+'</strong></div>';
+    }).join('')+'</div></article>'
+   ).join(''):'<div class="panel">No saved records are associated with the verified original Lab Account purchaser.</div>';
+  }catch(error){host.textContent=error.message||'Unable to load previous Lab Account records.'}
+ }
  const passHost=root.querySelector('#lab-issued-passes'),passModal=root.querySelector('#lab-pass-modal');
  let passes=null;
  async function loadPasses(){
