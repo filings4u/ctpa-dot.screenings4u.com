@@ -66,6 +66,13 @@ function render(d){
 
 
  const availablePools=(d.data?.pools||[]).filter(x=>x?.id&&x?.employer_id&&x.pool_type==='employer'&&x.status!=='archived');
+ const poolEdit=managers&&section.id==='pools'&&availablePools.some(p=>p.status==='draft')?
+ '<section class="panel nondot-create"><div class="panel-head"><h2>Edit draft NON-DOT pools</h2></div>'+
+ availablePools.filter(p=>p.status==='draft').slice(0,100).map(p=>
+ '<form class="nondot-pool-edit-form"><input type="hidden" name="pool_id" value="'+esc(p.id)+'">'+
+ '<label>Pool name<input name="name" required maxlength="120" value="'+esc(p.name||p.pool_name||'')+'"></label>'+
+ '<button type="submit" class="btn primary">Save pool name</button><p role="status" aria-live="polite"></p></form>'
+ ).join('')+'</section>':'';
  const poolWorkers=(d.data?.employees||[]).filter(x=>x?.id&&x?.employer_id);
  const activeMemberships=(d.data?.memberships||[]).filter(m=>m?.id&&m?.pool_id&&m?.employee_id);
  const poolMembersControl=managers&&section.id==='pools'&&availablePools.length&&poolWorkers.length?
@@ -90,7 +97,7 @@ function render(d){
  (section.id==='people'?'<label>First name<input name="first_name" required maxlength="120" autocomplete="off"></label><label>Last name<input name="last_name" required maxlength="120" autocomplete="off"></label><label>Employee number (optional)<input name="employee_number" maxlength="40" autocomplete="off"></label>' :section.id==='testing'?'<label>NON-DOT employee<select name="employee_id" required><option value="">Select an employee</option>'+employees.map(e=>'<option value="'+esc(e.id)+'" data-employer-id="'+esc(e.employer_id)+'">'+esc([e.first_name,e.last_name].filter(Boolean).join(' ')||'Employee')+'</option>').join('')+'</select></label><label>NON-DOT program<select name="program_id" required><option value="">Select a program</option>'+programs.map(p=>'<option value="'+esc(p.id)+'" data-employer-id="'+esc(p.employer_id)+'">'+esc(p.name||'Program')+'</option>').join('')+'</select></label><label>Testing type<select name="test_type" required><option value="drug">Drug test</option><option value="alcohol">Alcohol test</option></select></label>':section.id==='pools'?'<label>NON-DOT program<select name="program_id" required><option value="">Select a program</option>'+programs.map(p=>'<option value="'+esc(p.id)+'" data-employer-id="'+esc(p.employer_id)+'">'+esc(p.name||'Program')+'</option>').join('')+'</select></label><label>Pool name<input name="name" required maxlength="120" autocomplete="off"></label>':'<label>Program name<input name="name" required maxlength="120" autocomplete="off"></label>')+
  '<p class="nondot-privacy-note">Only NON-DOT records for the selected employer will be created. Your subscription and role are checked again when you submit.</p><button type="submit" class="btn primary">Save '+esc(section.id==='people'?'employee':section.id==='pools'?'draft pool':section.id==='testing'?'testing order':'program')+'</button><p id="nondot-create-status" aria-live="polite" role="status"></p></form></section>':'';
 
- return '<div class="nondot-workspace"><section class="panel"><div class="panel-head"><div><h2>NON-DOT Workforce</h2><p>Company-policy operations for your authorized C/TPA company. These records stay separate from DOT-regulated records.</p></div><span class="badge">'+(managers?'Authorized account manager':'Read-only migration view')+'</span></div>'+tabs+'</section><section class="panel"><div class="panel-head"><div><h2>'+esc(section.label)+'</h2><p>'+esc(section.detail)+'</p></div></div>'+body+'</section>'+form+editForms+poolMembersControl+'<p class="nondot-privacy-note">Authorized primary managers can create and rename NON-DOT employees and programs, create draft pools, manage employer-pool memberships, and create testing orders. Random selections, result release and delivery, and other administrative changes remain in their original secured workflows.</p></div>';
+ return '<div class="nondot-workspace"><section class="panel"><div class="panel-head"><div><h2>NON-DOT Workforce</h2><p>Company-policy operations for your authorized C/TPA company. These records stay separate from DOT-regulated records.</p></div><span class="badge">'+(managers?'Authorized account manager':'Read-only migration view')+'</span></div>'+tabs+'</section><section class="panel"><div class="panel-head"><div><h2>'+esc(section.label)+'</h2><p>'+esc(section.detail)+'</p></div></div>'+body+'</section>'+form+editForms+poolEdit+poolMembersControl+'<p class="nondot-privacy-note">Authorized primary managers can create and rename NON-DOT employees and programs, create and rename draft pools, manage employer-pool memberships, and create testing orders. Random selections, result release and delivery, and other administrative changes remain in their original secured workflows.</p></div>';
 }
 function bind(data,submit){
  if(!submit||data?.can_manage!==true||data?.read_only!==false)return;
@@ -106,6 +113,18 @@ function bind(data,submit){
    button.disabled=true;status.textContent='Saving changes…';
    try{await submit({section,action:section==='people'?'update_employee':'update_program',[section==='people'?'employee':'program']:value});location.reload();}
    catch(e){status.textContent=e?.message||'Update failed';button.disabled=false;}
+  });
+ }
+ for(const form of document.querySelectorAll('.nondot-pool-edit-form')){
+  form.addEventListener('submit',async event=>{
+   event.preventDefault();
+   const fd=new FormData(form),button=form.querySelector('button[type="submit"]'),status=form.querySelector('[role="status"]');
+   if(button.disabled)return;
+   const id=String(fd.get('pool_id')||''),name=String(fd.get('name')||'').trim();
+   if(!name){status.textContent='A pool name is required';return;}
+   button.disabled=true;status.textContent='Saving draft pool…';
+   try{await submit({section:'pools',action:'update_pool',pool:{id,name}});location.reload();}
+   catch(error){status.textContent=error?.message||'Unable to update pool';button.disabled=false;}
   });
  }
  const memberForm=document.querySelector('#nondot-pool-member-form');
