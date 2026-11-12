@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import {PDFDocument,StandardFonts,rgb} from "npm:pdf-lib@1.17.1";
 const H={"Access-Control-Allow-Origin":"https://ctpa.screenings4u.com","Access-Control-Allow-Headers":"authorization,apikey,content-type,x-client-info","Access-Control-Allow-Methods":"POST,OPTIONS","Content-Type":"application/json","Cache-Control":"no-store"};
 const out=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:H});
 const uuid=(x:unknown)=>/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(x||""));
@@ -15,7 +16,7 @@ Deno.serve(async(req:Request)=>{
   if(authError||!user?.id||!user.email_confirmed_at)return out({error:"Verified sign-in required"},401);
   const payload=await req.json().catch(()=>({}));
   const action=String(payload.action||"access"),ctpaId=String(payload.ctpa_id||""),subscriptionId=String(payload.subscription_id||"");
-  if(!["access","overview","catalog","create_order","supply_catalog","request_supplies","documents","document_url","issued_passes","legacy_clients","legacy_supply_alerts","legacy_deliveries","report_specimen_shipped","order_details","update_order","ccf_archive","ccf_url","released_cases","request_result_delivery","lab_purchases","lab_invoices","lab_invoice_detail","historical_documents","historical_document_url","lab_intake_details"].includes(action)||!uuid(ctpaId)||!uuid(subscriptionId))return out({error:"Invalid C/TPA workspace and subscription"},400);
+  if(!["access","overview","catalog","create_order","supply_catalog","request_supplies","documents","document_url","issued_passes","legacy_clients","legacy_supply_alerts","legacy_deliveries","report_specimen_shipped","order_details","update_order","ccf_archive","ccf_url","released_cases","request_result_delivery","lab_purchases","lab_invoices","lab_invoice_detail","historical_documents","historical_document_url","lab_intake_details","lab_intake_pdf"].includes(action)||!uuid(ctpaId)||!uuid(subscriptionId))return out({error:"Invalid C/TPA workspace and subscription"},400);
   const db=createClient(url,secret,{auth:{persistSession:false,autoRefreshToken:false}});
   // Reuse the C/TPA's verified workspace boundary; organization membership alone is insufficient.
   const session=await db.rpc("ctpa_dot_session_context",{p_user_id:user.id,p_ctpa_id:ctpaId,p_subscription_id:subscriptionId});
@@ -38,7 +39,7 @@ Deno.serve(async(req:Request)=>{
   if(grant.error)throw grant.error;
   if(!grant.data)return out({authorized:false,reason:"Lab Account add-on not enabled for this company"},403);
   if(action==="access")return out({authorized:true,features:{lab_account:true},organization_id:c.data.organization_id});
-  if(["historical_documents","historical_document_url","lab_intake_details"].includes(action)){
+  if(["historical_documents","historical_document_url","lab_intake_details","lab_intake_pdf"].includes(action)){
    // Historical files have user ownership rather than a company assignment;
    // never expose one purchaser's documents to all C/TPA members.
    if(!grant.data.source_order_id||grant.data.linked_customer_user_id!==user.id)
@@ -89,7 +90,7 @@ Deno.serve(async(req:Request)=>{
    }
    const recordId=String(payload.document_id||"");
    if(!uuid(recordId))return out({error:"Valid document identifier required"},400);
-   if(action==="lab_intake_details"){
+   if(action==="lab_intake_details"||action==="lab_intake_pdf"){
     const form=await db.from("standalone_form_submissions")
      .select("id,submission_number,form_title,status,created_at,payload")
      .eq("id",recordId).eq("customer_user_id",user.id)
@@ -101,6 +102,44 @@ Deno.serve(async(req:Request)=>{
     const detail=Object.fromEntries(Object.entries(raw).filter(([key])=>
      !/(captcha|turnstile|token|password|credential|secret|api[_-]?key|authorization|form_started_at)/i.test(key)
     ));
+    if(action==="lab_intake_pdf"){
+     const pdf=await PDFDocument.create();
+     const font=await pdf.embedFont(StandardFonts.Helvetica);
+     const strong=await pdf.embedFont(StandardFonts.HelveticaBold);
+     pdf.setTitle("Workforce Lab Account Intake");
+     pdf.setAuthor("Workforce");
+     let page=pdf.addPage([612,792]),y=738;
+     const fresh=()=>{page=pdf.addPage([612,792]);y=738};
+     const draw=(value:unknown,size=10,bold=false)=>{
+      const face=bold?strong:font;
+      const raw=String(value??"").replace(/[^\\x20-\\x7E]/g," ").slice(0,12000);
+      let line="";
+      const write=(str:string)=>{
+       if(y<65)fresh();
+       page.drawText(str,{x:48,y,size,font:face,color:rgb(.02,.07,.18)});
+       y-=size+7;
+      };
+      for(const word of raw.split(/\\s+/)){
+       if(!word)continue;
+       const candidate=line?line+" "+word:word;
+       if(face.widthOfTextAtSize(candidate,size)>510&&line){write(line);line=word}
+       else line=candidate;
+      }
+      if(line)write(line);
+     };
+     draw("WORKFORCE | LAB ACCOUNT",12,true);y-=5;
+     draw(form.data.form_title||"Lab Account Intake",18,true);y-=7;
+     draw("Reference: "+String(form.data.submission_number||"Not assigned"));
+     draw("Submitted: "+String(form.data.created_at||""));y-=15;
+     for(const [key,value] of Object.entries(detail)){
+      draw(String(key).replace(/[_-]/g," ").toUpperCase(),10,true);
+      draw(typeof value==="string"?value:JSON.stringify(value),10);y-=7;
+     }
+     const bytes=await pdf.save(),parts:string[]=[];
+     for(let i=0;i<bytes.length;i+=32768)
+      parts.push(String.fromCharCode(...bytes.slice(i,i+32768)));
+     return out({pdf_base64:btoa(parts.join("")),filename:"Workforce-Lab-Account-Intake.pdf",mime_type:"application/pdf"});
+    }
     return out({authorized:true,intake:{
       id:form.data.id,title:form.data.form_title||"Lab Account Intake",
       reference:form.data.submission_number,status:form.data.status,
