@@ -15,7 +15,7 @@ Deno.serve(async(req:Request)=>{
   if(authError||!user?.id||!user.email_confirmed_at)return out({error:"Verified sign-in required"},401);
   const payload=await req.json().catch(()=>({}));
   const action=String(payload.action||"access"),ctpaId=String(payload.ctpa_id||""),subscriptionId=String(payload.subscription_id||"");
-  if(!["access","overview","catalog","create_order","supply_catalog","request_supplies","documents","document_url","issued_passes","legacy_clients","legacy_supply_alerts","legacy_deliveries","report_specimen_shipped","order_details","update_order","ccf_archive","ccf_url","released_cases","request_result_delivery"].includes(action)||!uuid(ctpaId)||!uuid(subscriptionId))return out({error:"Invalid C/TPA workspace and subscription"},400);
+  if(!["access","overview","catalog","create_order","supply_catalog","request_supplies","documents","document_url","issued_passes","legacy_clients","legacy_supply_alerts","legacy_deliveries","report_specimen_shipped","order_details","update_order","ccf_archive","ccf_url","released_cases","request_result_delivery","lab_purchases","lab_invoices","lab_invoice_detail"].includes(action)||!uuid(ctpaId)||!uuid(subscriptionId))return out({error:"Invalid C/TPA workspace and subscription"},400);
   const db=createClient(url,secret,{auth:{persistSession:false,autoRefreshToken:false}});
   // Reuse the C/TPA's verified workspace boundary; organization membership alone is insufficient.
   const session=await db.rpc("ctpa_dot_session_context",{p_user_id:user.id,p_ctpa_id:ctpaId,p_subscription_id:subscriptionId});
@@ -38,6 +38,60 @@ Deno.serve(async(req:Request)=>{
   if(grant.error)throw grant.error;
   if(!grant.data)return out({authorized:false,reason:"Lab Account add-on not enabled for this company"},403);
   if(action==="access")return out({authorized:true,features:{lab_account:true},organization_id:c.data.organization_id});
+  if(["lab_purchases","lab_invoices","lab_invoice_detail"].includes(action)){
+   // These records are individually purchased or addressed; no billing data is
+   // shared across C/TPA members or exposed by matching customer email.
+   if(!grant.data.source_order_id||grant.data.linked_customer_user_id!==user.id)
+    return out({authorized:true,orders:[],invoices:[]});
+   if(action==="lab_purchases"){
+    const purchase=await db.from("orders")
+     .select("id,order_number,user_id,payment_status,status,total,currency,created_at,paid_at,order_items(quantity,unit_price,line_total,metadata,services(name,sku))")
+     .eq("id",grant.data.source_order_id).maybeSingle();
+    if(purchase.error)throw purchase.error;
+    if(!purchase.data)return out({authorized:true,orders:[]});
+    const items=(purchase.data.order_items||[]).map((x:any)=>({
+     name:x.services?.name||x.metadata?.service_name||"Laboratory account service",
+     sku:String(x.services?.sku||x.metadata?.service_sku||"").toLowerCase(),
+     quantity:x.quantity,unit_price:x.unit_price,line_total:x.line_total
+    }));
+    const allowed=new Set(["lab-account","lab-account-random-consortium",
+     "lab-account-random-consortium-docs","lab-account-workflow-test-1",
+     "lab-upgrade-consortium","lab-upgrade-consortium-docs","lab-upgrade-docs"]);
+    const selected=items.filter((x:any)=>allowed.has(x.sku));
+    const intake=await db.from("lab_account_intakes").select("service_sku")
+     .eq("order_id",purchase.data.id).eq("customer_user_id",user.id).limit(1);
+    if(intake.error)throw intake.error;
+    if(!selected.length&&items.length===1&&!items[0].sku&&
+       intake.data?.length===1&&allowed.has(String(intake.data[0].service_sku).toLowerCase()))
+     selected.push({...items[0],sku:intake.data[0].service_sku});
+    if(!selected.length)return out({authorized:true,orders:[]});
+    const subtotal=selected.reduce((sum:number,item:any)=>
+     sum+Number(item.line_total??Number(item.unit_price||0)*Number(item.quantity||1)),0);
+    return out({authorized:true,orders:[{
+     id:purchase.data.id,order_number:purchase.data.order_number,
+     payment_status:purchase.data.payment_status,status:purchase.data.status,
+     created_at:purchase.data.created_at,paid_at:purchase.data.paid_at,
+     total:subtotal,currency:purchase.data.currency,items:selected
+    }]});
+   }
+   // Lab invoice listing is tied to the verified Lab Account purchase order,
+   // not every invoice belonging to this user or company.
+   const invoices=await db.from("invoices")
+    .select("id,invoice_number,status,issue_date,due_date,total,amount_paid,amount_due,currency,notes,terms,sent_at,paid_at,order_id")
+    .eq("order_id",grant.data.source_order_id).eq("customer_user_id",user.id)
+    .neq("status","draft").not("sent_at","is",null)
+    .order("issue_date",{ascending:false}).limit(100);
+   if(invoices.error)throw invoices.error;
+   if(action==="lab_invoices")return out({authorized:true,invoices:invoices.data||[]});
+   if(!uuid(payload.invoice_id))return out({error:"Valid Lab Account invoice required"},400);
+   const invoice=(invoices.data||[]).find((x:any)=>x.id===payload.invoice_id);
+   if(!invoice)return out({error:"Invoice not linked to this Lab Account purchase"},404);
+   const items=await db.from("invoice_items")
+    .select("id,description,quantity,unit_price,discount_amount,tax_amount,line_total")
+    .eq("invoice_id",invoice.id).order("created_at",{ascending:true});
+   if(items.error)throw items.error;
+   return out({authorized:true,invoice,items:items.data||[]});
+  }
   if(action==="released_cases"||action==="request_result_delivery"){
    // The legacy Lab Account delivery request is a review queue, not an
    // automatic transmission of confidential laboratory results.
