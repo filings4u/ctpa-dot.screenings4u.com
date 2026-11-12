@@ -15,7 +15,7 @@ Deno.serve(async(req:Request)=>{
   if(authError||!user?.id||!user.email_confirmed_at)return out({error:"Verified sign-in required"},401);
   const payload=await req.json().catch(()=>({}));
   const action=String(payload.action||"access"),ctpaId=String(payload.ctpa_id||""),subscriptionId=String(payload.subscription_id||"");
-  if(!["access","overview","catalog","create_order","supply_catalog","request_supplies","documents","document_url","issued_passes"].includes(action)||!uuid(ctpaId)||!uuid(subscriptionId))return out({error:"Invalid C/TPA workspace and subscription"},400);
+  if(!["access","overview","catalog","create_order","supply_catalog","request_supplies","documents","document_url","issued_passes","legacy_clients","legacy_supply_alerts","legacy_deliveries"].includes(action)||!uuid(ctpaId)||!uuid(subscriptionId))return out({error:"Invalid C/TPA workspace and subscription"},400);
   const db=createClient(url,secret,{auth:{persistSession:false,autoRefreshToken:false}});
   // Reuse the C/TPA's verified workspace boundary; organization membership alone is insufficient.
   const session=await db.rpc("ctpa_dot_session_context",{p_user_id:user.id,p_ctpa_id:ctpaId,p_subscription_id:subscriptionId});
@@ -38,6 +38,32 @@ Deno.serve(async(req:Request)=>{
   if(grant.error)throw grant.error;
   if(!grant.data)return out({authorized:false,reason:"Lab Account add-on not enabled for this company"},403);
   if(action==="access")return out({authorized:true,features:{lab_account:true},organization_id:c.data.organization_id});
+  if(["legacy_clients","legacy_supply_alerts","legacy_deliveries"].includes(action)){
+   // Preserve previously created customer-scoped Lab Account records without
+   // silently converting contacts into C/TPA employer or donor records.
+   if(!grant.data.source_order_id||grant.data.linked_customer_user_id!==user.id)
+    return out({authorized:true,records:[]});
+   if(action==="legacy_clients"){
+    const q=await db.from("lab_portal_clients")
+     .select("id,company_name,contact_name,contact_email,phone,program_type,notes,created_at")
+     .eq("customer_user_id",user.id).is("archived_at",null)
+     .order("created_at",{ascending:false}).limit(200);
+    if(q.error)throw q.error;
+    return out({authorized:true,records:q.data||[]});
+   }
+   if(action==="legacy_supply_alerts"){
+    const q=await db.from("lab_portal_supply_alerts")
+     .select("id,supply_name,estimated_on_hand,reorder_threshold,enabled,last_alert_at,created_at")
+     .eq("customer_user_id",user.id).order("created_at",{ascending:false}).limit(200);
+    if(q.error)throw q.error;
+    return out({authorized:true,records:q.data||[]});
+   }
+   const q=await db.from("lab_portal_result_deliveries")
+    .select("id,testing_case_id,recipient_name,recipient_email,purpose,status,created_at,completed_at")
+    .eq("customer_user_id",user.id).order("created_at",{ascending:false}).limit(200);
+   if(q.error)throw q.error;
+   return out({authorized:true,records:q.data||[]});
+  }
   if(action==="issued_passes"){
    // Issued passes contain donor details: return only the signed-in user's
    // own cases within the explicitly selected, purchased C/TPA organization.
