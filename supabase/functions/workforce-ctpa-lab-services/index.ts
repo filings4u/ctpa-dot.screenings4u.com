@@ -39,8 +39,9 @@ Deno.serve(async(req:Request)=>{
   if(!grant.data)return out({authorized:false,reason:"Lab Account add-on not enabled for this company"},403);
   if(action==="access")return out({authorized:true,features:{lab_account:true},organization_id:c.data.organization_id});
   if(action==="issued_passes"){
-   // Issued passes contain donor details: retain the legacy purchaser boundary.
-   if(!grant.data.source_order_id||grant.data.linked_customer_user_id!==user.id)
+   // Issued passes contain donor details: return only the signed-in user's
+   // own cases within the explicitly selected, purchased C/TPA organization.
+   if(!grant.data.source_order_id)
     return out({authorized:true,passes:[]});
    const cases=await db.from("testing_cases").select("id")
     .eq("customer_user_id",user.id)
@@ -231,7 +232,6 @@ Deno.serve(async(req:Request)=>{
     // through this migration inventory; the dedicated pass workflow owns them.
     const passes=await db.from("testing_donor_passes")
      .select("testing_case_id,status,issued_at,created_at")
-     .eq("customer_user_id",grant.data.linked_customer_user_id)
      .in("testing_case_id",caseIds)
      .order("created_at",{ascending:false}).limit(250);
     if(passes.error)throw passes.error;
