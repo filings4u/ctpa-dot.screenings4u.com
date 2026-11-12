@@ -15,7 +15,7 @@ Deno.serve(async(req:Request)=>{
   if(authError||!user?.id||!user.email_confirmed_at)return out({error:"Verified sign-in required"},401);
   const payload=await req.json().catch(()=>({}));
   const action=String(payload.action||"access"),ctpaId=String(payload.ctpa_id||""),subscriptionId=String(payload.subscription_id||"");
-  if(!["access","overview","catalog","create_order","supply_catalog","request_supplies","documents","document_url"].includes(action)||!uuid(ctpaId)||!uuid(subscriptionId))return out({error:"Invalid C/TPA workspace and subscription"},400);
+  if(!["access","overview","catalog","create_order","supply_catalog","request_supplies","documents","document_url","issued_passes"].includes(action)||!uuid(ctpaId)||!uuid(subscriptionId))return out({error:"Invalid C/TPA workspace and subscription"},400);
   const db=createClient(url,secret,{auth:{persistSession:false,autoRefreshToken:false}});
   // Reuse the C/TPA's verified workspace boundary; organization membership alone is insufficient.
   const session=await db.rpc("ctpa_dot_session_context",{p_user_id:user.id,p_ctpa_id:ctpaId,p_subscription_id:subscriptionId});
@@ -38,6 +38,24 @@ Deno.serve(async(req:Request)=>{
   if(grant.error)throw grant.error;
   if(!grant.data)return out({authorized:false,reason:"Lab Account add-on not enabled for this company"},403);
   if(action==="access")return out({authorized:true,features:{lab_account:true},organization_id:c.data.organization_id});
+  if(action==="issued_passes"){
+   // Issued passes contain donor details: retain the legacy purchaser boundary.
+   if(!grant.data.source_order_id||grant.data.linked_customer_user_id!==user.id)
+    return out({authorized:true,passes:[]});
+   const cases=await db.from("testing_cases").select("id")
+    .eq("customer_user_id",user.id)
+    .contains("metadata",{source:"lab_account_portal",ctpa_id:ctpaId,organization_id:c.data.organization_id})
+    .order("created_at",{ascending:false}).limit(250);
+   if(cases.error)throw cases.error;
+   const ids=(cases.data||[]).map((r:any)=>r.id);
+   if(!ids.length)return out({authorized:true,passes:[]});
+   const rows=await db.from("testing_donor_passes")
+    .select("id,pass_number,status,testing_case_id,donor_name,test_type,collection_site_name,collection_site_address,collection_deadline,issued_at")
+    .eq("customer_user_id",user.id).eq("status","issued")
+    .in("testing_case_id",ids).order("issued_at",{ascending:false}).limit(250);
+   if(rows.error)throw rows.error;
+   return out({authorized:true,passes:rows.data||[]});
+  }
   if(action==="documents"||action==="document_url"){
    // Legacy published Lab Account documents were assigned to a purchaser,
    // not a company. Keep that original privacy boundary until migrated.
