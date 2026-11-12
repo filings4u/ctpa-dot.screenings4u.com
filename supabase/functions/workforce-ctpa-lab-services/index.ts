@@ -75,9 +75,9 @@ Deno.serve(async(req:Request)=>{
     note=val(payload.notes,1000),
     serviceId=val(payload.service_id,40);
    if(!uuid(serviceId)||!first||!last||first.length>100||last.length>100||
-      !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)||
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||
       !/^[A-Z]{2}$/.test(state)||!["PE","RN","PA","RS","RT","FU","NI"].includes(reason)||
-      !/^\\d{4}-\\d{2}-\\d{2}$/.test(dob)||Number.isNaN(Date.parse(dob))||
+      !/^\d{4}-\d{2}-\d{2}$/.test(dob)||Number.isNaN(Date.parse(dob))||
       new Date(dob)>new Date())return out({error:"Complete the required donor and test fields"},400);
    const service=catalog.find((x:any)=>x.id===serviceId);
    if(!service)return out({error:"Selected testing service is unavailable"},409);
