@@ -44,6 +44,11 @@ function drawData(section,data){
 }
 function render(d){
  if(d?.ok!==true||d?.context!=='nondot')return '<section class="panel"><h2>NON-DOT access unavailable</h2><p>This workspace requires an independently authorized NON-DOT subscription and feature entitlement.</p></section>';
+ if(location.pathname==='/nondot-workspace.html'){
+  const eligible=new Set(Array.isArray(d.available_sections)?d.available_sections:[]);
+  const cards=sections.filter(x=>eligible.has(x.id)).map(x=>'<a class="card utility-card" href="/nondot-'+x.id+'.html"><h3>'+esc(x.label)+'</h3><p>'+esc(x.detail)+'</p><strong>Open NON-DOT module</strong></a>').join('');
+  return '<section class="panel"><h2>NON-DOT Dashboard</h2><p>Manage company-policy testing and NON-DOT records in this workspace. DOT compliance records are managed separately under DOT Workspace.</p></section>'+(cards?'<div class="cards utility-grid">'+cards+'</div>':'<section class="panel"><h3>No NON-DOT modules assigned</h3><p>Your current subscription has no authorized NON-DOT modules. Contact Workforce support for assistance.</p></section>');
+ }
  const section=sections.find(x=>x.id===d.section)||sections[1];
  const eligible=new Set(Array.isArray(d.available_sections)?d.available_sections:[]);
  const standalone=/^\/nondot-(people|programs|pools|testing|results)\.html$/.test(location.pathname);
