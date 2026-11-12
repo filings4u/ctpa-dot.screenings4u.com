@@ -50,22 +50,29 @@ function render(d){
  const managers=d.can_manage===true&&d.read_only===false;
  const employers=(d.data?.employers||[]).filter(x=>x&&x.id);
  const employerOptions=employers.map(e=>'<option value="'+esc(e.id)+'">'+esc(e.legal_name||'Employer')+'</option>').join('');
- const canCreate=managers&&employers.length>0&&['people','programs'].includes(section.id);
- const form=canCreate?'<section class="panel nondot-create"><div class="panel-head"><h2>'+esc(section.id==='people'?'Add NON-DOT Employee':'Create NON-DOT Program')+'</h2></div>'+
+ const canCreate=managers&&employers.length>0&&['people','programs','pools'].includes(section.id);
+ const programs=(d.data?.programs||[]).filter(p=>p?.id&&p?.employer_id);
+ const eligibleCreate=section.id!=='pools'||programs.length>0;
+ const form=canCreate&&eligibleCreate?'<section class="panel nondot-create"><div class="panel-head"><h2>'+esc(section.id==='people'?'Add NON-DOT Employee':section.id==='pools'?'Create NON-DOT Random Pool':'Create NON-DOT Program')+'</h2></div>'+
  '<form id="nondot-create-form"><label>Employer<select name="employer_id" required><option value="">Select an employer</option>'+employerOptions+'</select></label>'+
- (section.id==='people'?'<label>First name<input name="first_name" required maxlength="120" autocomplete="off"></label><label>Last name<input name="last_name" required maxlength="120" autocomplete="off"></label><label>Employee number (optional)<input name="employee_number" maxlength="40" autocomplete="off"></label>':'<label>Program name<input name="name" required maxlength="120" autocomplete="off"></label>')+
- '<p class="nondot-privacy-note">Only NON-DOT records for the selected employer will be created. Your subscription and role are checked again when you submit.</p><button type="submit" class="btn primary">Save '+esc(section.id==='people'?'employee':'program')+'</button><p id="nondot-create-status" aria-live="polite" role="status"></p></form></section>':'';
+ (section.id==='people'?'<label>First name<input name="first_name" required maxlength="120" autocomplete="off"></label><label>Last name<input name="last_name" required maxlength="120" autocomplete="off"></label><label>Employee number (optional)<input name="employee_number" maxlength="40" autocomplete="off"></label>' :section.id==='pools'?'<label>NON-DOT program<select name="program_id" required><option value="">Select a program</option>'+programs.map(p=>'<option value="'+esc(p.id)+'" data-employer-id="'+esc(p.employer_id)+'">'+esc(p.name||'Program')+'</option>').join('')+'</select></label><label>Pool name<input name="name" required maxlength="120" autocomplete="off"></label>':'<label>Program name<input name="name" required maxlength="120" autocomplete="off"></label>')+
+ '<p class="nondot-privacy-note">Only NON-DOT records for the selected employer will be created. Your subscription and role are checked again when you submit.</p><button type="submit" class="btn primary">Save '+esc(section.id==='people'?'employee':section.id==='pools'?'draft pool':'program')+'</button><p id="nondot-create-status" aria-live="polite" role="status"></p></form></section>':'';
 
  return '<div class="nondot-workspace"><section class="panel"><div class="panel-head"><div><h2>NON-DOT Workforce</h2><p>Company-policy operations for your authorized C/TPA company. These records stay separate from DOT-regulated records.</p></div><span class="badge">'+(managers?'Authorized account manager':'Read-only migration view')+'</span></div>'+tabs+'</section><section class="panel"><div class="panel-head"><div><h2>'+esc(section.label)+'</h2><p>'+esc(section.detail)+'</p></div></div>'+body+'</section>'+form+'<p class="nondot-privacy-note">This migration view supports primary-account-manager employee and program creation only. Testing orders, random selections, result delivery and edits to existing records remain in their original authorized workflows until fully migrated.</p></div>';
 }
 function bind(data,submit){
  const form=document.querySelector('#nondot-create-form');
  if(!form||!submit||data?.can_manage!==true||data?.read_only!==false)return;
+ if(data.section==='pools'){
+  const employer=form.querySelector('[name="employer_id"]'),program=form.querySelector('[name="program_id"]');
+  const filter=()=>{const selected=employer.value;for(const o of program.options){if(!o.value)continue;o.hidden=o.dataset.employerId!==selected;}if(program.selectedOptions[0]?.hidden)program.value='';};
+  employer.addEventListener('change',filter);filter();
+ }
  form.addEventListener('submit',async event=>{
   event.preventDefault();
   const fd=new FormData(form);
   const section=String(data.section);
-  if(section!=='people'&&section!=='programs')return;
+  if(!['people','programs','pools'].includes(section))return;
   const saveButton=form.querySelector('button[type="submit"]'),message=form.querySelector('#nondot-create-status');
   if(saveButton.disabled)return;
   const record={employer_id:String(fd.get('employer_id')||'')};
@@ -73,12 +80,15 @@ function bind(data,submit){
    record.first_name=String(fd.get('first_name')||'').trim();
    record.last_name=String(fd.get('last_name')||'').trim();
    record.employee_number=String(fd.get('employee_number')||'').trim();
-  }else record.name=String(fd.get('name')||'').trim();
+  }else{
+   record.name=String(fd.get('name')||'').trim();
+   if(section==='pools')record.program_id=String(fd.get('program_id')||'');
+  }
   saveButton.disabled=true;
   message.textContent='Saving your NON-DOT record…';
   try{
-   await submit({section,action:section==='people'?'save_employee':'save_program',
-    [section==='people'?'employee':'program']:record});
+   await submit({section,action:section==='people'?'save_employee':section==='pools'?'save_pool':'save_program',
+    [section==='people'?'employee':section==='pools'?'pool':'program']:record});
    message.textContent='Saved. Refreshing your workspace…';
    location.reload();
   }catch(error){
