@@ -45,6 +45,9 @@ const saveMid=()=>{};
 let NAV=[];
 const LABORATORY_PAGES=Object.freeze({"laboratory_overview":{"label":"Laboratory Overview","section":"overview"},"laboratory_accounts":{"label":"Laboratory Accounts","section":"accounts"},"laboratory_orders":{"label":"Laboratory Test Orders","section":"orders"},"laboratory_tracking":{"label":"Donor Passes & Tracking","section":"tracking"},"laboratory_results":{"label":"Released Lab Results","section":"results"},"laboratory_delivery":{"label":"Result Delivery","section":"deliveries"},"laboratory_supplies":{"label":"Laboratory Supplies","section":"supplies"},"laboratory_alerts":{"label":"Supply Alerts","section":"alerts"},"laboratory_documents":{"label":"Lab Documents & CCFs","section":"documents"},"laboratory_billing":{"label":"Laboratory Invoices","section":"billing"},"laboratory_analytics":{"label":"Laboratory Analytics","section":"analytics"},"laboratory_consortiums":{"label":"Historical Consortiums","section":"consortium"},"laboratory_services":{"label":"Lab Service Requests","section":"services"},"laboratory_benefits":{"label":"Historical Benefits","section":"benefits"},"laboratory_clients":{"label":"Lab Client Directory","section":"clients"}});
 const isLaboratoryPage=p=>Boolean(LABORATORY_PAGES[norm(p)]);
+const NONDOT_PAGES=Object.freeze({nondot_people:'people',nondot_programs:'programs',nondot_pools:'pools',nondot_testing:'testing',nondot_results:'results'});
+const isNonDotPage=p=>p==='nondot_workspace'||Boolean(NONDOT_PAGES[norm(p)]);
+const nondotSection=p=>NONDOT_PAGES[norm(p)]||new URLSearchParams(location.search).get('section')||'programs';
 /* Plan policy derives from signed-in C/TPA subscription context (Supabase plan_features).
    Do not treat Enterprise as an unconditional override: disabled catalog entries stay disabled.
    Backend functions must independently authorize every protected read and mutation. */
@@ -77,29 +80,53 @@ const managerRole=ctx=>{
 function pageAccess(ctx,p){
  if(C.kind!=='ctpa')return {allowed:true};
  const key=norm(p);
- if(workspace()?.surface==='nondot'&&!['nondot_workspace','support'].includes(key))return {allowed:false,reason:'Select the DOT workspace to use DOT features.',feature:'nondot_access'};
+ if(workspace()?.surface==='nondot'&&!isNonDotPage(key)&&!['support','subscription','billing','notifications'].includes(key))return {allowed:false,reason:'Select the DOT workspace to use DOT features.',feature:'nondot_access'};
  const feature=PAGE_FEATURES[key];
  if(feature&&!planHas(ctx,feature))return {allowed:false,reason:'This feature is not included with your current C/TPA subscription.',feature};
  if(MANAGER_PAGES.has(key)&&!managerRole(ctx))return {allowed:false,reason:'Your C/TPA team role does not permit this administrative action.',feature};
  // Lab Account navigation is part of the C/TPA workspace. Protected lab
  // records and mutations remain exclusively authorized in the backend.
- if(key==='nondot_workspace'&&ctx?.nondotVerified!==true)return {allowed:false,reason:'An independently authorized NON-DOT subscription is required for this C/TPA organization.',feature:'nondot_access'};
+ if(isNonDotPage(key)&&ctx?.nondotVerified!==true)return {allowed:false,reason:'An independently authorized NON-DOT subscription is required for this C/TPA organization.',feature:'nondot_access'};
  return {allowed:true};
 }
 function buildNavigation(ctx={}){
-  if(workspace()?.surface==='nondot')return [{id:'nondot-workspace',label:'NON-DOT Workspace',icon:'⇄',href:'/nondot-workspace.html'},{id:'support',label:'Support',icon:'?',href:'/support.html'}];
-  const e=ctx.entitlements||{};
-  const items=[
-    ['dashboard','DOT Workspace','⌂',null],['nondot-workspace','NON-DOT Workspace','⇄',null],
-    ['employers','Employers','▣','employer_management'],['people','People','●','employee_management'],['programs','Programs','◎','programs'],
-    ['pools','Pools','◉','consortium_pools'],['selections','Selections','↻','random_selections'],['testing','Testing','◆','testing_orders'],['results','Results','✓','results_summary'],
-['compliance','Compliance','◇','compliance'],['new-entrant-audits','New Entrant Audits','☑',null],['documents','Documents','▤','documents'],['legal-documents','Signed Legal Documents','▤',null],['reports','Reports','▥','standard_reports'],['occupational-health','Occupational Health','✚','testing_orders'],['notifications','Employer Messages','✉','notifications'],
-    ['create-order','Create Order','＋',null],['price-list','Testing Price List','$',null],['order-services','Add Features','＋',null],['order-history','Order History','≡',null],['subscription','Subscription','◫',null],['billing','Workforce Billing','$','billing_tools'],['employer-billing','Employer Billing','$','client_invoicing'],
-    ['branding','Branding','◐','white_label'],['integrations','Integrations','↔','integrations'],['locations','Locations','⌖','locations'],['users-roles','Users & Roles','♙','team_users'],['audit-history','Audit & Log History','◷','audit_history'],['schedule-demo','Schedule Demo','◫',null],['attend-demo','Attend Demo','▶',null],['support','Support','? ',null]
+ const surface=workspace()?.surface==='nondot'?'nondot':'dot';
+ const workspaces=[
+  {id:'dashboard',label:'DOT Workspace',icon:'⌂',href:'/dashboard.html',switchSurface:'dot'},
+  {id:'nondot-workspace',label:'NON-DOT Workspace',icon:'⇄',href:'/nondot-workspace.html',switchSurface:'nondot'}
+ ];
+ if(surface==='nondot'){
+  const sections=[
+   ['nondot-people','Employees','●'],
+   ['nondot-programs','Programs','◎'],
+   ['nondot-pools','Random Pools','◉'],
+   ['nondot-testing','Testing Orders','◆'],
+   ['nondot-results','Results','✓']
   ];
-  for(const [id,meta] of Object.entries(LABORATORY_PAGES))items.push([id.replaceAll('_','-'),meta.label,'⚗',null]);
-  const enterprise=String(ctx?.plan?.code||ctx?.subscription?.plan_code||'').toLowerCase()==='dot_ctpa_enterprise';
-  return items.filter(x=>(!x[3]||e[x[3]]===true)&&(!x[4]||enterprise)&&(x[0]==='nondot-workspace'||pageAccess(ctx,norm(x[0])).allowed)).map(x=>({id:x[0],label:x[1],icon:x[2],href:`/${x[0]}.html`}));
+  return [...workspaces,...sections.map(([id,label,icon])=>({id,label,icon,href:'/'+id+'.html'})),
+   ...[['subscription','Subscription','◫'],['billing','Billing','$'],['notifications','Notifications','✉'],['support','Support','?']].map(([id,label,icon])=>({id,label,icon,href:'/'+id+'.html'}))];
+ }
+ const e=ctx.entitlements||{};
+ const items=[
+  ['employers','Employers','▣','employer_management'],['people','People','●','employee_management'],
+  ['programs','Programs','◎','programs'],['pools','Pools','◉','consortium_pools'],
+  ['selections','Selections','↻','random_selections'],['testing','Testing','◆','testing_orders'],
+  ['results','Results','✓','results_summary'],['compliance','Compliance','◇','compliance'],
+  ['new-entrant-audits','New Entrant Audits','☑',null],['documents','Documents','▤','documents'],
+  ['legal-documents','Signed Legal Documents','▤',null],['reports','Reports','▥','standard_reports'],
+  ['occupational-health','Occupational Health','✚','testing_orders'],
+  ['notifications','Employer Messages','✉','notifications'],['create-order','Create Order','＋',null],
+  ['price-list','Testing Price List','$',null],['order-services','Add Features','＋',null],
+  ['order-history','Order History','≡',null],['subscription','Subscription','◫',null],
+  ['billing','Workforce Billing','$','billing_tools'],['employer-billing','Employer Billing','$','client_invoicing'],
+  ['branding','Branding','◐','white_label'],['integrations','Integrations','↔','integrations'],
+  ['locations','Locations','⌖','locations'],['users-roles','Users & Roles','♙','team_users'],
+  ['audit-history','Audit & Log History','◷','audit_history'],['schedule-demo','Schedule Demo','◫',null],
+  ['attend-demo','Attend Demo','▶',null],['support','Support','? ',null]
+ ];
+ for(const [id,meta] of Object.entries(LABORATORY_PAGES))items.push([id.replaceAll('_','-'),meta.label,'⚗',null]);
+ return [...workspaces,...items.filter(x=>(!x[3]||e[x[3]]===true)&&pageAccess(ctx,norm(x[0])).allowed)
+   .map(x=>({id:x[0],label:x[1],icon:x[2],href:'/'+x[0]+'.html'}))];
 }
 const cfgPage=id=>NAV.find(x=>norm(x.id)===norm(id))||{id,label:pretty(id),icon:'•',href:`/${id}.html`};
 
@@ -137,7 +164,7 @@ async function saveNondotRecord(payload){
  return data;
 }
 async function nondotWorkspaceData(){
- const session=await getSession(),w=workspace(),section=new URLSearchParams(location.search).get("section")||"programs";
+ const session=await getSession(),w=workspace(),section=nondotSection(page());
  const accepted=["people","programs","pools","testing","results"];
  if(!accepted.includes(section))return {ok:false,context:"nondot",message:"Unknown NON-DOT module"};
  if(!session?.access_token||!w?.ctpa_id||!w.subscription_id)throw Error("Select an authorized C/TPA subscription");
@@ -150,20 +177,9 @@ async function nondotWorkspaceData(){
  return result;
 }
 async function syncNondotNavigation(ctx){
- try{
-  if(!await nondotWorkspaceAccess())return;
-  ctx.nondotVerified=true;
-  NAV=buildNavigation(ctx);
-  for(const nav of document.querySelectorAll(".side .nav,.mobile-nav-links")){
-   if(nav.querySelector('a[href="/nondot-workspace.html"]'))continue;
-   const a=document.createElement("a");a.href="/nondot-workspace.html";a.innerHTML='<span class="ico">⇄</span><span>NON-DOT Workspace</span>';
-   if(page()==="nondot_workspace")a.classList.add("active");
-   const before=nav.querySelector('a[href="/workforce-context.html"]');
-   if(before)before.insertAdjacentElement("afterend",a);else nav.append(a);
-  }
- }catch(e){
-  if(e?.status!==401&&e?.status!==403)console.warn("NON-DOT access check failed",e);
- }
+ // Workspace links are built once by buildNavigation; never inject duplicates.
+ if(workspace()?.surface!=='dot')return;
+ try{ctx.nondotVerified=await nondotWorkspaceAccess()}catch{ctx.nondotVerified=false}
 }
 async function labServiceCall(action="access",details={}){
  const session=await getSession(),id=workspace()?.ctpa_id,subscriptionId=workspace()?.subscription_id;
@@ -181,7 +197,11 @@ function syncLabNavigation(){return}
 async function access(){if(window.S4UCTPAVerifiedContext)return window.S4UCTPAVerifiedContext;if(window.S4UCTPAAuthReady)return await window.S4UCTPAAuthReady;throw Object.assign(new Error('Authentication verification is unavailable.'),{status:500})}
 
 function organizePortalNavigation(){
- const groups=[
+ const groups=workspace()?.surface==='nondot'?[
+  ['People & Programs',['nondot-people','nondot-programs','nondot-pools']],
+  ['Testing & Results',['nondot-testing','nondot-results']],
+  ['Account & Support',['subscription','billing','notifications','support']]
+ ]:[
   ["People & Programs",["employers","people","programs","pools","selections","owner-operators","laboratory-clients","laboratory-consortiums"]],
   ["Testing & Laboratory Services",["testing","create-order","order-history","results","occupational-health","laboratory-overview","laboratory-accounts","laboratory-orders","laboratory-tracking","laboratory-results","laboratory-delivery","laboratory-supplies","laboratory-alerts","laboratory-analytics"]],
   ["Compliance & Documents",["compliance","new-entrant-audits","documents","legal-documents","reports","laboratory-documents","laboratory-benefits"]],
@@ -206,12 +226,14 @@ function shell(ctx){
   const current=page();
   NAV=buildNavigation(ctx);
   const planLabel=ctx?.plan?.name||ctx?.subscription?.plan_name||C.label;
-  const links=NAV.map(x=>`<a href="${esc(x.href||('/'+x.id+'.html'))}" class="${(current===norm(x.id)||(norm(x.id)==='people'&&current==='people_company')||(norm(x.id)==='pools'&&(current==='pool_detail'||current==='pool_form'))||(norm(x.id)==='locations'&&current==='location_form')||(norm(x.id)==='users_roles'&&['staff_form','staff_view','staff_invite','staff_delete'].includes(current)))?'active':''}"><span class="ico">${esc(x.icon||'•')}</span><span>${esc(x.label||pretty(x.id))}</span></a>`).join('');
+  const surfaceName=workspace()?.surface==='nondot'?'NON-DOT':'DOT';
+  const links=NAV.map(x=>`<a href="${esc(x.href||('/'+x.id+'.html'))}" data-workspace="${esc(x.switchSurface||'')}" class="${(current===norm(x.id)||(norm(x.id)==='nondot_workspace'&&isNonDotPage(current))||(norm(x.id)==='people'&&current==='people_company')||(norm(x.id)==='pools'&&(current==='pool_detail'||current==='pool_form'))||(norm(x.id)==='locations'&&current==='location_form')||(norm(x.id)==='users_roles'&&['staff_form','staff_view','staff_invite','staff_delete'].includes(current)))?'active':''}"><span class="ico">${esc(x.icon||'•')}</span><span>${esc(x.label||pretty(x.id))}</span></a>`).join('');
   document.title=`${cfgPage(current).label} | ${planLabel}`;
   if(current!=='support')supportCtxWrite({page_url:location.href,page_title:document.title,page_id:current,captured_at:new Date().toISOString()});
   document.body.className='';
-  document.body.innerHTML=`<div class="app"><aside class="side" id="side"><div class="brand"><img src="images/logo2.png" alt="Workforce"></div><nav class="nav"><div class="nav-title">${esc(planLabel)}</div>${links}</nav><div class="side-foot"><div style="font-size:0.5625rem;color:#9fb3c7">Portal</div><div style="font-size:0.6875rem;font-weight:800;color:#fff;margin-top:3px">Workforce C/TPA</div></div></aside><main class="main"><header class="top"><div class="top-left"><button class="menu" id="menu" type="button" aria-label="Open navigation" aria-expanded="false" aria-controls="mobileNav"><span class="menu-bars" aria-hidden="true"><span></span><span></span><span></span></span></button><div class="top-context"><span class="top-eyebrow">${esc(planLabel)}</span><span class="crumb">${esc(cfgPage(current).label)}</span></div></div><div class="top-right"><div class="top-utility-group top-time-group"><div class="portal-clock" aria-label="Current date and time"><span id="portalClockDate" class="portal-clock-date"></span><strong id="portalClockTime" class="portal-clock-time"></strong></div></div><div class="top-utility-group top-accessibility-group"><span class="top-utility-label">Text size</span><div class="font-sizer" role="group" aria-label="Page font size"><button type="button" id="fontDown" aria-label="Decrease font size" title="Decrease font size">A−</button><button type="button" class="font-reset" id="fontSizeValue" aria-label="Reset font size to default" title="Reset font size">${portalFontSize===FONT_DEFAULT?'Default':portalFontSize}</button><button type="button" id="fontUp" aria-label="Increase font size" title="Increase font size">A+</button></div></div><div class="top-utility-group top-action-group"><span class="pill">${esc(C.kind==='self'?'Self Service':'Management')}</span>${C.agency?`<span class="pill">${esc(C.agency)}</span>`:''}<button class="top-support${current==='support'?' active':''}" id="supportShortcut" type="button"${current==='support'?' aria-current="page"':''}>Support</button><a href="https://workforceapps.screenings4u.com/selector.html" id="s4uSwitchPortal" aria-label="Switch portal" style="display:inline-flex;align-items:center;justify-content:center;padding:9px 13px;border-radius:9px;background:#FDC102;color:#01122F;font-size:12px;font-weight:800;text-decoration:none;white-space:nowrap">↔ Switch Portal</a><button class="signout" id="logout">Sign out</button></div></div></header><section class="mobile-nav" id="mobileNav" aria-hidden="true" aria-label="Portal navigation"><div class="mobile-nav-inner"><div class="mobile-nav-head"><div><span>Portal navigation</span><strong>${esc(planLabel)}</strong></div><span class="mobile-nav-current">${esc(cfgPage(current).label)}</span></div><nav class="mobile-nav-links">${links}</nav><div class="mobile-nav-foot"><span>${esc(C.domain)}</span><small>Select a page to close this menu.</small></div></div></section><div class="content"><div id="error"></div><section class="hero"><span class="hero-kicker">${esc(planLabel)}</span><h1>${esc(cfgPage(current).label)}</h1><p id="subtitle">Your Workforce C/TPA workspace.</p><div class="hero-actions" id="actions"></div></section><section class="section" id="content"></section></div></main></div>`;
+  document.body.innerHTML=`<div class="app"><aside class="side" id="side"><div class="brand"><img src="images/logo2.png" alt="Workforce"></div><nav class="nav"><div class="nav-title">${esc(planLabel)}</div>${links}</nav><div class="side-foot"><div style="font-size:0.5625rem;color:#9fb3c7">Portal</div><div style="font-size:0.6875rem;font-weight:800;color:#fff;margin-top:3px">Workforce C/TPA</div></div></aside><main class="main"><header class="top"><div class="top-left"><button class="menu" id="menu" type="button" aria-label="Open navigation" aria-expanded="false" aria-controls="mobileNav"><span class="menu-bars" aria-hidden="true"><span></span><span></span><span></span></span></button><div class="top-context"><span class="top-eyebrow">${esc(planLabel)}</span><span class="crumb">${esc(cfgPage(current).label)}</span></div></div><div class="top-right"><div class="top-utility-group top-time-group"><div class="portal-clock" aria-label="Current date and time"><span id="portalClockDate" class="portal-clock-date"></span><strong id="portalClockTime" class="portal-clock-time"></strong></div></div><div class="top-utility-group top-accessibility-group"><span class="top-utility-label">Text size</span><div class="font-sizer" role="group" aria-label="Page font size"><button type="button" id="fontDown" aria-label="Decrease font size" title="Decrease font size">A−</button><button type="button" class="font-reset" id="fontSizeValue" aria-label="Reset font size to default" title="Reset font size">${portalFontSize===FONT_DEFAULT?'Default':portalFontSize}</button><button type="button" id="fontUp" aria-label="Increase font size" title="Increase font size">A+</button></div></div><div class="top-utility-group top-action-group"><span class="pill">${esc(C.kind==='self'?'Self Service':'Management')}</span>${C.agency?`<span class="pill">${esc(C.agency)}</span>`:''}<button class="top-support${current==='support'?' active':''}" id="supportShortcut" type="button"${current==='support'?' aria-current="page"':''}>Support</button><a href="https://workforceapps.screenings4u.com/selector.html" id="s4uSwitchPortal" aria-label="Switch portal" style="display:inline-flex;align-items:center;justify-content:center;padding:9px 13px;border-radius:9px;background:#FDC102;color:#01122F;font-size:12px;font-weight:800;text-decoration:none;white-space:nowrap">↔ Switch Portal</a><button class="signout" id="logout">Sign out</button></div></div></header><section class="mobile-nav" id="mobileNav" aria-hidden="true" aria-label="Portal navigation"><div class="mobile-nav-inner"><div class="mobile-nav-head"><div><span>Portal navigation</span><strong>${esc(planLabel)}</strong></div><span class="mobile-nav-current">${esc(cfgPage(current).label)}</span></div><nav class="mobile-nav-links">${links}</nav><div class="mobile-nav-foot"><span>${esc(C.domain)}</span><small>Select a page to close this menu.</small></div></div></section><div class="content"><div id="error"></div><section class="hero"><span class="hero-kicker">${esc(planLabel)}</span><h1>${esc(cfgPage(current).label)}</h1><p id="subtitle">Your ${surfaceName} Workforce C/TPA workspace.</p><div class="hero-actions" id="actions"></div></section><section class="section" id="content"></section></div></main></div>`;
   organizePortalNavigation();
+  for(const a of document.querySelectorAll('.nav a[data-workspace],.mobile-nav-links a[data-workspace]'))a.classList.toggle('active',a.dataset.workspace===workspace()?.surface);
   requestAnimationFrame(()=>{const nav=document.querySelector('.side .nav'),active=nav?.querySelector('a.active');if(nav&&active){const top=active.offsetTop-nav.clientHeight/2+active.clientHeight/2;nav.scrollTop=Math.max(0,top)}});
   const menuBtn=$('#menu'),mobileNav=$('#mobileNav');
   const setMobileNav=open=>{
@@ -385,7 +407,7 @@ function bindUtilityPage(p,d,ctx){
 
 async function ctpaData(p){
   if(p==='lab_services'||isLaboratoryPage(p))return {authorized:false,loading:true};
-  if(p==='nondot_workspace')return nondotWorkspaceData();
+  if(isNonDotPage(p))return nondotWorkspaceData();
   if(p==='employers'||p==='employer_form')return invoke('workforce-ctpa-employers',{action:'workspace'});
   if(p==='owner_operators')return invoke('workforce-ctpa-owner-operators',{action:'workspace'});
   if(p==='new_entrant_audits'){const id=new URLSearchParams(location.search).get('id')||'';return invoke('ctpa-new-entrant-audits',id?{action:'audit',audit_id:id}:{action:'workspace'});}
@@ -606,7 +628,7 @@ const PAGE_MEMORY=new Map();
 const PAGE_INFLIGHT=new Map();
 function memoryCacheKey(p,search=location.search){return cacheIdentity(p,search)}
 async function getCachedPageData(p,search=location.search){
-  if(p==='nondot_workspace'||p==='lab_services'||isLaboratoryPage(p))return null;
+  if(isNonDotPage(p)||p==='lab_services'||isLaboratoryPage(p))return null;
   const key=memoryCacheKey(p,search),m=PAGE_MEMORY.get(key);
   if(m&&Date.now()-m.saved_at<PAGE_CACHE_MAX_AGE)return m.data;
   const d=await readPageCache(p,search);
@@ -614,7 +636,7 @@ async function getCachedPageData(p,search=location.search){
   return d;
 }
 async function setCachedPageData(p,data,search=location.search){
-  if(p==='nondot_workspace'||p==='lab_services'||isLaboratoryPage(p))return;
+  if(isNonDotPage(p)||p==='lab_services'||isLaboratoryPage(p))return;
   const key=memoryCacheKey(p,search);PAGE_MEMORY.set(key,{saved_at:Date.now(),data});
   await writePageCache(p,data,search);
 }
@@ -655,7 +677,7 @@ async function render(ctx,prefetched){
   else if(C.kind==='ctpa'&&p==='integration_connect'&&window.CtpaIntegrations){setSubtitle('Connect this integration using your business credentials or API access.');html=window.CtpaIntegrations.renderConnect(d,ctx);}
   else if(C.kind==='ctpa'&&p==='integration_workspace'&&window.CtpaIntegrations){setSubtitle('Manage, test, and use this connected integration.');html=window.CtpaIntegrations.renderWorkspace(d,ctx);}
   else if(C.kind==='ctpa'&&p==='location_form'&&window.CtpaLocations){setSubtitle('Add or edit a location for your C/TPA, an Employer, or an Owner-Operator.');html=window.CtpaLocations.renderForm(d,ctx);}
-  else if(C.kind==='ctpa'&&p==='nondot_workspace'&&window.CtpaNondotWorkspace){setSubtitle('Your C/TPA NON-DOT employer, people, program, pool, testing and result records.');html=window.CtpaNondotWorkspace.render(d,ctx);}
+  else if(C.kind==='ctpa'&&isNonDotPage(p)&&window.CtpaNondotWorkspace){setSubtitle('Your C/TPA NON-DOT employer, people, program, pool, testing and result records.');html=window.CtpaNondotWorkspace.render(d,ctx);}
   else if(C.kind==='ctpa'&&(p==='lab_services'||isLaboratoryPage(p))&&window.CtpaLabServices){setSubtitle('Your purchased laboratory account numbers, setup progress, and physical supply shipments.');html=window.CtpaLabServices.render(d,ctx);}
   else if(C.kind==='ctpa'&&p==='lab_accounts'&&window.CtpaLabAccounts){setSubtitle('View the laboratory accounts and account numbers configured for your C/TPA.');html=window.CtpaLabAccounts.render(d,ctx);}
   else if(C.kind==='ctpa'&&p==='schedule_demo'&&window.CtpaDemos){setSubtitle('Choose a date and time for a live Workforce platform demonstration.');html=window.CtpaDemos.renderSchedule(d,ctx);}
@@ -734,7 +756,7 @@ async function render(ctx,prefetched){
     wireManagementActions(p,d,ctx);
   }
   $('#content').innerHTML=html||`<div class="panel"><div class="empty">No data available.</div></div>`;
-  if(C.kind==='ctpa'&&p==='nondot_workspace'&&window.CtpaNondotWorkspace)window.CtpaNondotWorkspace.bind(d,saveNondotRecord);
+  if(C.kind==='ctpa'&&isNonDotPage(p)&&window.CtpaNondotWorkspace)window.CtpaNondotWorkspace.bind(d,saveNondotRecord);
   if(C.kind==='ctpa'&&(p==='lab_services'||isLaboratoryPage(p))&&window.CtpaLabServices)window.CtpaLabServices.bind(labServiceCall,d);
   if(isUtilityPage(p)&&!(C.kind==='ctpa'&&p==='integrations'&&window.CtpaIntegrations))bindUtilityPage(p,d,ctx);
   if(C.kind==='ctpa'&&['integrations','integration_connect','integration_workspace'].includes(p)&&window.CtpaIntegrations)window.CtpaIntegrations.bind(p,d,ctx);
@@ -832,7 +854,7 @@ async function navigatePortal(url,{replace=false,pop=false}={}){
   if(u.origin!==location.origin||!u.pathname.endsWith('.html')){location.href=u.href;return}
   const prepared=await prepareTarget(u.href);
   const targetPage=prepared.targetPage,targetSearch=u.search;
-  if(targetPage==='nondot_workspace'){
+  if(isNonDotPage(targetPage)){
     try{window.portalCtx.nondotVerified=await nondotWorkspaceAccess();}
     catch{window.portalCtx.nondotVerified=false;}
   }
@@ -852,8 +874,29 @@ async function navigatePortal(url,{replace=false,pop=false}={}){
   const d=await loadPageDataCached(targetPage,targetSearch,{force:false});
   if(page()===targetPage)await render(window.portalCtx,d);
 }
+async function switchOperatingWorkspace(desired){
+ if(!['dot','nondot'].includes(desired))throw Error('Unknown workspace');
+ const session=await getSession();
+ if(!session?.access_token)throw Error('Sign in required');
+ const response=await fetch(C.workforceUrl+'/functions/v1/workforce-ctpa-unified-workspaces',{
+  method:'POST',cache:'no-store',headers:{'Content-Type':'application/json',apikey:C.workforceKey,Authorization:'Bearer '+session.access_token},body:'{}'
+ });
+ const data=await response.json().catch(()=>({}));
+ if(!response.ok)throw Error(data.error||'Unable to verify workspace');
+ const current=workspace();
+ const available=(Array.isArray(data.workspaces)?data.workspaces:[]).find(x=>x.operating_context===desired&&x.ctpa_id===current?.ctpa_id&&x.subscription_id);
+ if(!available)throw Error('Workspace is not assigned to this account');
+ W.set({...current,...available,surface:desired,ctpa_id:available.ctpa_id,subscription_id:available.subscription_id});
+ location.assign(desired==='dot'?'/dashboard.html':'/nondot-workspace.html');
+}
 function installFastNavigation(){
-  document.addEventListener('click',e=>{const a=e.target.closest?.('a[href]');if(!a||e.defaultPrevented||e.button!==0||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey||a.target||a.hasAttribute('download'))return;const u=new URL(a.href,location.href);if(u.origin!==location.origin||!u.pathname.endsWith('.html')||u.pathname==='/workforce-context.html')return;e.preventDefault();navigatePortal(u.href).catch(err=>{console.warn('Soft navigation fallback',err);location.href=u.href})},true);
+  document.addEventListener('click',e=>{const a=e.target.closest?.('a[data-workspace]');if(!a||!a.dataset.workspace)return;
+  const desired=a.dataset.workspace;
+  if(desired===workspace()?.surface)return;
+  e.preventDefault();e.stopImmediatePropagation();
+  switchOperatingWorkspace(desired).catch(err=>{console.warn('Unable to change workspace',err);location.href='https://workforceapps.screenings4u.com/selector.html'});
+ },true);
+ document.addEventListener('click',e=>{const a=e.target.closest?.('a[href]');if(!a||e.defaultPrevented||e.button!==0||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey||a.target||a.hasAttribute('download'))return;const u=new URL(a.href,location.href);if(u.origin!==location.origin||!u.pathname.endsWith('.html')||u.pathname==='/workforce-context.html')return;e.preventDefault();navigatePortal(u.href).catch(err=>{console.warn('Soft navigation fallback',err);location.href=u.href})},true);
   // Deliberately avoid preloading pages or backend calls on hover/touch.
   // Only the destination selected by the user should request its data.
   addEventListener('popstate',()=>navigatePortal(location.href,{pop:true}).catch(()=>location.reload()));
@@ -862,7 +905,7 @@ async function init(){
   try{
     const ctx=await access();if(!ctx?.has_access)throw new Error(ctx?.reason||'Portal access denied.');
     window.portalCtx=ctx;
-    if(page()==='nondot_workspace'){
+    if(isNonDotPage(page())){
       try{ctx.nondotVerified=await nondotWorkspaceAccess();}
       catch{ctx.nondotVerified=false;}
     }
