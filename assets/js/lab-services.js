@@ -56,7 +56,7 @@ function render(d){
  '<section class="section" data-lab-panel="documents"><h2>Lab Account documents and collection forms</h2><p>View Workforce-published laboratory account documents. Existing C/TPA and testing documents remain available in their original Workforce modules.</p><div id="lab-published-documents" class="lab-document-list" aria-live="polite">Loading published documents…</div><dialog id="lab-document-preview" class="lab-document-dialog"><div class="lab-document-dialog-bar"><h3 id="lab-document-title">Document preview</h3><button class="btn ghost" type="button" id="lab-document-close">Close</button></div><iframe title="Lab Account document preview" id="lab-document-frame"></iframe></dialog>'+scopedLink('/documents.html','C/TPA Documents','Existing company documents workspace')+scopedLink('/testing-documents.html','Testing documents','Existing C/TPA testing documentation')+'</section>'+
  '<section class="section" data-lab-panel="billing"><h2>Account billing</h2><p>Workforce C/TPA already has billing and order history. Laboratory-specific charges must remain identifiable separately from unrelated subscriptions.</p>'+scopedLink('/billing.html','Workforce Billing','Existing C/TPA billing and invoices')+scopedLink('/order-history.html','Order history','Existing C/TPA purchase records')+'</section>'+
  '<section class="section" data-lab-panel="support"><h2>Lab Account support</h2><p>Contact Workforce support for test registration, collection instructions, or laboratory-account issues.</p>'+scopedLink('/support.html','Contact Support','Existing C/TPA support workflow')+'</section>'+
- '<section class="notice" data-lab-panel="overview"><strong>Lab Account migration</strong><p>Original C/TPA testing, results, consortium, and billing features remain unchanged. Laboratory orders, donor passes, and customer documents will be added only after company entitlement and records mapping are verified.</p></section></div>';
+ '<section class="notice" data-lab-panel="overview"><strong>One Workforce C/TPA portal</strong><p>This Lab Account section uses existing C/TPA modules for shared services and the current Workforce testing backend for lab requests. Laboratory registration, donor-pass issuance, result release and shipment fulfillment remain controlled by Workforce Testing Management.</p></section></div>';
 }
 function bind(call){
  const root=document.querySelector('.lab-migration-hub');if(!root)return;
@@ -122,7 +122,7 @@ function bind(call){
     root.querySelector('#lab-document-frame').src=result.url;
     if(!docModal.open)docModal.showModal();
    }
-  }catch(error){documentsHost.setAttribute('data-error',String(error.message||error))}
+   }catch(error){const message=String(error.message||error);documentsHost.insertAdjacentHTML('afterbegin','<p role="alert" class="lab-doc-error">'+esc(message)+'</p>')}
   finally{button.disabled=false}
  });
  const supplyFormEl=root.querySelector('#lab-supply-form'),supplyCatalog=root.querySelector('#lab-supply-catalog'),
