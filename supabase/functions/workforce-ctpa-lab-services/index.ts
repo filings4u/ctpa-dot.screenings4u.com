@@ -15,7 +15,7 @@ Deno.serve(async(req:Request)=>{
   if(authError||!user?.id||!user.email_confirmed_at)return out({error:"Verified sign-in required"},401);
   const payload=await req.json().catch(()=>({}));
   const action=String(payload.action||"access"),ctpaId=String(payload.ctpa_id||""),subscriptionId=String(payload.subscription_id||"");
-  if(!["access","overview"].includes(action)||!uuid(ctpaId)||!uuid(subscriptionId))return out({error:"Invalid C/TPA workspace and subscription"},400);
+  if(!["access","overview","catalog","create_order"].includes(action)||!uuid(ctpaId)||!uuid(subscriptionId))return out({error:"Invalid C/TPA workspace and subscription"},400);
   const db=createClient(url,secret,{auth:{persistSession:false,autoRefreshToken:false}});
   // Reuse the C/TPA's verified workspace boundary; organization membership alone is insufficient.
   const session=await db.rpc("ctpa_dot_session_context",{p_user_id:user.id,p_ctpa_id:ctpaId,p_subscription_id:subscriptionId});
@@ -38,6 +38,76 @@ Deno.serve(async(req:Request)=>{
   if(grant.error)throw grant.error;
   if(!grant.data)return out({authorized:false,reason:"Lab Account add-on not enabled for this company"},403);
   if(action==="access")return out({authorized:true,features:{lab_account:true},organization_id:c.data.organization_id});
+  if(action==="catalog"||action==="create_order"){
+   if(!grant.data.source_order_id||!grant.data.linked_customer_user_id)
+    return out({error:"A verified Lab Account purchase is required"},403);
+   const [order,intake,assigned]=await Promise.all([
+    db.from("orders").select("id,payment_status").eq("id",grant.data.source_order_id).maybeSingle(),
+    db.from("lab_account_intakes").select("id,status,account_status,customer_user_id")
+     .eq("order_id",grant.data.source_order_id).eq("customer_user_id",grant.data.linked_customer_user_id).limit(2),
+    db.from("ctpa_lab_accounts").select("id,config,status")
+     .eq("ctpa_id",ctpaId).eq("status","active").limit(40)
+   ]);
+   if(order.error||intake.error||assigned.error)throw order.error||intake.error||assigned.error;
+   if(order.data?.payment_status!=="paid"||intake.data?.length!==1||
+      intake.data[0].status!=="completed"||intake.data[0].account_status!=="active")
+    return out({error:"Lab Account purchase and onboarding must be active"},403);
+   if(!assigned.data?.length)return out({error:"No active laboratory account is assigned"},403);
+   const allServices=await db.from("services")
+    .select("id,name,sku,description,metadata").eq("active",true).order("name").limit(500);
+   if(allServices.error)throw allServices.error;
+   const catalog=(allServices.data||[]).filter((x:any)=>
+    x.metadata?.public_site==="screenings4u"&&x.metadata?.public_catalog===true&&
+    x.metadata?.testing_operation===true);
+   if(action==="catalog")return out({authorized:true,services:catalog.map((x:any)=>({
+    id:x.id,name:x.name,description:x.description,sku:x.sku,
+    testing_scope:x.metadata?.testing_scope||null
+   }))});
+   // Preserve the original Lab Account case creation and management handoff.
+   // Never issue passes or book collection appointments automatically here.
+   const val=(x:unknown,max=200)=>String(x??"").trim().slice(0,max);
+   const first=val(payload.first_name,101),last=val(payload.last_name,101),
+    email=val(payload.donor_email,255),phone=val(payload.donor_phone,35),
+    state=val(payload.state_of_residence,2).toUpperCase(),
+    reason=val(payload.reason_for_test,3).toUpperCase(),
+    agency=val(payload.testing_authority,12).toUpperCase(),
+    dob=val(payload.date_of_birth,10),
+    note=val(payload.notes,1000),
+    serviceId=val(payload.service_id,40);
+   if(!uuid(serviceId)||!first||!last||first.length>100||last.length>100||
+      !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)||
+      !/^[A-Z]{2}$/.test(state)||!["PE","RN","PA","RS","RT","FU","NI"].includes(reason)||
+      !/^\\d{4}-\\d{2}-\\d{2}$/.test(dob)||Number.isNaN(Date.parse(dob))||
+      new Date(dob)>new Date())return out({error:"Complete the required donor and test fields"},400);
+   const service=catalog.find((x:any)=>x.id===serviceId);
+   if(!service)return out({error:"Selected testing service is unavailable"},409);
+   const scope=String(service.metadata?.testing_scope||"").toLowerCase();
+   if(scope==="dot"&&!["FMCSA","FAA","FRA","FTA","PHMSA","USCG"].includes(agency))
+    return out({error:"Select the required DOT authority"},400);
+   const now=new Date().toISOString();
+   const newCase=await db.from("testing_cases").insert({
+    service_id:serviceId,customer_user_id:user.id,customer_email:user.email,
+    donor_name:first+" "+last,donor_email:email,donor_phone:phone||null,
+    dot_test:scope==="dot",dot_agency:scope==="dot"?agency:null,
+    test_reason:reason,test_type:service.name,panel_name:service.name,
+    priority:"normal",status:"awaiting_schedule",
+    metadata:{source:"lab_account_portal",ctpa_id:ctpaId,organization_id:c.data.organization_id,
+     request_status:"submitted_for_management_review",labcorp_eligible:service.metadata?.labcorp_fulfillment===true,
+     registration_submitted:false,donor_date_of_birth:dob,state_of_residence:state,request_notes:note},
+    created_by:user.id,created_at:now,updated_at:now
+   }).select("id,case_number,status").single();
+   if(newCase.error)throw newCase.error;
+   const event=await db.from("testing_case_events").insert({
+    id:crypto.randomUUID(),testing_case_id:newCase.data.id,
+    event_type:"case_created",from_status:null,to_status:newCase.data.status,
+    notes:"Workforce C/TPA Lab Account testing request submitted for management processing",
+    metadata:{source:"lab_account_portal",ctpa_id:ctpaId,organization_id:c.data.organization_id},
+    actor_user_id:user.id,created_at:now
+   });
+   if(event.error)console.error("Lab testing case event creation",event.error);
+   return out({ok:true,case:newCase.data,donor_pass:"not_issued",
+    labcorp_submission:"not_submitted",status_message:"Testing request submitted for Workforce management review"});
+  }
   const [labs,intake]=await Promise.all([
    db.from("ctpa_lab_accounts").select("id,lab_name,account_code,is_primary,status,config,updated_at").eq("ctpa_id",ctpaId).order("created_at",{ascending:true}).limit(40),
    grant.data.source_order_id&&grant.data.linked_customer_user_id
