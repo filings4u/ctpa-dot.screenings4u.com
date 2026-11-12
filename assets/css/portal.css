@@ -1853,3 +1853,21 @@ body.loading::before{content:"Loading Workforce C/TPA…"}
 .side .nav .lab-side-group .lab-side-caption,.mobile-nav-links .lab-side-group .lab-side-caption{display:block;padding:11px 14px 5px 22px;font-size:.68rem;letter-spacing:.06em;text-transform:uppercase;color:#acc2db;font-weight:800}
 .side .nav .lab-side-group .lab-side-reuse,.mobile-nav-links .lab-side-group .lab-side-reuse{font-size:.78rem}
 @media(max-width:700px){.lab-migration-hub #lab-supply-catalog{grid-template-columns:1fr}.lab-migration-hub .lab-document-dialog{height:90vh}}
+
+/* Issued Lab Account donor pass view and print styling. */
+.lab-migration-hub .lab-pass-dialog{height:auto;max-height:85vh}
+.lab-migration-hub .lab-pass-content{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;padding:20px;overflow:auto}
+.lab-migration-hub .lab-pass-content>div{display:grid;gap:6px;min-width:0;border-bottom:1px solid #d4d3d4;padding-bottom:10px}
+.lab-migration-hub .lab-pass-content small{color:#52657e}
+.lab-migration-hub .lab-pass-content strong{color:#01122f;overflow-wrap:anywhere}
+.lab-migration-hub .lab-pass-actions{padding:14px 20px;display:flex;justify-content:flex-end;border-top:1px solid #d4d3d4}
+.lab-migration-hub .lab-pass-actions button{background:#01122f;color:#fff;border:0;border-radius:8px;padding:11px 15px;font-weight:800}
+@media(max-width:620px){.lab-migration-hub .lab-pass-content{grid-template-columns:1fr}}
+@media print{
+ body:has(.lab-pass-dialog[open]) *{visibility:hidden!important}
+ .lab-pass-dialog[open],.lab-pass-dialog[open] *{visibility:visible!important}
+ .lab-pass-dialog[open]{position:fixed!important;inset:0!important;max-height:none!important;width:100%!important;height:auto!important;margin:0!important;box-shadow:none!important;border:0!important;overflow:visible!important}
+ .lab-pass-dialog[open] .lab-document-dialog-bar{background:#fff!important;color:#01122f!important}
+ .lab-pass-dialog[open] .lab-document-dialog-bar button,.lab-pass-dialog[open] .lab-pass-actions{display:none!important}
+ .lab-pass-dialog[open] .lab-pass-content{overflow:visible!important;grid-template-columns:repeat(2,minmax(0,1fr))!important}
+}
