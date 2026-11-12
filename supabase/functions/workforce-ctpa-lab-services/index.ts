@@ -15,7 +15,7 @@ Deno.serve(async(req:Request)=>{
   if(authError||!user?.id||!user.email_confirmed_at)return out({error:"Verified sign-in required"},401);
   const payload=await req.json().catch(()=>({}));
   const action=String(payload.action||"access"),ctpaId=String(payload.ctpa_id||""),subscriptionId=String(payload.subscription_id||"");
-  if(!["access","overview","catalog","create_order","supply_catalog","request_supplies","documents","document_url","issued_passes","legacy_clients","legacy_supply_alerts","legacy_deliveries","report_specimen_shipped","order_details","update_order","ccf_archive","ccf_url","released_cases","request_result_delivery","lab_purchases","lab_invoices","lab_invoice_detail"].includes(action)||!uuid(ctpaId)||!uuid(subscriptionId))return out({error:"Invalid C/TPA workspace and subscription"},400);
+  if(!["access","overview","catalog","create_order","supply_catalog","request_supplies","documents","document_url","issued_passes","legacy_clients","legacy_supply_alerts","legacy_deliveries","report_specimen_shipped","order_details","update_order","ccf_archive","ccf_url","released_cases","request_result_delivery","lab_purchases","lab_invoices","lab_invoice_detail","historical_documents","historical_document_url","lab_intake_details"].includes(action)||!uuid(ctpaId)||!uuid(subscriptionId))return out({error:"Invalid C/TPA workspace and subscription"},400);
   const db=createClient(url,secret,{auth:{persistSession:false,autoRefreshToken:false}});
   // Reuse the C/TPA's verified workspace boundary; organization membership alone is insufficient.
   const session=await db.rpc("ctpa_dot_session_context",{p_user_id:user.id,p_ctpa_id:ctpaId,p_subscription_id:subscriptionId});
@@ -38,6 +38,119 @@ Deno.serve(async(req:Request)=>{
   if(grant.error)throw grant.error;
   if(!grant.data)return out({authorized:false,reason:"Lab Account add-on not enabled for this company"},403);
   if(action==="access")return out({authorized:true,features:{lab_account:true},organization_id:c.data.organization_id});
+  if(["historical_documents","historical_document_url","lab_intake_details"].includes(action)){
+   // Historical files have user ownership rather than a company assignment;
+   // never expose one purchaser's documents to all C/TPA members.
+   if(!grant.data.source_order_id||grant.data.linked_customer_user_id!==user.id)
+    return out({authorized:true,documents:[]});
+   const types=["lab_account","lab_account_notice","lab_account_setup","lab_account_document",
+    "lab_account_compliance","lab_account_guide","lab_account_howto"];
+   if(action==="historical_documents"){
+    const [docs,service,forms]=await Promise.all([
+     db.from("documents").select("id,title,description,document_type,mime_type,created_at,storage_bucket,storage_path")
+      .eq("owner_user_id",user.id).in("document_type",types)
+      .is("archived_at",null).order("created_at",{ascending:false}).limit(250),
+     db.from("lab_plan_service_requests").select("id,title,feature_code,document_name,document_bucket,document_path,fulfilled_at,created_at")
+      .eq("customer_user_id",user.id).eq("status","completed")
+      .not("document_path","is",null).limit(150),
+     db.from("standalone_form_submissions").select("id,submission_number,form_title,status,created_at")
+      .eq("customer_user_id",user.id)
+      .in("form_key",["lab_account_intake","lab_account_intake_standalone"])
+      .order("created_at",{ascending:false}).limit(150)
+    ]);
+    for(const res of [docs,service,forms])if(res.error)throw res.error;
+    const formIds=(forms.data||[]).map((x:any)=>x.id);
+    const attachments=formIds.length?await db.from("standalone_form_submission_files")
+      .select("id,submission_id,original_file_name,mime_type,document_type,storage_bucket,storage_path,created_at")
+      .in("submission_id",formIds).limit(250):{data:[],error:null};
+    if(attachments.error)throw attachments.error;
+    const result=[
+     ...(docs.data||[]).map((d:any)=>({
+      id:d.id,source:"account",title:d.title,description:d.description,
+      mime_type:d.mime_type,created_at:d.created_at,
+      downloadable:!!(d.storage_bucket&&d.storage_path)
+     })),
+     ...(service.data||[]).filter((d:any)=>
+      d.document_bucket==="testing-private-documents"&&
+      String(d.document_path||"").startsWith("lab-plan-services/"+user.id+"/"+d.id+"/"))
+      .map((d:any)=>({id:d.id,source:"service",title:d.title||"Completed laboratory service",
+       description:d.feature_code,mime_type:"application/pdf",
+       created_at:d.fulfilled_at||d.created_at,downloadable:true})),
+     ...(forms.data||[]).map((d:any)=>({id:d.id,source:"intake",title:d.form_title||"Lab Account Intake",
+      description:d.submission_number,status:d.status,
+      created_at:d.created_at,downloadable:false})),
+     ...(attachments.data||[]).map((d:any)=>({id:d.id,source:"attachment",
+      title:d.original_file_name||"Lab Account attachment",description:d.document_type,
+      mime_type:d.mime_type,created_at:d.created_at,
+      downloadable:!!(d.storage_bucket&&d.storage_path)}))
+    ];
+    return out({authorized:true,documents:result.sort((a:any,b:any)=>
+     new Date(b.created_at).getTime()-new Date(a.created_at).getTime())});
+   }
+   const recordId=String(payload.document_id||"");
+   if(!uuid(recordId))return out({error:"Valid document identifier required"},400);
+   if(action==="lab_intake_details"){
+    const form=await db.from("standalone_form_submissions")
+     .select("id,submission_number,form_title,status,created_at,payload")
+     .eq("id",recordId).eq("customer_user_id",user.id)
+     .in("form_key",["lab_account_intake","lab_account_intake_standalone"]).maybeSingle();
+    if(form.error)throw form.error;
+    if(!form.data)return out({error:"Lab Account intake unavailable"},404);
+    const raw=form.data.payload&&typeof form.data.payload==="object"&&!Array.isArray(form.data.payload)?
+     form.data.payload:{};
+    const detail=Object.fromEntries(Object.entries(raw).filter(([key])=>
+     !/(captcha|turnstile|token|password|credential|secret|api[_-]?key|authorization|form_started_at)/i.test(key)
+    ));
+    return out({authorized:true,intake:{
+      id:form.data.id,title:form.data.form_title||"Lab Account Intake",
+      reference:form.data.submission_number,status:form.data.status,
+      created_at:form.data.created_at,fields:detail
+    }});
+   }
+   const source=String(payload.source||"");
+   let bucket="",filePath="",title="",mime="";
+   if(source==="account"){
+    const q=await db.from("documents").select("id,title,mime_type,storage_bucket,storage_path")
+     .eq("id",recordId).eq("owner_user_id",user.id).in("document_type",types)
+     .is("archived_at",null).maybeSingle();
+    if(q.error)throw q.error;
+    if(!q.data)return out({error:"Account document unavailable"},404);
+    bucket=q.data.storage_bucket||"";filePath=q.data.storage_path||"";
+    title=q.data.title||"Laboratory document";mime=q.data.mime_type||"";
+   }else if(source==="service"){
+    const q=await db.from("lab_plan_service_requests")
+     .select("id,title,document_bucket,document_path,document_name")
+     .eq("id",recordId).eq("customer_user_id",user.id).eq("status","completed").maybeSingle();
+    if(q.error)throw q.error;
+    if(!q.data||q.data.document_bucket!=="testing-private-documents"||
+       !String(q.data.document_path||"").startsWith("lab-plan-services/"+user.id+"/"+recordId+"/"))
+     return out({error:"Completed service document unavailable"},404);
+    bucket=q.data.document_bucket;filePath=q.data.document_path;
+    title=q.data.document_name||q.data.title||"Completed service";mime="application/pdf";
+   }else if(source==="attachment"){
+    const forms=await db.from("standalone_form_submissions").select("id")
+     .eq("customer_user_id",user.id)
+     .in("form_key",["lab_account_intake","lab_account_intake_standalone"])
+     .limit(150);
+    if(forms.error)throw forms.error;
+    const ids=(forms.data||[]).map((x:any)=>x.id);
+    if(!ids.length)return out({error:"Intake attachment unavailable"},404);
+    const q=await db.from("standalone_form_submission_files")
+     .select("id,original_file_name,mime_type,storage_bucket,storage_path")
+     .eq("id",recordId).in("submission_id",ids).maybeSingle();
+    if(q.error)throw q.error;
+    if(!q.data)return out({error:"Intake attachment unavailable"},404);
+    bucket=q.data.storage_bucket||"";filePath=q.data.storage_path||"";
+    title=q.data.original_file_name||"Lab Account attachment";mime=q.data.mime_type||"";
+   }else return out({error:"Unsupported document source"},400);
+   if(!bucket||!filePath)return out({error:"Document file unavailable"},404);
+   const filename=String(title).replace(/[^a-zA-Z0-9._ -]/g,"_").slice(0,160);
+   const signed=await db.storage.from(bucket).createSignedUrl(filePath,120,{
+    download:payload.download===true?filename:undefined
+   });
+   if(signed.error||!signed.data?.signedUrl)throw signed.error||Error("Document download unavailable");
+   return out({url:signed.data.signedUrl,title,mime_type:mime,expires_in:120});
+  }
   if(["lab_purchases","lab_invoices","lab_invoice_detail"].includes(action)){
    // These records are individually purchased or addressed; no billing data is
    // shared across C/TPA members or exposed by matching customer email.
