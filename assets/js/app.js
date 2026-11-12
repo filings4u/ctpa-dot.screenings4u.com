@@ -178,9 +178,11 @@ async function syncLabNavigation(ctx){
   NAV=buildNavigation(ctx);
   const labTabs=[
    ["Overview","overview"],["Laboratory Accounts","accounts"],
-   ["Create Testing Order","orders"],["Lab Orders & Donor Passes","tracking"],
-   ["Supplies & Shipping","supplies"],["Lab Documents & CCFs","documents"],
-   ["Billing & Order History","billing"],["Lab Support","support"]
+   ["Lab Client Directory","clients"],["Create Testing Order","orders"],
+   ["Lab Orders & Donor Passes","tracking"],["Result Delivery","deliveries"],
+   ["Supplies & Shipping","supplies"],["Supply Alerts","alerts"],
+   ["Lab Documents & CCFs","documents"],["Billing & Order History","billing"],
+   ["Lab Support","support"]
   ];
   const reusableLabPages=[
    ["Employers & Client Directory","/employers.html","employers"],
