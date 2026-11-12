@@ -75,9 +75,9 @@ try{
   }))}catch(_){}
   location.replace(isNondot?'/nondot-workspace.html':'/dashboard.html');return;
  }
- // For accounts without a selected subscription, the EXISTING authenticated
- // organization chooser resolves the correct membership (no password prompt).
- location.replace('/workspace.html');
+ // An incomplete handoff must return to the single Workforce selector.
+ // Do not open a second organization chooser or guess which subscription to use.
+ location.replace(HOME);
 }catch(e){
  setStatus(e instanceof Error?e.message:'Unable to open your assigned portal.');
  const action=document.querySelector('.login-card a');
