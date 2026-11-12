@@ -75,6 +75,7 @@ const managerRole=ctx=>{
 function pageAccess(ctx,p){
  if(C.kind!=='ctpa')return {allowed:true};
  const key=norm(p);
+ if(workspace()?.surface==='nondot'&&key!=='nondot_workspace')return {allowed:false,reason:'This workspace is restricted to your purchased NON-DOT C/TPA features.',feature:'nondot_access'};
  const feature=PAGE_FEATURES[key];
  if(feature&&!planHas(ctx,feature))return {allowed:false,reason:'This feature is not included with your current C/TPA subscription.',feature};
  if(MANAGER_PAGES.has(key)&&!managerRole(ctx))return {allowed:false,reason:'Your C/TPA team role does not permit this administrative action.',feature};
@@ -83,6 +84,7 @@ function pageAccess(ctx,p){
  return {allowed:true};
 }
 function buildNavigation(ctx={}){
+  if(workspace()?.surface==='nondot')return [{id:'nondot-workspace',label:'NON-DOT Workspace',icon:'⇄',href:'/nondot-workspace.html'}];
   const e=ctx.entitlements||{};
   const items=[
     ['dashboard','Dashboard','⌂',null],['workforce-context','DOT / NON-DOT','⇄',null],['nondot-workspace','NON-DOT Workspace','⇄',null],
@@ -109,9 +111,13 @@ async function invoke(name,body={}){
 async function nondotWorkspaceAccess(){
  const session=await getSession(),w=workspace();
  if(!session?.access_token||!w?.ctpa_id||!w.subscription_id)throw Error("Select an authorized C/TPA subscription");
- const response=await fetch(C.workforceUrl+"/functions/v1/workforce-ctpa-combined-access",{method:"POST",cache:"no-store",headers:{"Content-Type":"application/json",apikey:C.workforceKey,Authorization:"Bearer "+session.access_token},body:JSON.stringify({ctpa_id:w.ctpa_id,subscription_id:w.subscription_id})});
+ const nondotOnly=w.surface==='nondot';
+ const fn=nondotOnly?'workforce-ctpa-unified-workspaces':'workforce-ctpa-combined-access';
+ const response=await fetch(C.workforceUrl+"/functions/v1/"+fn,{method:"POST",cache:"no-store",headers:{"Content-Type":"application/json",apikey:C.workforceKey,Authorization:"Bearer "+session.access_token},body:JSON.stringify(nondotOnly?{}:{ctpa_id:w.ctpa_id,subscription_id:w.subscription_id})});
  const result=await response.json().catch(()=>({}));
- if(!response.ok||result.authorized!==true)throw Object.assign(new Error(result.error||result.reason||"C/TPA access unavailable"),{status:response.status});
+ if(!response.ok)throw Object.assign(new Error(result.error||"C/TPA access unavailable"),{status:response.status});
+ if(nondotOnly)return Array.isArray(result.workspaces)&&result.workspaces.some(x=>x.operating_context==='nondot'&&x.ctpa_id===w.ctpa_id&&x.subscription_id===w.subscription_id);
+ if(result.authorized!==true)throw Error("C/TPA access unavailable");
  return result.operating_contexts?.nondot?.available===true;
 }
 async function nondotWorkspaceData(){
@@ -119,7 +125,7 @@ async function nondotWorkspaceData(){
  const accepted=["people","programs","pools","testing","results"];
  if(!accepted.includes(section))return {ok:false,context:"nondot",message:"Unknown NON-DOT module"};
  if(!session?.access_token||!w?.ctpa_id||!w.subscription_id)throw Error("Select an authorized C/TPA subscription");
- const response=await fetch(C.workforceUrl+"/functions/v1/workforce-ctpa-nondot-workspace",{method:"POST",cache:"no-store",headers:{"Content-Type":"application/json",apikey:C.workforceKey,Authorization:"Bearer "+session.access_token},body:JSON.stringify({ctpa_id:w.ctpa_id,subscription_id:w.subscription_id,section})});
+ const response=await fetch(C.workforceUrl+"/functions/v1/workforce-ctpa-nondot-workspace",{method:"POST",cache:"no-store",headers:{"Content-Type":"application/json",apikey:C.workforceKey,Authorization:"Bearer "+session.access_token},body:JSON.stringify({ctpa_id:w.ctpa_id,subscription_id:w.subscription_id,section,operating_context:w.surface==='nondot'?'nondot':'dot'})});
  const result=await response.json().catch(()=>({}));
  if(!response.ok){
   if(response.status===401)throw Object.assign(new Error("AUTH_REQUIRED"),{status:401});
@@ -836,7 +842,7 @@ async function init(){
     const ctx=await access();if(!ctx?.has_access)throw new Error(ctx?.reason||'Portal access denied.');
     window.portalCtx=ctx;
     // Direct Lab Services entry must verify the add-on before rendering or reading cached data.
-    if(page()==='lab_services'||page()==='lab_accounts'){
+    if(workspace()?.surface!=='nondot'&&(page()==='lab_services'||page()==='lab_accounts')){
       try{const lab=await labServiceCall('access');ctx.labAddonVerified=lab.authorized===true;}
       catch{ctx.labAddonVerified=false;}
     }
@@ -848,7 +854,7 @@ async function init(){
     const p=page(),search=location.search,cached=await getCachedPageData(p,search);
     if(cached!==null){await render(ctx,cached);loadPageDataCached(p,search,{force:true}).then(d=>{if(page()===p&&location.search===search)render(ctx,d)}).catch(console.warn)}
     else {const d=await loadPageDataCached(p,search,{force:false});await render(ctx,d)}
-    void syncLabNavigation(ctx);
+    if(workspace()?.surface!=='nondot')void syncLabNavigation(ctx);
     void syncNondotNavigation(ctx);
     startRealtime(ctx);
   }
