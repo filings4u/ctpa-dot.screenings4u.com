@@ -855,7 +855,41 @@ Deno.serve(async(req:Request)=>{
      if(removed.error)console.error("Supply request rollback failed",removed.error);
      throw detail.error;
     }
-    return out({ok:true,request:orderRow.data,status_message:"Supply request sent to Workforce testing operations for processing"});
+    // Preserve the original Lab Account customer/staff notifications using
+    // the existing Resend connection, without blocking a successfully saved order.
+    const mailKey=Deno.env.get("RESEND_API_KEY")||"";
+    const from=Deno.env.get("SCREENINGS4U_FROM_EMAIL")||"";
+    const admin=Deno.env.get("SCREENINGS4U_ADMIN_EMAIL")||"";
+    const reference=String(orderRow.data.id).slice(0,8).toUpperCase();
+    let customerEmailStatus="not_configured",adminEmailStatus="not_configured";
+    if(mailKey&&from){
+     const esc=(v:string)=>v.replace(/[&<>"']/g,ch=>({
+      "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+     }[ch]||ch));
+     const send=async(to:string,subject:string,details:string)=>{
+      const html='<div style="font-family:Arial,sans-serif;background:#f3f6fa;padding:24px;color:#01122f">'+
+       '<div style="max-width:600px;margin:auto;background:#fff;border-radius:12px;overflow:hidden">'+
+       '<div style="background:#01122f;padding:20px"><img width="200" alt="Workforce" src="https://workforce.screenings4u.com/images/logo2.png"></div>'+
+       '<div style="padding:24px"><h2>'+esc(subject)+'</h2><p>'+esc(details)+'</p>'+
+       '<p>Reference: <strong>'+esc(reference)+'</strong></p>'+
+       '<a href="https://ctpa.screenings4u.com/lab-services.html?lab=supplies" style="display:inline-block;background:#fdc102;color:#01122f;border-radius:6px;padding:12px 18px;text-decoration:none;font-weight:bold">View Lab Account supplies</a></div></div></div>';
+      try{
+       const res=await fetch("https://api.resend.com/emails",{
+        method:"POST",headers:{Authorization:"Bearer "+mailKey,"Content-Type":"application/json"},
+        body:JSON.stringify({from,to:[to],subject:"Workforce | "+subject,html})
+       });
+       return res.ok?"sent":"failed";
+      }catch(error){console.error("Lab Account supplies notification",error);return "failed"}
+     };
+     if(user.email)customerEmailStatus=await send(user.email,"Supply request received",
+      "Your supply request is in Workforce Testing Management for review. Shipping details will appear in your Lab Account section.");
+     if(admin&&admin.toLowerCase()!==String(user.email||"").toLowerCase())
+      adminEmailStatus=await send(admin,"New Lab Account supply request",
+       "A C/TPA customer submitted a laboratory supply request. Review and fulfill the order through Workforce Testing.");
+    }
+    return out({ok:true,request:orderRow.data,
+     notifications:{customer:customerEmailStatus,admin:adminEmailStatus},
+     status_message:"Supply request sent to Workforce testing operations for processing"});
    }
    // Preserve the original Lab Account case creation and management handoff.
    // Never issue passes or book collection appointments automatically here.
