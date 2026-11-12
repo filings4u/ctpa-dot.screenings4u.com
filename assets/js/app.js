@@ -410,7 +410,7 @@ function bindUtilityPage(p,d,ctx){
 async function ctpaData(p){
   if(p==='lab_services'||isLaboratoryPage(p))return {authorized:false,loading:true};
   if(isNonDotPage(p))return nondotWorkspaceData();
-  if(SHARED_WORKSPACE_PAGES.has(p))return {workspace:workspace(),profile:(await getSession())?.user||null};
+  if(p==='profile'||p==='account_settings')return {workspace:workspace(),profile:(await getSession())?.user||null};
   if(p==='employers'||p==='employer_form')return invoke('workforce-ctpa-employers',{action:'workspace'});
   if(p==='owner_operators')return invoke('workforce-ctpa-owner-operators',{action:'workspace'});
   if(p==='new_entrant_audits'){const id=new URLSearchParams(location.search).get('id')||'';return invoke('ctpa-new-entrant-audits',id?{action:'audit',audit_id:id}:{action:'workspace'});}
