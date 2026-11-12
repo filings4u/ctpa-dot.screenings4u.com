@@ -53,13 +53,33 @@ const legacyRecordPanel=(section,label,description)=>
  '<section class="section" data-lab-panel="'+esc(section)+'"><h2>'+esc(label)+'</h2><p>'+esc(description)+'</p><div id="lab-records-'+esc(section)+'" class="lab-record-list" aria-live="polite">Loading existing Lab Account records…</div></section>';
 const scopedLink=(href,label,detail)=>'<a class="panel lab-feature-link" href="'+esc(href)+'"><strong>'+esc(label)+'</strong><small>'+esc(detail)+'</small></a>';
 function render(d){
- if(d?.authorized!==true)return '<section class="lab-migration-hub lab-hub-access"><div class="panel"><h2>Lab Account within Workforce C/TPA</h2><p>Use your existing C/TPA tools for employers, donors, testing, results, pools and documents. Laboratory-specific services appear here when this company has a verified Lab Account entitlement.</p><div class="lab-reuse-grid">'+
-  scopedLink('/testing.html','Testing orders','Use the existing C/TPA testing workflow')+
-  scopedLink('/results.html','Testing results','View authorized C/TPA results')+
-  scopedLink('/pools.html','Programs and pools','Manage consortium programs')+
-  scopedLink('/documents.html','Documents','Use existing company documents')+
-  scopedLink('/billing.html','Billing','Manage current C/TPA billing')+
-  scopedLink('/support.html','Support','Contact Workforce support')+'</div><p id="lab-hub-access-status" role="status" aria-live="polite">Checking available laboratory services…</p></div></section>';
+ if(d?.authorized!==true){
+  const common=[
+   ['overview','Lab Account Overview','The C/TPA portal already includes testing, people, programs, pools, results and billing. Laboratory-specific services remain linked to company-level access.'],
+   ['accounts','Laboratory Accounts','Use the existing C/TPA laboratory-account module for assigned laboratory numbers.'],
+   ['orders','Testing Orders','Submit normal C/TPA tests using the existing testing workspace. Dedicated Lab Account orders require an activated laboratory account.'],
+   ['tracking','Testing & Donor Passes','Use the existing testing workspace to track C/TPA test orders. Lab-specific donor passes require verified company access.'],
+   ['supplies','Supplies & Shipping','Physical laboratory supply requests and shipments require an activated Lab Account.'],
+   ['documents','Documents & CCFs','Use C/TPA Documents and Testing Documents for existing accessible files. Additional Lab Account documents require verified company access.'],
+   ['billing','Billing & Invoices','Use C/TPA Billing for current invoices. Lab Account purchase invoices require an approved company association.']
+  ];
+  const links={
+   overview:[['/employers.html','Employers'],['/people.html','People'],['/pools.html','Pools'],['/testing.html','Testing'],['/results.html','Results']],
+   accounts:[['/lab-accounts.html','C/TPA Laboratory Accounts']],
+   orders:[['/testing.html','C/TPA Testing']],
+   tracking:[['/testing.html','Testing Orders'],['/results.html','Results']],
+   documents:[['/documents.html','Company Documents'],['/testing-documents.html','Testing Documents']],
+   billing:[['/billing.html','Workforce Billing'],['/order-history.html','Order History']]
+  };
+  return '<div class="lab-migration-hub lab-hub-access">'+tabLinks()+
+   '<section class="section" data-lab-panel="overview"><div class="panel"><h2>Lab Account within Workforce C/TPA</h2><p>Use your existing Workforce modules without a separate portal. Laboratory-specific records and actions become available after the company Lab Account association is verified.</p><p id="lab-hub-access-status" role="status" aria-live="polite">Checking laboratory account access…</p></div></section>'+
+   common.map(([id,title,description])=>'<section class="section" data-lab-panel="'+esc(id)+'"><h2>'+esc(title)+'</h2><p>'+esc(description)+'</p><div class="lab-reuse-grid">'+
+    (links[id]||[]).map(([href,label])=>scopedLink(href,label,'Open existing C/TPA module')).join('')+
+    '</div></section>').join('')+
+   sections.filter(item=>!common.some(entry=>entry[0]===item.id)).map(item=>
+    '<section class="section" data-lab-panel="'+esc(item.id)+'"><h2>'+esc(item.label)+'</h2><p>This original Lab Account record type remains protected. The company must have a verified laboratory entitlement to view its private records.</p></section>'
+   ).join('')+'</div>';
+ }
  const accounts=d.lab_accounts||[],intakes=d.setup_records||[],shipments=d.shipments||[],requests=d.testing_requests||[];
  const menu=tabLinks();
  return '<div class="lab-migration-hub">'+menu+
@@ -108,6 +128,18 @@ function bind(call,data={}){
  const root=document.querySelector('.lab-migration-hub');if(!root)return;
  if(data?.authorized!==true){
   const status=root.querySelector('#lab-hub-access-status');
+  const buttons=[...root.querySelectorAll('[data-lab-tab]')];
+  const choose=section=>{
+   const id=sections.some(x=>x.id===section)?section:'overview';
+   root.querySelectorAll('[data-lab-panel]').forEach(el=>el.hidden=el.dataset.labPanel!==id);
+   buttons.forEach(button=>{
+    const active=button.dataset.labTab===id;
+    button.classList.toggle('active',active);
+    button.setAttribute('aria-pressed',String(active));
+   });
+  };
+  buttons.forEach(button=>button.addEventListener('click',()=>choose(button.dataset.labTab)));
+  choose(new URLSearchParams(location.search).get('lab')||'overview');
   call('overview').then(lab=>{
    if(!root.isConnected||!lab?.authorized)return;
    window.portalCtx.labAddonVerified=true;
