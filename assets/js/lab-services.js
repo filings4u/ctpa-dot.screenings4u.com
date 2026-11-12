@@ -73,7 +73,7 @@ function render(d){
  legacyRecordPanel('deliveries','Lab result delivery history','Previously requested result deliveries associated with your original Lab Account. Actual testing results remain in authorized Workforce Results workflows.')+
  legacyRecordPanel('alerts','Supply reorder alerts','Existing Lab Account supply alert records are preserved while laboratory supplies are consolidated.')+
 
- '<section class="section" data-lab-panel="documents"><h2>Lab Account documents and collection forms</h2><p>View Workforce-published laboratory account documents. Existing C/TPA and testing documents remain available in their original Workforce modules.</p><div id="lab-published-documents" class="lab-document-list" aria-live="polite">Loading published documents…</div><h3>Released chain-of-custody forms (CCFs)</h3><p>Only released CCFs belonging to your laboratory testing cases are available here.</p><div id="lab-ccf-archive" class="lab-document-list" aria-live="polite">Open Documents to load your CCFs.</div><dialog id="lab-document-preview" class="lab-document-dialog"><div class="lab-document-dialog-bar"><h3 id="lab-document-title">Document preview</h3><button class="btn ghost" type="button" id="lab-document-close">Close</button></div><iframe title="Lab Account document preview" id="lab-document-frame"></iframe></dialog>'+scopedLink('/documents.html','C/TPA Documents','Existing company documents workspace')+scopedLink('/testing-documents.html','Testing documents','Existing C/TPA testing documentation')+'</section>'+
+ '<section class="section" data-lab-panel="documents"><h2>Lab Account documents and collection forms</h2><p>View Workforce-published laboratory account documents. Existing C/TPA and testing documents remain available in their original Workforce modules.</p><div id="lab-published-documents" class="lab-document-list" aria-live="polite">Loading published documents…</div><h3>Intake and historical Lab Account files</h3><p>Original setup forms, uploaded intake attachments, completed service documents, and laboratory account files.</p><div id="lab-historical-documents" class="lab-document-list" aria-live="polite">Open Documents to load previous records.</div><dialog id="lab-intake-dialog" class="lab-document-dialog lab-intake-dialog"><div class="lab-document-dialog-bar"><h3 id="lab-intake-title">Lab Account intake</h3><button class="btn ghost" id="lab-intake-close" type="button">Close</button></div><div class="lab-intake-body" id="lab-intake-fields"></div></dialog><h3>Released chain-of-custody forms (CCFs)</h3><p>Only released CCFs belonging to your laboratory testing cases are available here.</p><div id="lab-ccf-archive" class="lab-document-list" aria-live="polite">Open Documents to load your CCFs.</div><dialog id="lab-document-preview" class="lab-document-dialog"><div class="lab-document-dialog-bar"><h3 id="lab-document-title">Document preview</h3><button class="btn ghost" type="button" id="lab-document-close">Close</button></div><iframe title="Lab Account document preview" id="lab-document-frame"></iframe></dialog>'+scopedLink('/documents.html','C/TPA Documents','Existing company documents workspace')+scopedLink('/testing-documents.html','Testing documents','Existing C/TPA testing documentation')+'</section>'+
  '<section class="section" data-lab-panel="billing"><h2>Laboratory purchases and invoices</h2><p>View invoices and purchases linked to the verified Lab Account purchase. Your existing C/TPA billing remains separate.</p><h3>Lab Account purchase</h3><div id="lab-purchase-history" class="lab-document-list" aria-live="polite">Loading purchase history…</div><h3>Lab Account invoices</h3><div id="lab-invoice-list" class="lab-document-list" aria-live="polite">Loading laboratory invoices…</div><dialog id="lab-invoice-detail" class="lab-document-dialog lab-invoice-dialog"><div class="lab-document-dialog-bar"><h3 id="lab-invoice-heading">Invoice details</h3><button type="button" class="btn ghost" id="lab-invoice-close">Close</button></div><div class="lab-invoice-content" id="lab-invoice-content"></div></dialog>'+scopedLink('/billing.html','Workforce Billing','Existing C/TPA billing and invoices')+scopedLink('/order-history.html','Order history','Existing C/TPA purchase records')+'</section>'+
  '<section class="section" data-lab-panel="support"><h2>Lab Account support</h2><p>Contact Workforce support for test registration, collection instructions, or laboratory-account issues.</p>'+scopedLink('/support.html','Contact Support','Existing C/TPA support workflow')+'</section>'+
  '<section class="notice" data-lab-panel="overview"><strong>One Workforce C/TPA portal</strong><p>This Lab Account section uses existing C/TPA modules for shared services and the current Workforce testing backend for lab requests. Laboratory registration, donor-pass issuance, result release and shipment fulfillment remain controlled by Workforce Testing Management.</p></section></div>';
@@ -87,7 +87,7 @@ function bind(call,data={}){
   buttons.forEach(button=>{const on=button.dataset.labTab===selected;button.classList.toggle('active',on);button.setAttribute('aria-pressed',String(on));});
   if(selected==='orders')loadServices();
   if(selected==='supplies')loadSupplies();
-  if(selected==='documents'){loadDocuments();loadCcfArchive();}
+  if(selected==='documents'){loadDocuments();loadCcfArchive();loadHistoricalDocs();}
   if(selected==='tracking')loadPasses();
   if(['clients','alerts','deliveries'].includes(selected))loadLegacyRecords(selected);
   if(selected==='deliveries')loadReleasedCases();
@@ -329,6 +329,52 @@ function bind(call,data={}){
    }
    }catch(error){const message=String(error.message||error);documentsHost.insertAdjacentHTML('afterbegin','<p role="alert" class="lab-doc-error">'+esc(message)+'</p>')}
   finally{button.disabled=false}
+ });
+ const historicalHost=root.querySelector('#lab-historical-documents');
+ const intakeModal=root.querySelector('#lab-intake-dialog');
+ let historicalDocs=null;
+ async function loadHistoricalDocs(){
+  if(historicalDocs!==null)return;
+  historicalHost.textContent='Loading previous Lab Account documents…';
+  try{
+   const response=await call('historical_documents');historicalDocs=response.documents||[];
+   historicalHost.innerHTML=historicalDocs.length?historicalDocs.map(doc=>
+    '<div class="panel lab-document-row"><div><strong>'+esc(doc.title||'Lab Account document')+'</strong><small>'+esc(tag(doc.source))+' · '+date(doc.created_at)+'</small><small>'+esc(doc.description||'')+'</small></div><div class="lab-document-actions">'+
+    (doc.source==='intake'?'<button class="btn ghost" type="button" data-lab-intake="'+esc(doc.id)+'">View intake</button>':
+    doc.downloadable?'<button class="btn ghost" type="button" data-lab-historical-view="'+esc(doc.id)+'">View</button><button class="btn ghost" type="button" data-lab-historical-download="'+esc(doc.id)+'">Download</button>':'')+
+    '</div></div>'
+   ).join(''):'<div class="panel">No historical Lab Account files were found for the verified purchaser.</div>';
+  }catch(error){historicalHost.textContent=error.message||'Unable to load historical documents.'}
+ }
+ root.querySelector('#lab-intake-close').addEventListener('click',()=>intakeModal.close());
+ historicalHost.addEventListener('click',async event=>{
+  const button=event.target.closest('[data-lab-intake],[data-lab-historical-view],[data-lab-historical-download]');
+  if(!button||button.disabled)return;
+  const id=button.dataset.labIntake||button.dataset.labHistoricalView||button.dataset.labHistoricalDownload;
+  const doc=historicalDocs?.find(record=>record.id===id);if(!doc)return;
+  button.disabled=true;
+  try{
+   if(doc.source==='intake'){
+    const response=await call('lab_intake_details',{document_id:id}),record=response.intake||{};
+    root.querySelector('#lab-intake-title').textContent=record.title||'Lab Account intake';
+    const safe=Object.entries(record.fields||{}).map(([key,value])=>
+     '<div><dt>'+esc(key.replace(/[_-]/g,' '))+'</dt><dd>'+esc(typeof value==='object'?JSON.stringify(value):value)+'</dd></div>').join('');
+    root.querySelector('#lab-intake-fields').innerHTML='<dl class="lab-intake-grid">'+safe+'</dl>';
+    if(!intakeModal.open)intakeModal.showModal();
+   }else{
+    const download=Boolean(button.dataset.labHistoricalDownload);
+    const response=await call('historical_document_url',{document_id:id,source:doc.source,download});
+    if(!/^https:\/\//i.test(response.url||''))throw Error('Document link unavailable');
+    if(download)window.location.assign(response.url);
+    else{
+     root.querySelector('#lab-document-title').textContent=response.title||'Lab Account document';
+     root.querySelector('#lab-document-frame').src=response.url;
+     if(!docModal.open)docModal.showModal();
+    }
+   }
+  }catch(error){
+   historicalHost.insertAdjacentHTML('afterbegin','<p role="alert" class="lab-doc-error">'+esc(error.message||'Document unavailable')+'</p>');
+  }finally{button.disabled=false}
  });
  const ccfHost=root.querySelector('#lab-ccf-archive');
  let ccfDocs=null;
