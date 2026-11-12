@@ -80,13 +80,13 @@ const managerRole=ctx=>{
 function pageAccess(ctx,p){
  if(C.kind!=='ctpa')return {allowed:true};
  const key=norm(p);
- if(workspace()?.surface==='nondot'&&!isNonDotPage(key)&&!['support','subscription','billing','notifications'].includes(key))return {allowed:false,reason:'Select the DOT workspace to use DOT features.',feature:'nondot_access'};
+ if(workspace()?.surface==='nondot'&&!isNonDotPage(key)&&key!=='support')return {allowed:false,reason:'Select the DOT workspace to use DOT features.',feature:'nondot_access'};
  const feature=PAGE_FEATURES[key];
  if(feature&&!planHas(ctx,feature))return {allowed:false,reason:'This feature is not included with your current C/TPA subscription.',feature};
  if(MANAGER_PAGES.has(key)&&!managerRole(ctx))return {allowed:false,reason:'Your C/TPA team role does not permit this administrative action.',feature};
  // Lab Account navigation is part of the C/TPA workspace. Protected lab
  // records and mutations remain exclusively authorized in the backend.
- if(isNonDotPage(key)&&ctx?.nondotVerified!==true)return {allowed:false,reason:'An independently authorized NON-DOT subscription is required for this C/TPA organization.',feature:'nondot_access'};
+ if(isNonDotPage(key)&&(workspace()?.surface!=='nondot'||ctx?.nondotVerified!==true))return {allowed:false,reason:'An independently authorized NON-DOT subscription is required for this C/TPA organization.',feature:'nondot_access'};
  return {allowed:true};
 }
 function buildNavigation(ctx={}){
@@ -104,7 +104,7 @@ function buildNavigation(ctx={}){
    ['nondot-results','Results','✓']
   ];
   return [...workspaces,...sections.map(([id,label,icon])=>({id,label,icon,href:'/'+id+'.html'})),
-   ...[['subscription','Subscription','◫'],['billing','Billing','$'],['notifications','Notifications','✉'],['support','Support','?']].map(([id,label,icon])=>({id,label,icon,href:'/'+id+'.html'}))];
+   ...[['support','Support','?']].map(([id,label,icon])=>({id,label,icon,href:'/'+id+'.html'}))];
  }
  const e=ctx.entitlements||{};
  const items=[
@@ -847,14 +847,14 @@ async function prepareTarget(url){
   return {doc,u,targetPage:norm(doc.body?.dataset?.portalPage||u.pathname.split('/').pop()?.replace('.html','')||'dashboard')};
 }
 function updateActiveNavigation(){
-  const cur=page();document.querySelectorAll('.nav a,.mobile-nav-links a').forEach(a=>{const u=new URL(a.href,location.href),id=norm(u.pathname.split('/').pop()?.replace('.html','')||'');a.classList.toggle('active',id===cur||(id==='people'&&cur==='people_company')||(id==='pools'&&['pool_detail','pool_form'].includes(cur))||(id==='locations'&&cur==='location_form')||(id==='users_roles'&&['staff_form','staff_view','staff_invite','staff_delete'].includes(cur)))});
+  const cur=page();document.querySelectorAll('.nav a,.mobile-nav-links a').forEach(a=>{const u=new URL(a.href,location.href),id=norm(u.pathname.split('/').pop()?.replace('.html','')||'');a.classList.toggle('active',a.dataset.workspace?a.dataset.workspace===workspace()?.surface:id===cur||(id==='people'&&cur==='people_company')||(id==='pools'&&['pool_detail','pool_form'].includes(cur))||(id==='locations'&&cur==='location_form')||(id==='users_roles'&&['staff_form','staff_view','staff_invite','staff_delete'].includes(cur)))});
 }
 async function navigatePortal(url,{replace=false,pop=false}={}){
   const u=new URL(url,location.href);
   if(u.origin!==location.origin||!u.pathname.endsWith('.html')){location.href=u.href;return}
   const prepared=await prepareTarget(u.href);
   const targetPage=prepared.targetPage,targetSearch=u.search;
-  if(isNonDotPage(targetPage)){
+  if(isNonDotPage(targetPage)&&workspace()?.surface==='nondot'){
     try{window.portalCtx.nondotVerified=await nondotWorkspaceAccess();}
     catch{window.portalCtx.nondotVerified=false;}
   }
@@ -905,7 +905,7 @@ async function init(){
   try{
     const ctx=await access();if(!ctx?.has_access)throw new Error(ctx?.reason||'Portal access denied.');
     window.portalCtx=ctx;
-    if(isNonDotPage(page())){
+    if(isNonDotPage(page())&&workspace()?.surface==='nondot'){
       try{ctx.nondotVerified=await nondotWorkspaceAccess();}
       catch{ctx.nondotVerified=false;}
     }
