@@ -112,14 +112,14 @@ Deno.serve(async(req:Request)=>{
      const fresh=()=>{page=pdf.addPage([612,792]);y=738};
      const draw=(value:unknown,size=10,bold=false)=>{
       const face=bold?strong:font;
-      const raw=String(value??"").replace(/[^\\x20-\\x7E]/g," ").slice(0,12000);
+      const raw=String(value??"").replace(/[^\x20-\x7E]/g," ").slice(0,12000);
       let line="";
       const write=(str:string)=>{
        if(y<65)fresh();
        page.drawText(str,{x:48,y,size,font:face,color:rgb(.02,.07,.18)});
        y-=size+7;
       };
-      for(const word of raw.split(/\\s+/)){
+      for(const word of raw.split(/\s+/)){
        if(!word)continue;
        const candidate=line?line+" "+word:word;
        if(face.widthOfTextAtSize(candidate,size)>510&&line){write(line);line=word}
