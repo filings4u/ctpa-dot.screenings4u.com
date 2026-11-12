@@ -131,7 +131,7 @@ function buildNavigation(ctx={}){
  return [...workspaces,...items.filter(x=>(!x[3]||e[x[3]]===true)&&pageAccess(ctx,norm(x[0])).allowed)
    .map(x=>({id:x[0],label:x[1],icon:x[2],href:'/'+x[0]+'.html'}))];
 }
-const cfgPage=id=>NAV.find(x=>norm(x.id)===norm(id))||{id,label:pretty(id),icon:'•',href:`/${id}.html`};
+const cfgPage=id=>id==='dashboard'&&workspace()?.surface==='nondot'?{id,label:'NON-DOT Dashboard',icon:'⌂',href:'/dashboard.html'}:NAV.find(x=>norm(x.id)===norm(id))||{id,label:pretty(id),icon:'•',href:`/${id}.html`};
 
 async function getSession(){const {data:{session},error}=await sb.auth.getSession();if(error)throw error;return session}
 function ctpaPayload(body={}){const w=workspace();return C.kind==='ctpa'?{ctpa_id:w?.ctpa_id,subscription_id:w?.subscription_id,membership_id:w?.membership_id,...body}:body}
