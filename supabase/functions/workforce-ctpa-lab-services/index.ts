@@ -15,7 +15,7 @@ Deno.serve(async(req:Request)=>{
   if(authError||!user?.id||!user.email_confirmed_at)return out({error:"Verified sign-in required"},401);
   const payload=await req.json().catch(()=>({}));
   const action=String(payload.action||"access"),ctpaId=String(payload.ctpa_id||""),subscriptionId=String(payload.subscription_id||"");
-  if(!["access","overview","catalog","create_order","supply_catalog","request_supplies"].includes(action)||!uuid(ctpaId)||!uuid(subscriptionId))return out({error:"Invalid C/TPA workspace and subscription"},400);
+  if(!["access","overview","catalog","create_order","supply_catalog","request_supplies","documents","document_url"].includes(action)||!uuid(ctpaId)||!uuid(subscriptionId))return out({error:"Invalid C/TPA workspace and subscription"},400);
   const db=createClient(url,secret,{auth:{persistSession:false,autoRefreshToken:false}});
   // Reuse the C/TPA's verified workspace boundary; organization membership alone is insufficient.
   const session=await db.rpc("ctpa_dot_session_context",{p_user_id:user.id,p_ctpa_id:ctpaId,p_subscription_id:subscriptionId});
@@ -38,6 +38,34 @@ Deno.serve(async(req:Request)=>{
   if(grant.error)throw grant.error;
   if(!grant.data)return out({authorized:false,reason:"Lab Account add-on not enabled for this company"},403);
   if(action==="access")return out({authorized:true,features:{lab_account:true},organization_id:c.data.organization_id});
+  if(action==="documents"||action==="document_url"){
+   // Legacy published Lab Account documents were assigned to a purchaser,
+   // not a company. Keep that original privacy boundary until migrated.
+   if(!grant.data.source_order_id||grant.data.linked_customer_user_id!==user.id)
+    return action==="documents"?out({authorized:true,documents:[]}):out({error:"Document access requires the assigned purchaser"},403);
+   if(action==="documents"){
+    const docs=await db.from("lab_customer_published_documents")
+     .select("id,title,description,category,original_filename,mime_type,created_at")
+     .eq("customer_user_id",user.id).eq("is_published",true)
+     .is("archived_at",null).order("created_at",{ascending:false}).limit(200);
+    if(docs.error)throw docs.error;
+    return out({authorized:true,documents:docs.data||[]});
+   }
+   if(!uuid(payload.document_id))return out({error:"Valid document required"},400);
+   const row=await db.from("lab_customer_published_documents")
+    .select("id,title,storage_bucket,storage_path,original_filename,mime_type")
+    .eq("id",payload.document_id).eq("customer_user_id",user.id)
+    .eq("is_published",true).is("archived_at",null).maybeSingle();
+   if(row.error)throw row.error;
+   if(!row.data?.storage_path||row.data.storage_bucket!=="testing-private-documents")
+    return out({error:"Published document unavailable"},404);
+   const safeName=String(row.data.original_filename||row.data.title||"Workforce-Lab-Document.pdf")
+    .replace(/[\\/\\r\\n"<>]/g,"_").slice(0,180);
+   const signed=await db.storage.from("testing-private-documents")
+    .createSignedUrl(row.data.storage_path,120,{download:payload.download===true?safeName:undefined});
+   if(signed.error||!signed.data?.signedUrl)throw signed.error||Error("Unable to issue secure document link");
+   return out({url:signed.data.signedUrl,title:row.data.title,mime_type:row.data.mime_type});
+  }
   if(["catalog","create_order","supply_catalog","request_supplies"].includes(action)){
    if(!grant.data.source_order_id||!grant.data.linked_customer_user_id)
     return out({error:"A verified Lab Account purchase is required"},403);
