@@ -1883,3 +1883,15 @@ body.loading::before{content:"Loading Workforce C/TPA…"}
 .lab-migration-hub .lab-legacy-card .lab-migration-grid small{display:block;color:#52657e;margin-bottom:4px}
 .lab-migration-hub .lab-legacy-card .lab-migration-grid strong{overflow-wrap:anywhere}
 @media(max-width:700px){.lab-migration-hub .lab-specimen-form{grid-template-columns:1fr}}
+
+/* Migrated laboratory order edit and released result delivery forms. */
+.lab-migration-hub .lab-edit-order-dialog{height:auto;max-height:90vh;overflow-y:auto}
+.lab-migration-hub #lab-order-edit-form{display:grid;gap:14px;margin:0;padding:20px}
+.lab-migration-hub #lab-order-edit-form label,.lab-migration-hub #lab-delivery-form label{display:grid;gap:6px;font-size:.87rem;font-weight:700;color:#01122f}
+.lab-migration-hub #lab-order-edit-form :is(input,select,textarea),.lab-migration-hub #lab-delivery-form :is(input,select){font:inherit;padding:10px 12px;width:100%;min-width:0;box-sizing:border-box;border-radius:8px;border:1px solid #bcc8d8;background:#fff;color:#01122f}
+.lab-migration-hub #lab-order-edit-form button,.lab-migration-hub #lab-delivery-form button{width:max-content;min-height:42px;padding:10px 16px;background:#01122f;border:1px solid #01122f;border-radius:8px;color:#fff;font:inherit;font-weight:800}
+.lab-migration-hub #lab-order-edit-form button:disabled,.lab-migration-hub #lab-delivery-form button:disabled{opacity:.55;cursor:wait}
+.lab-migration-hub #lab-delivery-form{display:grid;gap:16px}
+.lab-migration-hub .lab-request-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.lab-migration-hub .lab-request-actions .btn{white-space:nowrap}
+@media(max-width:700px){.lab-migration-hub #lab-order-edit-form button,.lab-migration-hub #lab-delivery-form button{width:100%}}
