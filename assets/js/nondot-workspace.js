@@ -149,7 +149,8 @@ function bind(data,submit){
   button.addEventListener('click',async()=>{
    if(button.disabled)return;
    const number=button.dataset.orderNumber||'this order';
-   if(!window.confirm('Cancel '+number+'? This will not refund a payment or cancel an invoice.'))return;
+   if(!window.S4UDialog?.confirm)return;
+   if(!await window.S4UDialog.confirm('Cancel '+number+'? This will not refund a payment or cancel an invoice.',{title:'Cancel NON-DOT order',confirmText:'Cancel order',danger:true}))return;
    const status=button.parentElement?.querySelector('[role="status"]');
    button.disabled=true;
    if(status)status.textContent='Cancelling unfulfilled order…';
