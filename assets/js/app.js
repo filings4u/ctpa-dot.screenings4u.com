@@ -911,6 +911,11 @@ function installFastNavigation(){
 async function init(){
   try{
     const ctx=await access();if(!ctx?.has_access)throw new Error(ctx?.reason||'Portal access denied.');
+    const requestedWorkspace=new URLSearchParams(location.search).get('workspace');
+    if(['dot','nondot'].includes(requestedWorkspace)){
+      if(requestedWorkspace!==workspace()?.surface){await switchOperatingWorkspace(requestedWorkspace);return;}
+      const clean=new URL(location.href);clean.searchParams.delete('workspace');history.replaceState(history.state,'',clean.pathname+clean.search+clean.hash);
+    }
     window.portalCtx=ctx;
     if(workspace()?.surface==='nondot'){
       try{ctx.nondotVerified=await nondotWorkspaceAccess();}
