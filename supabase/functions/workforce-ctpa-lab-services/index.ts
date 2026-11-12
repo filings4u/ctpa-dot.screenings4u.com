@@ -50,6 +50,24 @@ Deno.serve(async(req:Request)=>{
    ?await db.from("house_lab_supply_shipments").select("id,intake_id,carrier,tracking_number,status,items_description,created_at").in("intake_id",intakeIds).order("created_at",{ascending:false}).limit(100)
    :{data:[],error:null};
   if(shipment.error)throw shipment.error;
+  // Stage only a read-only inventory of requests generated in the existing
+  // Lab Account portal by the verified purchaser linked to this company grant.
+  // Do not infer organization-wide case ownership from an email address or from
+  // the C/TPA's ordinary DOT / NON-DOT testing-order subscriptions.
+  let testingRequests:any[]=[];
+  if(grant.data.source_order_id&&grant.data.linked_customer_user_id&&intakeIds.length){
+   const cases=await db.from("testing_cases")
+    .select("id,case_number,status,test_type,created_at,scheduled_at,collected_at,completed_at,metadata")
+    .eq("customer_user_id",grant.data.linked_customer_user_id)
+    .contains("metadata",{source:"lab_account_portal"})
+    .order("created_at",{ascending:false}).limit(100);
+   if(cases.error)throw cases.error;
+   testingRequests=(cases.data||[]).map((x:any)=>({
+    id:x.id,case_number:x.case_number,status:x.status,test_type:x.test_type,
+    created_at:x.created_at,scheduled_at:x.scheduled_at,
+    collected_at:x.collected_at,completed_at:x.completed_at
+   }));
+  }
   return out({
    authorized:true,features:{lab_account:true},
    lab_accounts:(labs.data||[]).map((x:any)=>({
@@ -76,7 +94,7 @@ Deno.serve(async(req:Request)=>{
      return numbers;
     })()
    })),
-   setup_records:intake.data||[],shipments:shipment.data||[],
+   setup_records:intake.data||[],shipments:shipment.data||[],testing_requests:testingRequests,
    note:"This migration view is read-only. Test orders, CCFs, results, and supply requests remain in their existing authorized workflows until integrated and tested."
   });
  }catch(e){console.error("workforce-ctpa-lab-services",e);return out({error:"Unable to load your Lab Account"},500)}
