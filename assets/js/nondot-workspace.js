@@ -64,6 +64,23 @@ function render(d){
    '<button type="submit" class="btn primary">Save changes</button><p role="status" aria-live="polite"></p></form></details>';
  }).join('')+'</section>':'';
 
+
+ const availablePools=(d.data?.pools||[]).filter(x=>x?.id&&x?.employer_id&&x.pool_type==='employer'&&x.status!=='archived');
+ const poolWorkers=(d.data?.employees||[]).filter(x=>x?.id&&x?.employer_id);
+ const activeMemberships=(d.data?.memberships||[]).filter(m=>m?.id&&m?.pool_id&&m?.employee_id);
+ const poolMembersControl=managers&&section.id==='pools'&&availablePools.length&&poolWorkers.length?
+ '<section class="panel nondot-create"><div class="panel-head"><h2>NON-DOT Pool Memberships</h2></div>'+
+ '<form id="nondot-pool-member-form"><label>Employer pool<select name="pool_id" required><option value="">Select a pool</option>'+
+ availablePools.map(p=>'<option value="'+esc(p.id)+'" data-employer-id="'+esc(p.employer_id)+'">'+esc(p.name||p.pool_name||'Pool')+'</option>').join('')+
+ '</select></label><label>Employee<select name="employee_id" required><option value="">Select an employee</option>'+
+ poolWorkers.map(e=>'<option value="'+esc(e.id)+'" data-employer-id="'+esc(e.employer_id)+'">'+esc([e.first_name,e.last_name].filter(Boolean).join(' ')||'Employee')+'</option>').join('')+
+ '</select></label><button class="btn primary" type="submit">Add employee to pool</button><p role="status" aria-live="polite"></p></form>'+
+ (activeMemberships.length?'<div class="nondot-memberships"><h3>Active memberships</h3>'+activeMemberships.slice(0,100).map(m=>{
+ const pool=availablePools.find(p=>p.id===m.pool_id),employee=poolWorkers.find(e=>e.id===m.employee_id);
+ if(!pool||!employee)return '';
+ return '<div class="nondot-member-row"><span>'+esc([employee.first_name,employee.last_name].filter(Boolean).join(' '))+' · '+esc(pool.name||pool.pool_name||'Pool')+'</span><button type="button" class="btn ghost nondot-remove-member" data-pool-id="'+esc(pool.id)+'" data-employee-id="'+esc(employee.id)+'">Remove</button></div>';
+ }).join('')+'</div>':'')+'</section>':'';
+
  const canCreate=managers&&employers.length>0&&['people','programs','pools','testing'].includes(section.id);
  const programs=(d.data?.programs||[]).filter(p=>p?.id&&p?.employer_id);
  const employees=(d.data?.employees||[]).filter(e=>e?.id&&e?.employer_id);
@@ -73,7 +90,7 @@ function render(d){
  (section.id==='people'?'<label>First name<input name="first_name" required maxlength="120" autocomplete="off"></label><label>Last name<input name="last_name" required maxlength="120" autocomplete="off"></label><label>Employee number (optional)<input name="employee_number" maxlength="40" autocomplete="off"></label>' :section.id==='testing'?'<label>NON-DOT employee<select name="employee_id" required><option value="">Select an employee</option>'+employees.map(e=>'<option value="'+esc(e.id)+'" data-employer-id="'+esc(e.employer_id)+'">'+esc([e.first_name,e.last_name].filter(Boolean).join(' ')||'Employee')+'</option>').join('')+'</select></label><label>NON-DOT program<select name="program_id" required><option value="">Select a program</option>'+programs.map(p=>'<option value="'+esc(p.id)+'" data-employer-id="'+esc(p.employer_id)+'">'+esc(p.name||'Program')+'</option>').join('')+'</select></label><label>Testing type<select name="test_type" required><option value="drug">Drug test</option><option value="alcohol">Alcohol test</option></select></label>':section.id==='pools'?'<label>NON-DOT program<select name="program_id" required><option value="">Select a program</option>'+programs.map(p=>'<option value="'+esc(p.id)+'" data-employer-id="'+esc(p.employer_id)+'">'+esc(p.name||'Program')+'</option>').join('')+'</select></label><label>Pool name<input name="name" required maxlength="120" autocomplete="off"></label>':'<label>Program name<input name="name" required maxlength="120" autocomplete="off"></label>')+
  '<p class="nondot-privacy-note">Only NON-DOT records for the selected employer will be created. Your subscription and role are checked again when you submit.</p><button type="submit" class="btn primary">Save '+esc(section.id==='people'?'employee':section.id==='pools'?'draft pool':section.id==='testing'?'testing order':'program')+'</button><p id="nondot-create-status" aria-live="polite" role="status"></p></form></section>':'';
 
- return '<div class="nondot-workspace"><section class="panel"><div class="panel-head"><div><h2>NON-DOT Workforce</h2><p>Company-policy operations for your authorized C/TPA company. These records stay separate from DOT-regulated records.</p></div><span class="badge">'+(managers?'Authorized account manager':'Read-only migration view')+'</span></div>'+tabs+'</section><section class="panel"><div class="panel-head"><div><h2>'+esc(section.label)+'</h2><p>'+esc(section.detail)+'</p></div></div>'+body+'</section>'+form+editForms+'<p class="nondot-privacy-note">This staged workspace lets authorized primary account managers create employees, company-policy programs, draft pools and NON-DOT testing orders. Random selections, result delivery and editing existing records remain in their original authorized workflows.</p></div>';
+ return '<div class="nondot-workspace"><section class="panel"><div class="panel-head"><div><h2>NON-DOT Workforce</h2><p>Company-policy operations for your authorized C/TPA company. These records stay separate from DOT-regulated records.</p></div><span class="badge">'+(managers?'Authorized account manager':'Read-only migration view')+'</span></div>'+tabs+'</section><section class="panel"><div class="panel-head"><div><h2>'+esc(section.label)+'</h2><p>'+esc(section.detail)+'</p></div></div>'+body+'</section>'+form+editForms+poolMembersControl+'<p class="nondot-privacy-note">This staged workspace lets authorized primary account managers create employees, company-policy programs, draft pools and NON-DOT testing orders. Random selections, result delivery and editing existing records remain in their original authorized workflows.</p></div>';
 }
 function bind(data,submit){
  if(!submit||data?.can_manage!==true||data?.read_only!==false)return;
@@ -90,6 +107,26 @@ function bind(data,submit){
    try{await submit({section,action:section==='people'?'update_employee':'update_program',[section==='people'?'employee':'program']:value});location.reload();}
    catch(e){status.textContent=e?.message||'Update failed';button.disabled=false;}
   });
+ }
+ const memberForm=document.querySelector('#nondot-pool-member-form');
+ if(memberForm){
+  const pool=memberForm.querySelector('[name="pool_id"]'),employee=memberForm.querySelector('[name="employee_id"]'),status=memberForm.querySelector('[role="status"]');
+  const match=()=>{const option=pool.selectedOptions[0],employer=option?.dataset.employerId||'';for(const o of employee.options){if(o.value)o.hidden=!employer||o.dataset.employerId!==employer;}if(employee.selectedOptions[0]?.hidden)employee.value='';};
+  pool.addEventListener('change',match);match();
+  memberForm.addEventListener('submit',async event=>{
+   event.preventDefault();const button=memberForm.querySelector('button[type="submit"]');if(button.disabled)return;
+   button.disabled=true;status.textContent='Adding pool membership…';
+   try{await submit({section:'pools',action:'add_pool_member',membership:{pool_id:pool.value,employee_id:employee.value}});location.reload();}
+   catch(error){status.textContent=error?.message||'Unable to add employee';button.disabled=false;}
+  });
+  for(const button of document.querySelectorAll('.nondot-remove-member')){
+   button.addEventListener('click',async()=>{
+    if(button.disabled)return;
+    button.disabled=true;status.textContent='Removing pool membership…';
+    try{await submit({section:'pools',action:'remove_pool_member',membership:{pool_id:button.dataset.poolId,employee_id:button.dataset.employeeId}});location.reload();}
+    catch(error){status.textContent=error?.message||'Unable to remove membership';button.disabled=false;}
+   });
+  }
  }
  const form=document.querySelector('#nondot-create-form');
  if(!form)return;
