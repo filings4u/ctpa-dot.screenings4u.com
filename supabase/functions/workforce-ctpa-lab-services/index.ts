@@ -16,7 +16,7 @@ Deno.serve(async(req:Request)=>{
   if(authError||!user?.id||!user.email_confirmed_at)return out({error:"Verified sign-in required"},401);
   const payload=await req.json().catch(()=>({}));
   const action=String(payload.action||"access"),ctpaId=String(payload.ctpa_id||""),subscriptionId=String(payload.subscription_id||"");
-  if(!["access","overview","catalog","create_order","supply_catalog","request_supplies","documents","document_url","issued_passes","legacy_clients","legacy_supply_alerts","legacy_deliveries","report_specimen_shipped","order_details","update_order","ccf_archive","ccf_url","released_cases","request_result_delivery","lab_purchases","lab_invoices","lab_invoice_detail","historical_documents","historical_document_url","lab_intake_details","lab_intake_pdf","lab_client_save","lab_client_archive","supply_alert_save","supply_alert_delete","lab_analytics","lab_released_results","lab_consortiums","lab_consortium_members","lab_service_requests"].includes(action)||!uuid(ctpaId)||!uuid(subscriptionId))return out({error:"Invalid C/TPA workspace and subscription"},400);
+  if(!["access","overview","catalog","create_order","supply_catalog","request_supplies","documents","document_url","issued_passes","legacy_clients","legacy_supply_alerts","legacy_deliveries","report_specimen_shipped","order_details","update_order","ccf_archive","ccf_url","released_cases","request_result_delivery","lab_purchases","lab_invoices","lab_invoice_detail","historical_documents","historical_document_url","lab_intake_details","lab_intake_pdf","lab_client_save","lab_client_archive","supply_alert_save","supply_alert_delete","lab_analytics","lab_released_results","lab_consortiums","lab_consortium_members","lab_service_requests","legacy_benefits","generated_benefit_url"].includes(action)||!uuid(ctpaId)||!uuid(subscriptionId))return out({error:"Invalid C/TPA workspace and subscription"},400);
   const db=createClient(url,secret,{auth:{persistSession:false,autoRefreshToken:false}});
   // Reuse the C/TPA's verified workspace boundary; organization membership alone is insufficient.
   const session=await db.rpc("ctpa_dot_session_context",{p_user_id:user.id,p_ctpa_id:ctpaId,p_subscription_id:subscriptionId});
@@ -419,6 +419,46 @@ Deno.serve(async(req:Request)=>{
     }catch(error){console.error("Lab specimen shipment email",error)}
    }
    return out({ok:true,shipment:shipped.data,lab_receipt:"not_confirmed"});
+  }
+  if(action==="legacy_benefits"||action==="generated_benefit_url"){
+   // Preserve the original purchaser's generated reports and setup checklists.
+   // C/TPA compliance/consortium tools remain authoritative for new work.
+   if(!grant.data.source_order_id||grant.data.linked_customer_user_id!==user.id)
+    return action==="legacy_benefits"?out({authorized:true,schedules:[],setups:[],documents:[]}):
+     out({error:"Lab Account purchaser access required"},403);
+   if(action==="legacy_benefits"){
+    const [schedules,setups,documents]=await Promise.all([
+     db.from("lab_customer_selection_schedules")
+      .select("id,consortium_id,selection_type,scheduled_for,status,created_at")
+      .eq("customer_user_id",user.id).order("scheduled_for",{ascending:false}).limit(200),
+     db.from("lab_customer_clearinghouse_setups")
+      .select("id,company_name,dot_number,steps,status,updated_at")
+      .eq("customer_user_id",user.id).order("created_at",{ascending:false}).limit(100),
+     db.from("lab_customer_generated_documents")
+      .select("id,title,document_type,created_at")
+      .eq("customer_user_id",user.id).order("created_at",{ascending:false}).limit(200)
+    ]);
+    for(const result of [schedules,setups,documents])if(result.error)throw result.error;
+    return out({authorized:true,schedules:schedules.data||[],
+     setups:setups.data||[],documents:documents.data||[]});
+   }
+   if(!uuid(payload.document_id))return out({error:"Valid generated document required"},400);
+   const document=await db.from("lab_customer_generated_documents")
+    .select("id,title,document_type,storage_bucket,storage_path")
+    .eq("id",payload.document_id).eq("customer_user_id",user.id).maybeSingle();
+   if(document.error)throw document.error;
+   if(!document.data||!["consortium_certificate","client_template","audit_package"].includes(document.data.document_type)||
+      document.data.storage_bucket!=="testing-private-documents"||
+      !String(document.data.storage_path||"").startsWith("lab-benefits/"+user.id+"/"))
+    return out({error:"Generated Lab Account document unavailable"},404);
+   const filename=String(document.data.title||"Workforce-Lab-Document.pdf")
+     .replace(/[^a-zA-Z0-9._ -]/g,"_").slice(0,160);
+   const signed=await db.storage.from("testing-private-documents")
+     .createSignedUrl(document.data.storage_path,120,{
+      download:payload.download===true?filename:undefined
+     });
+   if(signed.error||!signed.data?.signedUrl)throw signed.error||Error("Generated document unavailable");
+   return out({url:signed.data.signedUrl,title:document.data.title,expires_in:120});
   }
   if(["lab_released_results","lab_consortiums","lab_consortium_members","lab_service_requests"].includes(action)){
    if(!grant.data.source_order_id||grant.data.linked_customer_user_id!==user.id)
