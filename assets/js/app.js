@@ -45,7 +45,7 @@ const saveMid=()=>{};
 let NAV=[];
 const LABORATORY_PAGES=Object.freeze({"laboratory_overview":{"label":"Laboratory Overview","section":"overview"},"laboratory_accounts":{"label":"Laboratory Accounts","section":"accounts"},"laboratory_orders":{"label":"Laboratory Test Orders","section":"orders"},"laboratory_tracking":{"label":"Donor Passes & Tracking","section":"tracking"},"laboratory_results":{"label":"Released Lab Results","section":"results"},"laboratory_delivery":{"label":"Result Delivery","section":"deliveries"},"laboratory_supplies":{"label":"Laboratory Supplies","section":"supplies"},"laboratory_alerts":{"label":"Supply Alerts","section":"alerts"},"laboratory_documents":{"label":"Lab Documents & CCFs","section":"documents"},"laboratory_billing":{"label":"Laboratory Invoices","section":"billing"},"laboratory_analytics":{"label":"Laboratory Analytics","section":"analytics"},"laboratory_consortiums":{"label":"Historical Consortiums","section":"consortium"},"laboratory_services":{"label":"Lab Service Requests","section":"services"},"laboratory_benefits":{"label":"Historical Benefits","section":"benefits"},"laboratory_clients":{"label":"Lab Client Directory","section":"clients"}});
 const isLaboratoryPage=p=>Boolean(LABORATORY_PAGES[norm(p)]);
-const NONDOT_PAGES=Object.freeze({nondot_people:'people',nondot_programs:'programs',nondot_pools:'pools',nondot_testing:'testing',nondot_results:'results'});
+const NONDOT_PAGES=Object.freeze({nondot_employers:'people',nondot_people:'people',nondot_programs:'programs',nondot_pools:'pools',nondot_testing:'testing',nondot_results:'results'});
 const isNonDotPage=p=>p==='nondot_workspace'||Boolean(NONDOT_PAGES[norm(p)]);
 const SHARED_WORKSPACE_PAGES=new Set(['support','profile','account_settings']);
 const nondotSection=p=>NONDOT_PAGES[norm(p)]||new URLSearchParams(location.search).get('section')||'programs';
@@ -99,6 +99,7 @@ function buildNavigation(ctx={}){
  ];
  if(surface==='nondot'){
   const sections=[
+   ['nondot-employers','Employers','▣'],
    ['nondot-people','Employees','●'],
    ['nondot-programs','Programs','◎'],
    ['nondot-pools','Random Pools','◉'],
@@ -200,7 +201,7 @@ async function access(){if(window.S4UCTPAVerifiedContext)return window.S4UCTPAVe
 
 function organizePortalNavigation(){
  const groups=workspace()?.surface==='nondot'?[
-  ['People & Programs',['nondot-people','nondot-programs','nondot-pools']],
+  ['People & Programs',['nondot-employers','nondot-people','nondot-programs','nondot-pools']],
   ['Testing & Results',['nondot-testing','nondot-results']],
   ['Account & Support',['profile','account-settings','support']]
  ]:[
