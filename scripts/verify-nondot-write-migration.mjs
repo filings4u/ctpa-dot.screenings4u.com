@@ -15,7 +15,11 @@ const checks=[
  ['Submission allows only explicit creation actions',app.includes("['save_employee','save_program'].includes(payload?.action)")],
  ['Submission includes C/TPA and subscription',app.includes('subscription_id:w.subscription_id,operating_context:"nondot"')],
  ['Authorization cannot be reused across browser cache',app.includes("if(p==='nondot_workspace')return null;")],
- ['Backend success required before user sees saved',app.includes('data.ok!==true||data.saved!==true')]
+ ['Backend success required before user sees saved',app.includes('data.ok!==true||data.saved!==true')],
+ ['Draft pools are created through typed allowlist',app.includes("'save_pool'")&&ui.includes("'save_pool'")],
+ ['NON-DOT testing orders route through typed action',app.includes("'create_test_order'")&&ui.includes("'create_test_order'")],
+ ['Pool form filters programs by employer',ui.includes('o.dataset.employerId!==selected')],
+ ['Testing form requires employee and program selection',ui.includes('name="employee_id" required')&&ui.includes('name="program_id" required')]
 ];
 let failures=0;
 for(const [description,condition]of checks){console.log((condition?'PASS':'FAIL')+' '+description);if(!condition)failures++;}
