@@ -47,6 +47,18 @@ Deno.serve(async(req:Request)=>{
    if(!uuid(caseId)||carrier.length<2||carrier.length>100||tracking.length<4||tracking.length>180||
       trackingUrl.length>1000||(trackingUrl&&!/^https:\/\//i.test(trackingUrl)))
     return out({error:"Enter a valid collected case, carrier and shipment tracking"},400);
+   if(!grant.data.source_order_id||!grant.data.linked_customer_user_id)
+    return out({error:"A verified Lab Account purchase is required for shipping"},403);
+   const [order,intake,lab]=await Promise.all([
+    db.from("orders").select("payment_status").eq("id",grant.data.source_order_id).maybeSingle(),
+    db.from("lab_account_intakes").select("id,status,account_status")
+     .eq("order_id",grant.data.source_order_id).eq("customer_user_id",grant.data.linked_customer_user_id).limit(2),
+    db.from("ctpa_lab_accounts").select("id").eq("ctpa_id",ctpaId).eq("status","active").limit(1)
+   ]);
+   if(order.error||intake.error||lab.error)throw order.error||intake.error||lab.error;
+   if(order.data?.payment_status!=="paid"||intake.data?.length!==1||
+      intake.data[0].status!=="completed"||intake.data[0].account_status!=="active"||!lab.data?.length)
+    return out({error:"Lab Account purchase, setup and assigned laboratory must be active"},403);
    const match=await db.from("testing_cases").select("id,status")
     .eq("id",caseId).eq("customer_user_id",user.id)
     .contains("metadata",{source:"lab_account_portal",ctpa_id:ctpaId,organization_id:c.data.organization_id})
@@ -139,7 +151,7 @@ Deno.serve(async(req:Request)=>{
    if(!row.data?.storage_path||row.data.storage_bucket!=="testing-private-documents")
     return out({error:"Published document unavailable"},404);
    const safeName=String(row.data.original_filename||row.data.title||"Workforce-Lab-Document.pdf")
-    .replace(/[\\/\\r\\n"<>]/g,"_").slice(0,180);
+    .replace(/[^a-zA-Z0-9._ -]/g,"_").slice(0,180);
    const signed=await db.storage.from("testing-private-documents")
     .createSignedUrl(row.data.storage_path,120,{download:payload.download===true?safeName:undefined});
    if(signed.error||!signed.data?.signedUrl)throw signed.error||Error("Unable to issue secure document link");
