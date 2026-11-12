@@ -1826,3 +1826,30 @@ body.loading::before{content:"Loading Workforce C/TPA…"}
 .side .nav .lab-side-group .lab-side-link,.mobile-nav-links .lab-side-group .lab-side-link{display:block;padding:9px 14px 9px 23px;text-decoration:none;color:#d4e1ee;font-size:.82rem;line-height:1.3;border-top:1px solid #304a66}
 .side .nav .lab-side-group .lab-side-link:hover,.side .nav .lab-side-group .lab-side-link.active,.mobile-nav-links .lab-side-group .lab-side-link.active{background:#253f59;color:#fdc102;font-weight:800}
 .side .nav .lab-side-group :is(summary,a):focus-visible,.mobile-nav-links .lab-side-group :is(summary,a):focus-visible{outline:2px solid #fdc102;outline-offset:-2px}
+
+/* Lab Account supplies and secure document library */
+.lab-migration-hub #lab-supply-form{display:grid;gap:16px}
+.lab-migration-hub #lab-supply-form label{display:flex;flex-direction:column;gap:6px;font-size:.87rem;font-weight:700}
+.lab-migration-hub #lab-supply-form :is(input,textarea){font:inherit;width:100%;min-width:0;padding:10px 12px;border:1px solid #bcc8d8;border-radius:8px;box-sizing:border-box}
+.lab-migration-hub #lab-supply-form button{min-height:42px;padding:10px 18px;background:#01122f;color:#fff;border:1px solid #01122f;border-radius:8px;font:inherit;font-weight:800}
+.lab-migration-hub #lab-supply-form button:disabled{opacity:.6;cursor:wait}
+.lab-migration-hub #lab-supply-catalog{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px}
+.lab-migration-hub #lab-supply-catalog .lab-supply-item{flex-direction:row;align-items:center;justify-content:space-between;gap:10px;border:1px solid #d4d3d4;border-radius:8px;padding:12px}
+.lab-migration-hub #lab-supply-catalog .lab-supply-item span{display:flex;flex-direction:column;gap:4px;min-width:0}
+.lab-migration-hub #lab-supply-catalog .lab-supply-item small{color:#546578;line-height:1.4}
+.lab-migration-hub #lab-supply-catalog .lab-supply-item input{width:76px;flex:none}
+.lab-migration-hub .lab-document-list{display:grid;gap:12px;margin:15px 0}
+.lab-migration-hub .lab-document-row{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.lab-migration-hub .lab-document-row>div:first-child{display:grid;gap:4px;flex:1;min-width:220px}
+.lab-migration-hub .lab-document-row small{color:#52657e}
+.lab-migration-hub .lab-document-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.lab-migration-hub .lab-document-dialog{width:min(920px,94vw);height:min(84vh,900px);padding:0;border:1px solid #d4d3d4;border-radius:12px;box-shadow:0 24px 80px #01122f55;overflow:hidden}
+.lab-migration-hub .lab-document-dialog::backdrop{background:#01122fcc}
+.lab-migration-hub .lab-document-dialog-bar{display:flex;align-items:center;justify-content:space-between;padding:12px 18px;gap:16px;background:#01122f;color:#fff}
+.lab-migration-hub .lab-document-dialog-bar h3{font-size:1.05rem;margin:0}
+.lab-migration-hub .lab-document-dialog-bar button{color:#01122f;background:#fdc102;border-color:#fdc102}
+.lab-migration-hub .lab-document-dialog iframe{border:0;width:100%;height:calc(100% - 66px)}
+.lab-migration-hub .lab-doc-error{padding:10px 12px;border:1px solid #ce7878;border-radius:8px;color:#8c1c13}
+.side .nav .lab-side-group .lab-side-caption,.mobile-nav-links .lab-side-group .lab-side-caption{display:block;padding:11px 14px 5px 22px;font-size:.68rem;letter-spacing:.06em;text-transform:uppercase;color:#acc2db;font-weight:800}
+.side .nav .lab-side-group .lab-side-reuse,.mobile-nav-links .lab-side-group .lab-side-reuse{font-size:.78rem}
+@media(max-width:700px){.lab-migration-hub #lab-supply-catalog{grid-template-columns:1fr}.lab-migration-hub .lab-document-dialog{height:90vh}}
