@@ -63,10 +63,16 @@ Deno.serve(async(req:Request)=>{
      const numbers:Record<string,string>={dot:"",non_dot:"",hair:"",oral:"",unclassified:""};
      for(const key of allowed)numbers[key]=String(configured[key]||"");
      const accountType=String(config.account_type||"").toLowerCase();
-     if(allowed.includes(accountType)&&x.account_code&&!numbers[accountType])
-      numbers[accountType]=String(x.account_code);
-     else if(!accountType&&!allowed.some(key=>numbers[key])&&x.account_code)
-      numbers.unclassified=String(x.account_code); // needs staff classification before regulated use
+     const single=String(x.account_code||"");
+     if(single){
+      if(allowed.includes(accountType)){
+       if(!numbers[accountType])numbers[accountType]=single;
+       else if(numbers[accountType]!==single)numbers.unclassified=single;
+      }else if(!allowed.some(key=>numbers[key]===single)){
+       // Unknown type, including legacy untyped records: do not infer DOT.
+       numbers.unclassified=single;
+      }
+     }
      return numbers;
     })()
    })),
