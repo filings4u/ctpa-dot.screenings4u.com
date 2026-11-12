@@ -1922,3 +1922,13 @@ body.loading::before{content:"Loading Workforce C/TPA…"}
 .lab-migration-hub .lab-invoice-actions{margin-top:18px;display:flex;justify-content:flex-end}
 .lab-migration-hub .lab-invoice-actions button{background:#fdc102;color:#01122f;border:0;border-radius:8px;padding:12px 20px;font-weight:800;cursor:pointer}
 @media(max-width:700px){.lab-migration-hub .lab-form-actions button,.lab-migration-hub .lab-invoice-actions button{width:100%}}
+
+/* Branded native confirmation for Lab Account mutations. */
+.lab-migration-hub .lab-confirm-dialog{width:min(520px,94vw);height:auto;max-height:80vh}
+.lab-migration-hub .lab-confirm-body{padding:22px;display:grid;gap:18px}
+.lab-migration-hub .lab-confirm-body p{margin:0;line-height:1.6}
+.lab-migration-hub .lab-confirm-actions{display:flex;justify-content:flex-end;gap:12px;flex-wrap:wrap}
+.lab-migration-hub .lab-confirm-actions button{border:1px solid #01122f;border-radius:8px;padding:11px 18px;font:inherit;font-weight:800;cursor:pointer}
+.lab-migration-hub .lab-confirm-actions button.primary{background:#fdc102;color:#01122f;border-color:#fdc102}
+.lab-migration-hub .lab-confirm-actions button.ghost{background:#fff;color:#01122f}
+@media(max-width:700px){.lab-migration-hub .lab-confirm-actions button{flex:1}}
