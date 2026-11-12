@@ -1871,3 +1871,15 @@ body.loading::before{content:"Loading Workforce C/TPA…"}
  .lab-pass-dialog[open] .lab-document-dialog-bar button,.lab-pass-dialog[open] .lab-pass-actions{display:none!important}
  .lab-pass-dialog[open] .lab-pass-content{overflow:visible!important;grid-template-columns:repeat(2,minmax(0,1fr))!important}
 }
+
+/* Lab Account collected specimen shipping form. */
+.lab-migration-hub .lab-specimen-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.lab-migration-hub .lab-specimen-form label{display:grid;gap:6px;font-size:.87rem;font-weight:700}
+.lab-migration-hub .lab-specimen-form :is(input,select){padding:11px 12px;border:1px solid #bcc8d8;border-radius:8px;font:inherit;min-width:0;width:100%;box-sizing:border-box}
+.lab-migration-hub .lab-specimen-form :is(button,[role="status"]){grid-column:1/-1}
+.lab-migration-hub .lab-specimen-form button{min-height:42px;padding:10px 16px;border-radius:8px;background:#01122f;color:#fff;border:1px solid #01122f;font-weight:800}
+.lab-migration-hub .lab-specimen-form button:disabled{opacity:.6;cursor:wait}
+.lab-migration-hub .lab-legacy-card{margin:0 0 12px}
+.lab-migration-hub .lab-legacy-card .lab-migration-grid small{display:block;color:#52657e;margin-bottom:4px}
+.lab-migration-hub .lab-legacy-card .lab-migration-grid strong{overflow-wrap:anywhere}
+@media(max-width:700px){.lab-migration-hub .lab-specimen-form{grid-template-columns:1fr}}
