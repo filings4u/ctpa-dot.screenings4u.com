@@ -15,7 +15,7 @@ Deno.serve(async(req:Request)=>{
   if(authError||!user?.id||!user.email_confirmed_at)return out({error:"Verified sign-in required"},401);
   const payload=await req.json().catch(()=>({}));
   const action=String(payload.action||"access"),ctpaId=String(payload.ctpa_id||""),subscriptionId=String(payload.subscription_id||"");
-  if(!["access","overview","catalog","create_order","supply_catalog","request_supplies","documents","document_url","issued_passes","legacy_clients","legacy_supply_alerts","legacy_deliveries"].includes(action)||!uuid(ctpaId)||!uuid(subscriptionId))return out({error:"Invalid C/TPA workspace and subscription"},400);
+  if(!["access","overview","catalog","create_order","supply_catalog","request_supplies","documents","document_url","issued_passes","legacy_clients","legacy_supply_alerts","legacy_deliveries","report_specimen_shipped"].includes(action)||!uuid(ctpaId)||!uuid(subscriptionId))return out({error:"Invalid C/TPA workspace and subscription"},400);
   const db=createClient(url,secret,{auth:{persistSession:false,autoRefreshToken:false}});
   // Reuse the C/TPA's verified workspace boundary; organization membership alone is insufficient.
   const session=await db.rpc("ctpa_dot_session_context",{p_user_id:user.id,p_ctpa_id:ctpaId,p_subscription_id:subscriptionId});
@@ -38,6 +38,40 @@ Deno.serve(async(req:Request)=>{
   if(grant.error)throw grant.error;
   if(!grant.data)return out({authorized:false,reason:"Lab Account add-on not enabled for this company"},403);
   if(action==="access")return out({authorized:true,features:{lab_account:true},organization_id:c.data.organization_id});
+  if(action==="report_specimen_shipped"){
+   // Reuse the existing Workforce Testing specimen-shipment RPC after checking
+   // that the specific case belongs to the signed-in user and selected company.
+   const caseId=String(payload.case_id||"");
+   const carrier=String(payload.carrier||"").trim(),tracking=String(payload.tracking_number||"").trim();
+   const trackingUrl=String(payload.tracking_url||"").trim();
+   if(!uuid(caseId)||carrier.length<2||carrier.length>100||tracking.length<4||tracking.length>180||
+      trackingUrl.length>1000||(trackingUrl&&!/^https:\/\//i.test(trackingUrl)))
+    return out({error:"Enter a valid collected case, carrier and shipment tracking"},400);
+   const match=await db.from("testing_cases").select("id,status")
+    .eq("id",caseId).eq("customer_user_id",user.id)
+    .contains("metadata",{source:"lab_account_portal",ctpa_id:ctpaId,organization_id:c.data.organization_id})
+    .maybeSingle();
+   if(match.error)throw match.error;
+   if(!match.data)return out({error:"This testing case does not belong to your selected C/TPA"},404);
+   const shipped=await db.rpc("s4u_report_house_lab_specimen_shipped",{
+    p_case_id:caseId,p_user_id:user.id,p_carrier:carrier,
+    p_tracking_number:tracking,p_tracking_url:trackingUrl
+   });
+   if(shipped.error)return out({error:shipped.error.message},409);
+   const admin=Deno.env.get("SCREENINGS4U_ADMIN_EMAIL")||"",key=Deno.env.get("RESEND_API_KEY")||"";
+   if(admin&&key){
+    const clean=(v:string)=>v.replace(/[&<>"']/g,x=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[x]||x));
+    const html='<div style="font-family:Arial,sans-serif;background:#f3f6fa;padding:25px;color:#01122f"><div style="max-width:600px;margin:auto;background:#fff;border-radius:12px;overflow:hidden"><div style="background:#01122f;padding:20px"><img src="https://workforce.screenings4u.com/images/logo2.png" width="210" alt="Workforce"></div><div style="padding:24px"><h2>Laboratory specimens shipped</h2><p>Verify delivery and laboratory accession in Workforce Testing Management.</p><p><strong>Case:</strong> '+clean(String(shipped.data?.case_number||""))+'</p><p><strong>Carrier:</strong> '+clean(carrier)+'</p><p><strong>Tracking:</strong> '+clean(tracking)+'</p></div></div></div>';
+    try{
+     const mail=await fetch("https://api.resend.com/emails",{
+      method:"POST",headers:{Authorization:"Bearer "+key,"Content-Type":"application/json"},
+      body:JSON.stringify({from:Deno.env.get("SCREENINGS4U_FROM_EMAIL")||"Workforce <notifications@screenings4u.com>",to:[admin],subject:"Workforce | Lab specimen shipped",html})
+     });
+     if(!mail.ok)console.error("Lab specimen shipment email",mail.status);
+    }catch(error){console.error("Lab specimen shipment email",error)}
+   }
+   return out({ok:true,shipment:shipped.data,lab_receipt:"not_confirmed"});
+  }
   if(["legacy_clients","legacy_supply_alerts","legacy_deliveries"].includes(action)){
    // Preserve previously created customer-scoped Lab Account records without
    // silently converting contacts into C/TPA employer or donor records.
