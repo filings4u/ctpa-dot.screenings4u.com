@@ -61,7 +61,7 @@ const nondotLinks={
  programs:'/nondot-workspace.html?section=programs',
  consortium_pools:'/nondot-workspace.html?section=pools',
  testing_orders:'/nondot-workspace.html?section=testing',
- results_sensitive:'/nondot-workspace.html?section=results'
+ results_summary:'/nondot-workspace.html?section=results'
 };
 if(!C?.workforceUrl||!C?.workforceKey||!window.S4UGetSupabaseClient){
  message('Portal configuration unavailable.',true);return;
