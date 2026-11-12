@@ -225,8 +225,8 @@ function organizePortalNavigation(){
 function shell(ctx){
   const current=page();
   NAV=buildNavigation(ctx);
-  const planLabel=ctx?.plan?.name||ctx?.subscription?.plan_name||C.label;
   const surfaceName=workspace()?.surface==='nondot'?'NON-DOT':'DOT';
+  const planLabel=surfaceName+' Workspace';
   const links=NAV.map(x=>`<a href="${esc(x.href||('/'+x.id+'.html'))}" ${x.switchSurface?`data-workspace="${esc(x.switchSurface)}" `:''}class="${(current===norm(x.id)||(norm(x.id)==='nondot_workspace'&&isNonDotPage(current))||(norm(x.id)==='people'&&current==='people_company')||(norm(x.id)==='pools'&&(current==='pool_detail'||current==='pool_form'))||(norm(x.id)==='locations'&&current==='location_form')||(norm(x.id)==='users_roles'&&['staff_form','staff_view','staff_invite','staff_delete'].includes(current)))?'active':''}"><span class="ico">${esc(x.icon||'•')}</span><span>${esc(x.label||pretty(x.id))}</span></a>`).join('');
   document.title=`${cfgPage(current).label} | ${planLabel}`;
   if(current!=='support')supportCtxWrite({page_url:location.href,page_title:document.title,page_id:current,captured_at:new Date().toISOString()});
