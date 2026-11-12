@@ -74,7 +74,7 @@ function render(d){
  legacyRecordPanel('alerts','Supply reorder alerts','Existing Lab Account supply alert records are preserved while laboratory supplies are consolidated.')+
 
  '<section class="section" data-lab-panel="documents"><h2>Lab Account documents and collection forms</h2><p>View Workforce-published laboratory account documents. Existing C/TPA and testing documents remain available in their original Workforce modules.</p><div id="lab-published-documents" class="lab-document-list" aria-live="polite">Loading published documents…</div><h3>Released chain-of-custody forms (CCFs)</h3><p>Only released CCFs belonging to your laboratory testing cases are available here.</p><div id="lab-ccf-archive" class="lab-document-list" aria-live="polite">Open Documents to load your CCFs.</div><dialog id="lab-document-preview" class="lab-document-dialog"><div class="lab-document-dialog-bar"><h3 id="lab-document-title">Document preview</h3><button class="btn ghost" type="button" id="lab-document-close">Close</button></div><iframe title="Lab Account document preview" id="lab-document-frame"></iframe></dialog>'+scopedLink('/documents.html','C/TPA Documents','Existing company documents workspace')+scopedLink('/testing-documents.html','Testing documents','Existing C/TPA testing documentation')+'</section>'+
- '<section class="section" data-lab-panel="billing"><h2>Account billing</h2><p>Workforce C/TPA already has billing and order history. Laboratory-specific charges must remain identifiable separately from unrelated subscriptions.</p>'+scopedLink('/billing.html','Workforce Billing','Existing C/TPA billing and invoices')+scopedLink('/order-history.html','Order history','Existing C/TPA purchase records')+'</section>'+
+ '<section class="section" data-lab-panel="billing"><h2>Laboratory purchases and invoices</h2><p>View invoices and purchases linked to the verified Lab Account purchase. Your existing C/TPA billing remains separate.</p><h3>Lab Account purchase</h3><div id="lab-purchase-history" class="lab-document-list" aria-live="polite">Loading purchase history…</div><h3>Lab Account invoices</h3><div id="lab-invoice-list" class="lab-document-list" aria-live="polite">Loading laboratory invoices…</div><dialog id="lab-invoice-detail" class="lab-document-dialog lab-invoice-dialog"><div class="lab-document-dialog-bar"><h3 id="lab-invoice-heading">Invoice details</h3><button type="button" class="btn ghost" id="lab-invoice-close">Close</button></div><div class="lab-invoice-content" id="lab-invoice-content"></div></dialog>'+scopedLink('/billing.html','Workforce Billing','Existing C/TPA billing and invoices')+scopedLink('/order-history.html','Order history','Existing C/TPA purchase records')+'</section>'+
  '<section class="section" data-lab-panel="support"><h2>Lab Account support</h2><p>Contact Workforce support for test registration, collection instructions, or laboratory-account issues.</p>'+scopedLink('/support.html','Contact Support','Existing C/TPA support workflow')+'</section>'+
  '<section class="notice" data-lab-panel="overview"><strong>One Workforce C/TPA portal</strong><p>This Lab Account section uses existing C/TPA modules for shared services and the current Workforce testing backend for lab requests. Laboratory registration, donor-pass issuance, result release and shipment fulfillment remain controlled by Workforce Testing Management.</p></section></div>';
 }
@@ -91,6 +91,7 @@ function bind(call,data={}){
   if(selected==='tracking')loadPasses();
   if(['clients','alerts','deliveries'].includes(selected))loadLegacyRecords(selected);
   if(selected==='deliveries')loadReleasedCases();
+  if(selected==='billing')loadLabBilling();
  }
  buttons.forEach(button=>button.addEventListener('click',()=>selectTab(button.dataset.labTab)));
  const form=root.querySelector('#lab-order-form'),select=root.querySelector('#lab-order-service'),message=root.querySelector('#lab-order-message');
@@ -164,6 +165,53 @@ function bind(call,data={}){
   }catch(error){status.textContent=error.message||'Unable to report this specimen shipment.'}
   finally{action.disabled=false}
  });
+ const billingPurchaseHost=root.querySelector('#lab-purchase-history');
+ const billingInvoiceHost=root.querySelector('#lab-invoice-list');
+ const billingModal=root.querySelector('#lab-invoice-detail');
+ const formatMoney=(amount,currency='USD')=>{
+  try{return new Intl.NumberFormat('en-US',{style:'currency',currency:currency||'USD'}).format(Number(amount||0))}
+  catch{return String(amount??'0')}
+ };
+ let labBillingLoaded=false,billingLoading=false,labInvoiceRecords=[];
+ async function loadLabBilling(){
+  if(labBillingLoaded||billingLoading)return;
+  billingLoading=true;
+  try{
+   const [purchases,records]=await Promise.all([call('lab_purchases'),call('lab_invoices')]);
+   const orders=purchases.orders||[];
+   billingPurchaseHost.innerHTML=orders.length?orders.map(o=>
+    '<div class="panel lab-document-row"><div><strong>'+esc(o.order_number||'Lab Account purchase')+'</strong><small>'+date(o.created_at)+' · '+esc(tag(o.payment_status))+'</small>'+
+    (o.items||[]).map(i=>'<small>'+esc(i.name)+' · '+esc(i.quantity)+' × '+formatMoney(i.unit_price,o.currency)+'</small>').join('')+'</div><strong>'+formatMoney(o.total,o.currency)+'</strong></div>'
+   ).join(''):'<div class="panel">No purchases linked to the verified Lab Account grant were found.</div>';
+   labInvoiceRecords=records.invoices||[];
+   billingInvoiceHost.innerHTML=labInvoiceRecords.length?labInvoiceRecords.map(i=>
+    '<div class="panel lab-document-row"><div><strong>'+esc(i.invoice_number||'Invoice')+'</strong><small>Issued '+date(i.issue_date)+' · '+esc(tag(i.status))+'</small><small>Balance '+formatMoney(i.amount_due,i.currency)+'</small></div><button class="btn ghost" type="button" data-lab-invoice="'+esc(i.id)+'">View invoice</button></div>'
+   ).join(''):'<div class="panel">No issued invoices are linked to this Lab Account purchase.</div>';
+   labBillingLoaded=true;
+  }catch(error){
+   const msg=esc(error.message||'Unable to retrieve Lab Account billing.');
+   billingPurchaseHost.innerHTML='<p role="alert">'+msg+'</p>';
+   billingInvoiceHost.innerHTML='<p role="alert">'+msg+'</p>';
+  }finally{billingLoading=false}
+ }
+ billingInvoiceHost.addEventListener('click',async event=>{
+  const button=event.target.closest('[data-lab-invoice]');
+  if(!button||button.disabled||!labInvoiceRecords.some(x=>x.id===button.dataset.labInvoice))return;
+  button.disabled=true;
+  try{
+   const d=await call('lab_invoice_detail',{invoice_id:button.dataset.labInvoice}),i=d.invoice||{};
+   root.querySelector('#lab-invoice-heading').textContent=i.invoice_number||'Lab Account invoice';
+   root.querySelector('#lab-invoice-content').innerHTML=
+    '<dl class="lab-invoice-summary">'+[['Status',tag(i.status)],['Issued',date(i.issue_date)],['Due',date(i.due_date)],['Total',formatMoney(i.total,i.currency)],['Paid',formatMoney(i.amount_paid,i.currency)],['Balance',formatMoney(i.amount_due,i.currency)]]
+    .map(([label,value])=>'<div><dt>'+esc(label)+'</dt><dd>'+esc(value)+'</dd></div>').join('')+'</dl>'+
+    '<h4>Invoice line items</h4>'+(d.items||[]).map(item=>
+      '<div class="lab-invoice-line"><span>'+esc(item.description||'Service')+' · '+esc(item.quantity)+'</span><strong>'+formatMoney(item.line_total,i.currency)+'</strong></div>'
+    ).join('');
+   if(!billingModal.open)billingModal.showModal();
+  }catch(error){billingInvoiceHost.insertAdjacentHTML('afterbegin','<p role="alert" class="lab-doc-error">'+esc(error.message||'Invoice unavailable')+'</p>')}
+  finally{button.disabled=false}
+ });
+ root.querySelector('#lab-invoice-close').addEventListener('click',()=>billingModal.close());
  const deliveryForm=root.querySelector('#lab-delivery-form');
  const deliverySelect=root.querySelector('#lab-delivery-cases');
  const deliveryStatus=root.querySelector('#lab-delivery-status');
