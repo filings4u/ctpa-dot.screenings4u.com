@@ -16,7 +16,7 @@ Deno.serve(async(req:Request)=>{
   if(authError||!user?.id||!user.email_confirmed_at)return out({error:"Verified sign-in required"},401);
   const payload=await req.json().catch(()=>({}));
   const action=String(payload.action||"access"),ctpaId=String(payload.ctpa_id||""),subscriptionId=String(payload.subscription_id||"");
-  if(!["access","overview","catalog","create_order","supply_catalog","request_supplies","documents","document_url","issued_passes","legacy_clients","legacy_supply_alerts","legacy_deliveries","report_specimen_shipped","order_details","update_order","ccf_archive","ccf_url","released_cases","request_result_delivery","lab_purchases","lab_invoices","lab_invoice_detail","historical_documents","historical_document_url","lab_intake_details","lab_intake_pdf","lab_client_save","lab_client_archive","supply_alert_save","supply_alert_delete","lab_analytics","lab_released_results","lab_consortiums","lab_consortium_members","lab_service_requests","legacy_benefits","generated_benefit_url","lab_invoice_pay_link"].includes(action)||!uuid(ctpaId)||!uuid(subscriptionId))return out({error:"Invalid C/TPA workspace and subscription"},400);
+  if(!["access","overview","catalog","create_order","supply_catalog","request_supplies","documents","document_url","issued_passes","legacy_clients","legacy_supply_alerts","legacy_deliveries","report_specimen_shipped","order_details","update_order","ccf_archive","ccf_url","released_cases","request_result_delivery","lab_purchases","lab_invoices","lab_invoice_detail","historical_documents","historical_document_url","lab_intake_details","lab_intake_pdf","lab_client_save","lab_client_archive","supply_alert_save","supply_alert_delete","lab_analytics","lab_released_results","lab_consortiums","lab_consortium_members","lab_service_requests","legacy_benefits","generated_benefit_url","lab_invoice_pay_link","supply_orders","cancel_supply_order","confirm_supply_delivery"].includes(action)||!uuid(ctpaId)||!uuid(subscriptionId))return out({error:"Invalid C/TPA workspace and subscription"},400);
   const db=createClient(url,secret,{auth:{persistSession:false,autoRefreshToken:false}});
   // Reuse the C/TPA's verified workspace boundary; organization membership alone is insufficient.
   const session=await db.rpc("ctpa_dot_session_context",{p_user_id:user.id,p_ctpa_id:ctpaId,p_subscription_id:subscriptionId});
@@ -520,6 +520,69 @@ Deno.serve(async(req:Request)=>{
     .order("created_at",{ascending:false}).limit(250);
    if(services.error)throw services.error;
    return out({authorized:true,requests:services.data||[]});
+  }
+  if(["supply_orders","cancel_supply_order","confirm_supply_delivery"].includes(action)){
+   if(!grant.data.source_order_id||!grant.data.linked_customer_user_id)
+    return out({error:"Verified Lab Account purchase required"},403);
+   const intake=await db.from("lab_account_intakes").select("id,status,account_status,customer_user_id")
+    .eq("order_id",grant.data.source_order_id)
+    .eq("customer_user_id",grant.data.linked_customer_user_id).limit(2);
+   if(intake.error)throw intake.error;
+   if(intake.data?.length!==1||intake.data[0].status!=="completed"||intake.data[0].account_status!=="active")
+    return out({error:"Laboratory account activation required"},403);
+   if(action==="confirm_supply_delivery"){
+    if(grant.data.linked_customer_user_id!==user.id)
+     return out({error:"Only the Lab Account purchaser can confirm physical delivery"},403);
+    if(!uuid(payload.shipment_id))return out({error:"Valid laboratory shipment required"},400);
+    const sh=await db.from("house_lab_supply_shipments").select("id,intake_id,status,notes")
+     .eq("id",payload.shipment_id).eq("intake_id",intake.data[0].id).maybeSingle();
+    if(sh.error)throw sh.error;
+    if(!sh.data)return out({error:"Shipment not found for this laboratory account"},404);
+    if(sh.data.status!=="shipped")return out({error:"Only shipped supplies may be confirmed delivered"},409);
+    const now=new Date().toISOString(),notes=String(sh.data.notes||"").slice(0,3000);
+    const updated=await db.from("house_lab_supply_shipments")
+     .update({status:"delivered",updated_at:now,
+       notes:notes+(notes?"\n":"")+"Delivery confirmed through Workforce C/TPA at "+now})
+     .eq("id",sh.data.id).eq("intake_id",intake.data[0].id)
+     .eq("status","shipped").select("id,status,updated_at").maybeSingle();
+    if(updated.error)throw updated.error;
+    return updated.data?out({ok:true,shipment:updated.data}):
+     out({error:"Shipment status changed. Refresh and try again."},409);
+   }
+   if(action==="cancel_supply_order"){
+    if(!uuid(payload.order_id))return out({error:"Valid supply order required"},400);
+    const source=await db.from("ic_portal_supply_orders")
+     .select("id,status,shipping_address").eq("id",payload.order_id)
+     .eq("contractor_user_id",user.id).maybeSingle();
+    if(source.error)throw source.error;
+    if(!source.data||source.data.shipping_address?.ctpa_id!==ctpaId||
+       source.data.shipping_address?.organization_id!==c.data.organization_id)
+     return out({error:"Supply order not found for the selected C/TPA"},404);
+    const changed=await db.from("ic_portal_supply_orders")
+     .update({status:"cancelled",updated_at:new Date().toISOString()})
+     .eq("id",source.data.id).eq("contractor_user_id",user.id)
+     .eq("status","requested").select("id,status").maybeSingle();
+    if(changed.error)throw changed.error;
+    return changed.data?out({ok:true,order:changed.data}):
+     out({error:"Only pending requests can be cancelled"},409);
+   }
+   const orders=await db.from("ic_portal_supply_orders")
+    .select("id,status,carrier,tracking_number,created_at,shipping_address,ic_portal_supply_order_lines(item_id,quantity)")
+    .eq("contractor_user_id",user.id).order("created_at",{ascending:false}).limit(200);
+   if(orders.error)throw orders.error;
+   const scoped=(orders.data||[]).filter((o:any)=>
+    o.shipping_address?.ctpa_id===ctpaId&&
+    o.shipping_address?.organization_id===c.data.organization_id
+   ).map((o:any)=>({
+    id:o.id,status:o.status,carrier:o.carrier,tracking_number:o.tracking_number,
+    created_at:o.created_at,lines:o.ic_portal_supply_order_lines||[]
+   }));
+   const shipped=await db.from("house_lab_supply_shipments")
+    .select("id,status,carrier,tracking_number,tracking_url,items_description,created_at,updated_at")
+    .eq("intake_id",intake.data[0].id).order("created_at",{ascending:false}).limit(200);
+   if(shipped.error)throw shipped.error;
+   return out({authorized:true,orders:scoped,shipments:shipped.data||[],
+    can_confirm_delivery:grant.data.linked_customer_user_id===user.id});
   }
   if(["lab_client_save","lab_client_archive","supply_alert_save","supply_alert_delete","lab_analytics"].includes(action)){
    // These original Lab Account records are purchaser-owned, not shared
