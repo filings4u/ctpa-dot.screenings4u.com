@@ -71,7 +71,7 @@ function render(d){
  legacyRecordPanel('deliveries','Lab result delivery history','Previously requested result deliveries associated with your original Lab Account. Actual testing results remain in authorized Workforce Results workflows.')+
  legacyRecordPanel('alerts','Supply reorder alerts','Existing Lab Account supply alert records are preserved while laboratory supplies are consolidated.')+
 
- '<section class="section" data-lab-panel="documents"><h2>Lab Account documents and collection forms</h2><p>View Workforce-published laboratory account documents. Existing C/TPA and testing documents remain available in their original Workforce modules.</p><div id="lab-published-documents" class="lab-document-list" aria-live="polite">Loading published documents…</div><dialog id="lab-document-preview" class="lab-document-dialog"><div class="lab-document-dialog-bar"><h3 id="lab-document-title">Document preview</h3><button class="btn ghost" type="button" id="lab-document-close">Close</button></div><iframe title="Lab Account document preview" id="lab-document-frame"></iframe></dialog>'+scopedLink('/documents.html','C/TPA Documents','Existing company documents workspace')+scopedLink('/testing-documents.html','Testing documents','Existing C/TPA testing documentation')+'</section>'+
+ '<section class="section" data-lab-panel="documents"><h2>Lab Account documents and collection forms</h2><p>View Workforce-published laboratory account documents. Existing C/TPA and testing documents remain available in their original Workforce modules.</p><div id="lab-published-documents" class="lab-document-list" aria-live="polite">Loading published documents…</div><h3>Released chain-of-custody forms (CCFs)</h3><p>Only released CCFs belonging to your laboratory testing cases are available here.</p><div id="lab-ccf-archive" class="lab-document-list" aria-live="polite">Open Documents to load your CCFs.</div><dialog id="lab-document-preview" class="lab-document-dialog"><div class="lab-document-dialog-bar"><h3 id="lab-document-title">Document preview</h3><button class="btn ghost" type="button" id="lab-document-close">Close</button></div><iframe title="Lab Account document preview" id="lab-document-frame"></iframe></dialog>'+scopedLink('/documents.html','C/TPA Documents','Existing company documents workspace')+scopedLink('/testing-documents.html','Testing documents','Existing C/TPA testing documentation')+'</section>'+
  '<section class="section" data-lab-panel="billing"><h2>Account billing</h2><p>Workforce C/TPA already has billing and order history. Laboratory-specific charges must remain identifiable separately from unrelated subscriptions.</p>'+scopedLink('/billing.html','Workforce Billing','Existing C/TPA billing and invoices')+scopedLink('/order-history.html','Order history','Existing C/TPA purchase records')+'</section>'+
  '<section class="section" data-lab-panel="support"><h2>Lab Account support</h2><p>Contact Workforce support for test registration, collection instructions, or laboratory-account issues.</p>'+scopedLink('/support.html','Contact Support','Existing C/TPA support workflow')+'</section>'+
  '<section class="notice" data-lab-panel="overview"><strong>One Workforce C/TPA portal</strong><p>This Lab Account section uses existing C/TPA modules for shared services and the current Workforce testing backend for lab requests. Laboratory registration, donor-pass issuance, result release and shipment fulfillment remain controlled by Workforce Testing Management.</p></section></div>';
@@ -85,7 +85,7 @@ function bind(call,data={}){
   buttons.forEach(button=>{const on=button.dataset.labTab===selected;button.classList.toggle('active',on);button.setAttribute('aria-pressed',String(on));});
   if(selected==='orders')loadServices();
   if(selected==='supplies')loadSupplies();
-  if(selected==='documents')loadDocuments();
+  if(selected==='documents'){loadDocuments();loadCcfArchive();}
   if(selected==='tracking')loadPasses();
   if(['clients','alerts','deliveries'].includes(selected))loadLegacyRecords(selected);
  }
@@ -245,6 +245,37 @@ function bind(call,data={}){
     if(!docModal.open)docModal.showModal();
    }
    }catch(error){const message=String(error.message||error);documentsHost.insertAdjacentHTML('afterbegin','<p role="alert" class="lab-doc-error">'+esc(message)+'</p>')}
+  finally{button.disabled=false}
+ });
+ const ccfHost=root.querySelector('#lab-ccf-archive');
+ let ccfDocs=null;
+ async function loadCcfArchive(){
+  if(ccfDocs!==null)return;
+  ccfHost.textContent='Loading released laboratory CCFs…';
+  try{
+   const d=await call('ccf_archive');ccfDocs=d.documents||[];
+   ccfHost.innerHTML=ccfDocs.length?ccfDocs.map(doc=>
+    '<div class="panel lab-document-row"><div><strong>'+esc(doc.title||'Chain of custody form')+'</strong><small>Case '+esc(doc.case_number||'')+' · '+date(doc.created_at)+'</small></div><div class="lab-document-actions"><button type="button" class="btn ghost" data-lab-ccf-view="'+esc(doc.id)+'">View</button><button type="button" class="btn ghost" data-lab-ccf-download="'+esc(doc.id)+'">Download</button></div></div>'
+   ).join(''):'<div class="panel">No released CCF documents are currently available for your Lab Account cases.</div>';
+  }catch(e){ccfHost.textContent=e.message||'Unable to load released CCFs.'}
+ }
+ ccfHost.addEventListener('click',async event=>{
+  const button=event.target.closest('[data-lab-ccf-view],[data-lab-ccf-download]');
+  if(!button||button.disabled)return;
+  const id=button.dataset.labCcfView||button.dataset.labCcfDownload;
+  if(!ccfDocs?.some(doc=>doc.id===id))return;
+  const download=Boolean(button.dataset.labCcfDownload);
+  button.disabled=true;
+  try{
+   const d=await call('ccf_url',{document_id:id,download});
+   if(!/^https:\/\//i.test(d.url||''))throw Error('Document link unavailable.');
+   if(download)window.location.assign(d.url);
+   else{
+    root.querySelector('#lab-document-title').textContent=d.title||'Chain of custody form';
+    root.querySelector('#lab-document-frame').src=d.url;
+    if(!docModal.open)docModal.showModal();
+   }
+  }catch(e){ccfHost.insertAdjacentHTML('afterbegin','<p role="alert" class="lab-doc-error">'+esc(e.message||'Unable to open CCF')+'</p>')}
   finally{button.disabled=false}
  });
  const supplyFormEl=root.querySelector('#lab-supply-form'),supplyCatalog=root.querySelector('#lab-supply-catalog'),
