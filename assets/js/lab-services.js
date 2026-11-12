@@ -15,6 +15,7 @@ const track=(carrier,number)=>{
 const card=(label,value)=>'<div class="metric"><small>'+esc(label)+'</small><strong>'+esc(value)+'</strong></div>';
 const sections=[
  {id:"overview",label:"Overview"},
+ {id:"analytics",label:"Lab analytics"},
  {id:"accounts",label:"Laboratory accounts"},
  {id:"clients",label:"Lab client directory"},
  {id:"orders",label:"Order a test"},
@@ -36,6 +37,9 @@ const specimenForm=(requests=[])=>{
  '</section>';
 };
 const deliveryRequestForm=()=>'<section class="section" data-lab-panel="deliveries"><h2>Request laboratory result delivery</h2><p>Choose a released laboratory case and an authorized recipient. Workforce reviews the request before any results are delivered.</p><form id="lab-delivery-form" class="panel"><div class="lab-migration-grid"><label>Released testing case<select name="case_id" id="lab-delivery-cases" required><option value="">Loading released cases…</option></select></label><label>Recipient name<input name="recipient_name" maxlength="150"></label><label>Recipient email<input name="recipient_email" type="email" maxlength="254" required></label></div><button type="submit" class="btn primary">Request result delivery</button><p id="lab-delivery-status" role="status" aria-live="polite"></p></form></section>';
+
+const clientForm=()=>'<section class="section" data-lab-panel="clients"><h2>Manage Lab Account contacts</h2><p>These are the original Lab Account contacts. Use C/TPA Employers for shared customer management.</p><form class="panel lab-admin-form" id="lab-client-form"><input type="hidden" name="id"><div class="lab-migration-grid"><label>Company<input required maxlength="160" name="company_name"></label><label>Contact<input maxlength="160" name="contact_name"></label><label>Email<input name="contact_email" type="email" maxlength="254"></label><label>Phone<input name="phone" type="tel" maxlength="40"></label><label>Program<select name="program_type"><option value="non_dot">NON-DOT</option><option value="dot">DOT</option><option value="both">DOT and NON-DOT</option></select></label></div><label>Notes<textarea name="notes" maxlength="1500" rows="3"></textarea></label><div class="lab-form-actions"><button type="submit" class="btn primary">Save Lab Account contact</button><button type="button" class="btn ghost" id="lab-client-clear">Clear</button></div><p id="lab-client-status" role="status" aria-live="polite"></p></form></section>';
+const alertForm=()=>'<section class="section" data-lab-panel="alerts"><h2>Manage supply reorder alerts</h2><p>Track your estimated inventory and reorder thresholds for Lab Account supplies.</p><form class="panel lab-admin-form" id="lab-alert-form"><div class="lab-migration-grid"><label>Supply name<input required maxlength="160" name="supply_name"></label><label>Estimated on hand<input type="number" name="estimated_on_hand" min="0" max="1000000" step="1" required></label><label>Reorder threshold<input name="reorder_threshold" type="number" min="1" max="100000" step="1" required></label><label><span>Enable alert</span><input name="enabled" type="checkbox" checked></label></div><button type="submit" class="btn primary">Save supply alert</button><p id="lab-alert-status" role="status" aria-live="polite"></p></form></section>';
 const legacyRecordPanel=(section,label,description)=>
  '<section class="section" data-lab-panel="'+esc(section)+'"><h2>'+esc(label)+'</h2><p>'+esc(description)+'</p><div id="lab-records-'+esc(section)+'" class="lab-record-list" aria-live="polite">Loading existing Lab Account records…</div></section>';
 const scopedLink=(href,label,detail)=>'<a class="panel lab-feature-link" href="'+esc(href)+'"><strong>'+esc(label)+'</strong><small>'+esc(detail)+'</small></a>';
@@ -68,12 +72,14 @@ function render(d){
  '<dialog id="lab-order-edit-dialog" class="lab-document-dialog lab-edit-order-dialog"><div class="lab-document-dialog-bar"><h3>Edit laboratory testing request</h3><button type="button" class="btn ghost" id="lab-order-edit-close">Close</button></div><form id="lab-order-edit-form" class="panel"><p>Only requests awaiting scheduling can be edited. The test service and DOT authority cannot be changed here.</p><div class="lab-migration-grid"><label>First name<input name="first_name" required maxlength="100"></label><label>Last name<input name="last_name" required maxlength="100"></label><label>Donor email<input name="donor_email" type="email" required></label><label>Donor phone<input name="donor_phone" type="tel" maxlength="35"></label><label>Date of birth<input name="date_of_birth" type="date" required></label><label>State<input name="state_of_residence" pattern="[A-Za-z]{2}" maxlength="2" required></label><label>Reason for test<select name="reason_for_test" required><option value="PE">Pre-employment</option><option value="RN">Random</option><option value="PA">Post-accident</option><option value="RS">Reasonable suspicion</option><option value="RT">Return to duty</option><option value="FU">Follow-up</option><option value="NI">Other</option></select></label></div><label>Notes<textarea name="notes" rows="3" maxlength="1000"></textarea></label><p id="lab-edit-order-status" role="status" aria-live="polite"></p><button type="submit" class="btn primary">Save changes</button></form></dialog>'+
  labForm()+ 
  specimenForm(requests)+
+ clientForm()+
  legacyRecordPanel('clients','Lab client directory','Previously saved Lab Account contacts. Use the existing C/TPA Employers module for current company management; these legacy contact records are retained separately until reconciled.')+
  deliveryRequestForm()+
  legacyRecordPanel('deliveries','Lab result delivery history','Previously requested result deliveries associated with your original Lab Account. Actual testing results remain in authorized Workforce Results workflows.')+
+ alertForm()+
  legacyRecordPanel('alerts','Supply reorder alerts','Existing Lab Account supply alert records are preserved while laboratory supplies are consolidated.')+
 
- '<section class="section" data-lab-panel="documents"><h2>Lab Account documents and collection forms</h2><p>View Workforce-published laboratory account documents. Existing C/TPA and testing documents remain available in their original Workforce modules.</p><div id="lab-published-documents" class="lab-document-list" aria-live="polite">Loading published documents…</div><h3>Intake and historical Lab Account files</h3><p>Original setup forms, uploaded intake attachments, completed service documents, and laboratory account files.</p><div id="lab-historical-documents" class="lab-document-list" aria-live="polite">Open Documents to load previous records.</div><dialog id="lab-intake-dialog" class="lab-document-dialog lab-intake-dialog"><div class="lab-document-dialog-bar"><h3 id="lab-intake-title">Lab Account intake</h3><button class="btn ghost" id="lab-intake-close" type="button">Close</button></div><div class="lab-intake-body" id="lab-intake-fields"></div></dialog><h3>Released chain-of-custody forms (CCFs)</h3><p>Only released CCFs belonging to your laboratory testing cases are available here.</p><div id="lab-ccf-archive" class="lab-document-list" aria-live="polite">Open Documents to load your CCFs.</div><dialog id="lab-document-preview" class="lab-document-dialog"><div class="lab-document-dialog-bar"><h3 id="lab-document-title">Document preview</h3><button class="btn ghost" type="button" id="lab-document-close">Close</button></div><iframe title="Lab Account document preview" id="lab-document-frame"></iframe></dialog>'+scopedLink('/documents.html','C/TPA Documents','Existing company documents workspace')+scopedLink('/testing-documents.html','Testing documents','Existing C/TPA testing documentation')+'</section>'+
+ '<section class="section" data-lab-panel="analytics"><h2>Laboratory testing analytics</h2><p>Live measures for laboratory requests belonging to the selected C/TPA. General operational reporting is available in the existing C/TPA Reports module.</p><div id="lab-analytics" aria-live="polite">Open Analytics to load your laboratory metrics.</div></section>'+ '<section class="section" data-lab-panel="documents"><h2>Lab Account documents and collection forms</h2><p>View Workforce-published laboratory account documents. Existing C/TPA and testing documents remain available in their original Workforce modules.</p><div id="lab-published-documents" class="lab-document-list" aria-live="polite">Loading published documents…</div><h3>Intake and historical Lab Account files</h3><p>Original setup forms, uploaded intake attachments, completed service documents, and laboratory account files.</p><div id="lab-historical-documents" class="lab-document-list" aria-live="polite">Open Documents to load previous records.</div><dialog id="lab-intake-dialog" class="lab-document-dialog lab-intake-dialog"><div class="lab-document-dialog-bar"><h3 id="lab-intake-title">Lab Account intake</h3><button class="btn ghost" id="lab-intake-close" type="button">Close</button></div><div class="lab-intake-body" id="lab-intake-fields"></div></dialog><h3>Released chain-of-custody forms (CCFs)</h3><p>Only released CCFs belonging to your laboratory testing cases are available here.</p><div id="lab-ccf-archive" class="lab-document-list" aria-live="polite">Open Documents to load your CCFs.</div><dialog id="lab-document-preview" class="lab-document-dialog"><div class="lab-document-dialog-bar"><h3 id="lab-document-title">Document preview</h3><button class="btn ghost" type="button" id="lab-document-close">Close</button></div><iframe title="Lab Account document preview" id="lab-document-frame"></iframe></dialog>'+scopedLink('/documents.html','C/TPA Documents','Existing company documents workspace')+scopedLink('/testing-documents.html','Testing documents','Existing C/TPA testing documentation')+'</section>'+
  '<section class="section" data-lab-panel="billing"><h2>Laboratory purchases and invoices</h2><p>View invoices and purchases linked to the verified Lab Account purchase. Your existing C/TPA billing remains separate.</p><h3>Lab Account purchase</h3><div id="lab-purchase-history" class="lab-document-list" aria-live="polite">Loading purchase history…</div><h3>Lab Account invoices</h3><div id="lab-invoice-list" class="lab-document-list" aria-live="polite">Loading laboratory invoices…</div><dialog id="lab-invoice-detail" class="lab-document-dialog lab-invoice-dialog"><div class="lab-document-dialog-bar"><h3 id="lab-invoice-heading">Invoice details</h3><button type="button" class="btn ghost" id="lab-invoice-close">Close</button></div><div class="lab-invoice-content" id="lab-invoice-content"></div></dialog>'+scopedLink('/billing.html','Workforce Billing','Existing C/TPA billing and invoices')+scopedLink('/order-history.html','Order history','Existing C/TPA purchase records')+'</section>'+
  '<section class="section" data-lab-panel="support"><h2>Lab Account support</h2><p>Contact Workforce support for test registration, collection instructions, or laboratory-account issues.</p>'+scopedLink('/support.html','Contact Support','Existing C/TPA support workflow')+'</section>'+
  '<section class="notice" data-lab-panel="overview"><strong>One Workforce C/TPA portal</strong><p>This Lab Account section uses existing C/TPA modules for shared services and the current Workforce testing backend for lab requests. Laboratory registration, donor-pass issuance, result release and shipment fulfillment remain controlled by Workforce Testing Management.</p></section></div>';
@@ -92,6 +98,7 @@ function bind(call,data={}){
   if(['clients','alerts','deliveries'].includes(selected))loadLegacyRecords(selected);
   if(selected==='deliveries')loadReleasedCases();
   if(selected==='billing')loadLabBilling();
+  if(selected==='analytics')loadLabAnalytics();
  }
  buttons.forEach(button=>button.addEventListener('click',()=>selectTab(button.dataset.labTab)));
  const form=root.querySelector('#lab-order-form'),select=root.querySelector('#lab-order-service'),message=root.querySelector('#lab-order-message');
@@ -262,9 +269,72 @@ function bind(call,data={}){
     '<article class="panel lab-legacy-card"><div class="lab-migration-grid">'+spec.fields.map(([label,key])=>{
      const value=record[key]===true?'Yes':record[key]===false?'No':record[key];
      return '<div><small>'+esc(label)+'</small><strong>'+esc(value===null||value===undefined||value===''?'—':value)+'</strong></div>';
-    }).join('')+'</div></article>'
+    }).join('')+'</div>'+(section==='clients'?'<div class="lab-record-actions"><button type="button" class="btn ghost" data-lab-client-edit="'+esc(record.id)+'">Edit contact</button><button type="button" class="btn ghost" data-lab-client-archive="'+esc(record.id)+'">Archive</button></div>':section==='alerts'?'<div class="lab-record-actions"><button type="button" class="btn ghost" data-lab-alert-edit="'+esc(record.id)+'">Edit alert</button><button type="button" class="btn ghost" data-lab-alert-remove="'+esc(record.id)+'">Delete</button></div>':'')+'</article>'
    ).join(''):'<div class="panel">No saved records are associated with the verified original Lab Account purchaser.</div>';
   }catch(error){host.textContent=error.message||'Unable to load previous Lab Account records.'}
+ }
+ const clientFormEl=root.querySelector('#lab-client-form');
+ const alertFormEl=root.querySelector('#lab-alert-form');
+ const formSet=(form,values)=>{for(const [key,value] of Object.entries(values)){
+   const field=form.elements.namedItem(key);if(field)field.type==='checkbox'?field.checked=Boolean(value):field.value=String(value??'');
+ }};
+ const rerender=async section=>{legacyCache[section]=null;await loadLegacyRecords(section)};
+ clientFormEl.addEventListener('submit',async event=>{
+  event.preventDefault();if(!clientFormEl.reportValidity())return;
+  const button=clientFormEl.querySelector('button[type="submit"]'),status=root.querySelector('#lab-client-status');
+  if(button.disabled)return;button.disabled=true;
+  try{const body=Object.fromEntries(new FormData(clientFormEl).entries());
+   await call('lab_client_save',body);
+   clientFormEl.reset();status.textContent='Contact saved to your Lab Account.';
+   await rerender('clients');
+  }catch(e){status.textContent=e.message||'Unable to save contact.'}finally{button.disabled=false}
+ });
+ root.querySelector('#lab-client-clear').addEventListener('click',()=>clientFormEl.reset());
+ alertFormEl.addEventListener('submit',async event=>{
+  event.preventDefault();if(!alertFormEl.reportValidity())return;
+  const button=alertFormEl.querySelector('button[type="submit"]'),status=root.querySelector('#lab-alert-status');
+  if(button.disabled)return;button.disabled=true;
+  try{
+   const body=Object.fromEntries(new FormData(alertFormEl).entries());body.enabled=alertFormEl.elements.namedItem('enabled').checked;
+   const result=await call('supply_alert_save',body);
+   status.textContent=result.needs_reorder?'Saved. Your estimated inventory is at or below the reorder threshold.':'Supply reorder alert saved.';
+   alertFormEl.reset();await rerender('alerts');
+  }catch(e){status.textContent=e.message||'Unable to save alert.'}finally{button.disabled=false}
+ });
+ for(const section of ['clients','alerts']){
+  root.querySelector('#lab-records-'+section).addEventListener('click',async event=>{
+   const button=event.target.closest('[data-lab-client-edit],[data-lab-client-archive],[data-lab-alert-edit],[data-lab-alert-remove]');
+   if(!button||button.disabled)return;
+   const id=button.dataset.labClientEdit||button.dataset.labClientArchive||button.dataset.labAlertEdit||button.dataset.labAlertRemove;
+   const record=legacyCache[section]?.find(r=>r.id===id);if(!record)return;
+   if(button.dataset.labClientEdit){formSet(clientFormEl,record);clientFormEl.querySelector('[name="company_name"]').focus();return}
+   if(button.dataset.labAlertEdit){formSet(alertFormEl,record);alertFormEl.querySelector('[name="supply_name"]').focus();return}
+   if(!window.confirm('Remove this saved Lab Account '+(section==='clients'?'contact':'supply alert')+'?'))return;
+   button.disabled=true;
+   try{
+    await call(section==='clients'?'lab_client_archive':'supply_alert_delete',{id});
+    await rerender(section);
+   }catch(e){button.insertAdjacentHTML('afterend','<span role="alert">'+esc(e.message||'Unable to update record')+'</span>')}
+   finally{button.disabled=false}
+  });
+ }
+ const analyticsHost=root.querySelector('#lab-analytics');
+ let labAnalyticsLoaded=false;
+ async function loadLabAnalytics(){
+  if(labAnalyticsLoaded)return;analyticsHost.textContent='Loading laboratory testing activity…';
+  try{
+   const data=await call('lab_analytics'),m=data.metrics||{};
+   const display=[
+    ['Testing requests',m.orders],['Released results',m.released],
+    ['DOT tests',m.dot],['NON-DOT tests',m.non_dot],
+    ['Pending',m.pending],['Avg. hours from collection to release',m.average_hours_to_release??'—']
+   ];
+   analyticsHost.innerHTML='<div class="lab-migration-grid">'+display.map(([label,value])=>card(label,value??0)).join('')+'</div>'+
+    '<h3>Monthly activity</h3><div class="lab-document-list">'+(data.monthly||[]).map(row=>
+      '<div class="panel lab-document-row"><strong>'+esc(row.month)+'</strong><small>'+esc(row.orders)+' requests · '+esc(row.released)+' released</small></div>'
+    ).join('')+'</div>';
+   labAnalyticsLoaded=true;
+  }catch(e){analyticsHost.textContent=e.message||'Unable to retrieve laboratory testing analytics.'}
  }
  const passHost=root.querySelector('#lab-issued-passes'),passModal=root.querySelector('#lab-pass-modal');
  let passes=null;
