@@ -60,13 +60,13 @@ Deno.serve(async(req:Request)=>{
      const config=x.config&&typeof x.config==="object"?x.config:{};
      const configured=config.account_numbers&&typeof config.account_numbers==="object"?config.account_numbers:{};
      const allowed=["dot","non_dot","hair","oral"];
-     const numbers:Record<string,string>={dot:"",non_dot:"",hair:"",oral:""};
+     const numbers:Record<string,string>={dot:"",non_dot:"",hair:"",oral:"",unclassified:""};
      for(const key of allowed)numbers[key]=String(configured[key]||"");
      const accountType=String(config.account_type||"").toLowerCase();
      if(allowed.includes(accountType)&&x.account_code&&!numbers[accountType])
       numbers[accountType]=String(x.account_code);
      else if(!accountType&&!allowed.some(key=>numbers[key])&&x.account_code)
-      numbers.dot=String(x.account_code); // legacy untyped DOT assignment
+      numbers.unclassified=String(x.account_code); // needs staff classification before regulated use
      return numbers;
     })()
    })),
