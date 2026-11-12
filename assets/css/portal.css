@@ -1796,3 +1796,23 @@ body.loading::before{content:"Loading Workforce C/TPA…"}
 .nondot-workspace .nondot-member-row{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;border-bottom:1px solid #e4eaf2;padding:12px 0;font-size:.85rem}
 .nondot-workspace .nondot-member-row button{min-height:36px;background:#fff;color:#01122F;border:1px solid #cbd8e6}
 @media(max-width:680px){.nondot-workspace .nondot-edit form{grid-template-columns:1fr}.nondot-workspace .nondot-member-row{align-items:flex-start;flex-direction:column}}
+
+/* C/TPA Lab Account section: migrated features use the existing portal shell. */
+.lab-migration-hub{max-width:1450px;margin:0 auto;display:grid;gap:16px;min-width:0}
+.lab-migration-hub .lab-section-nav{display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:12px;background:#f5f7fb;border:1px solid #d4d3d4;border-radius:12px}
+.lab-migration-hub .lab-section-tab{font:inherit;font-size:.85rem;font-weight:700;min-height:40px;background:#fff;border:1px solid #d4d3d4;color:#01122f;padding:8px 12px;border-radius:8px;cursor:pointer}
+.lab-migration-hub .lab-section-tab.active,.lab-migration-hub .lab-section-tab[aria-pressed="true"]{background:#01122f;color:#fff;border-color:#01122f}
+.lab-migration-hub [data-lab-panel][hidden],.lab-migration-hub #lab-authority-wrap[hidden]{display:none!important}
+.lab-migration-hub .lab-reuse-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin-top:14px}
+.lab-migration-hub .lab-feature-link{display:flex;flex-direction:column;gap:5px;color:#01122f;text-decoration:none;font-size:.9rem}
+.lab-migration-hub .lab-feature-link small{color:#52657e;line-height:1.55}
+.lab-migration-hub .lab-feature-link:hover,.lab-migration-hub .lab-feature-link:focus-visible{border-color:#fdc102;outline:2px solid #fdc102;outline-offset:1px}
+.lab-migration-hub .lab-migration-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;min-width:0}
+.lab-migration-hub #lab-order-form{display:grid;gap:18px}
+.lab-migration-hub #lab-order-form label{display:flex;flex-direction:column;gap:6px;font-size:.87rem;font-weight:700}
+.lab-migration-hub #lab-order-form :is(input,select,textarea){width:100%;min-width:0;padding:11px 12px;font:inherit;border:1px solid #bcc8d8;border-radius:8px;color:#01122f;background:#fff;box-sizing:border-box}
+.lab-migration-hub #lab-order-form :is(input,select,textarea):focus-visible{outline:2px solid #fdc102;outline-offset:2px}
+.lab-migration-hub #lab-order-form button{min-height:42px;border-radius:8px;padding:10px 16px;background:#01122f;color:#fff;border:1px solid #01122f;font-weight:800;cursor:pointer}
+.lab-migration-hub #lab-order-form button:disabled{opacity:.55;cursor:wait}
+.lab-migration-hub #lab-order-message{min-height:23px;color:#23486b;line-height:1.5}
+@media(max-width:700px){.lab-migration-hub .lab-section-nav{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.lab-migration-hub .lab-section-tab{min-width:0;white-space:normal}.lab-migration-hub .lab-migration-grid{grid-template-columns:1fr}.lab-migration-hub #lab-order-form button{width:100%}}
