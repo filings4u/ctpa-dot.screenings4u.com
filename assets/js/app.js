@@ -68,10 +68,10 @@ async function invoke(name,body={}){
   const r=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${s.access_token}`,'apikey':C.workforceKey},body:JSON.stringify(payload)});const d=await r.json().catch(()=>({}));const em=typeof d.error==='string'?d.error:(d.error?.message||d.message||d.details||d.hint||'');if(!r.ok||d.error)throw Object.assign(new Error(em||`Request failed (${r.status}).`),{status:r.status,payload:d});return d;
 }
 async function labServiceCall(action="access"){
- const session=await getSession(),id=workspace()?.ctpa_id;
- if(!session?.access_token||!id)throw Error("Select an authorized C/TPA workspace");
+ const session=await getSession(),id=workspace()?.ctpa_id,subscriptionId=workspace()?.subscription_id;
+ if(!session?.access_token||!id||!subscriptionId)throw Error("Select an authorized C/TPA workspace");
  const endpoint=C.workforceUrl+"/functions/v1/workforce-ctpa-lab-services";
- const response=await fetch(endpoint,{method:"POST",cache:"no-store",headers:{"Content-Type":"application/json",Authorization:"Bearer "+session.access_token,apikey:C.workforceKey},body:JSON.stringify({action,ctpa_id:id})});
+ const response=await fetch(endpoint,{method:"POST",cache:"no-store",headers:{"Content-Type":"application/json",Authorization:"Bearer "+session.access_token,apikey:C.workforceKey},body:JSON.stringify({action,ctpa_id:id,subscription_id:subscriptionId})});
  const data=await response.json().catch(()=>({}));
  if(!response.ok||data.error||data.authorized===false)throw Object.assign(new Error(data.error||data.reason||"Lab Account add-on unavailable"),{status:response.status});
  return data;
