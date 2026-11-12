@@ -46,7 +46,8 @@ function render(d){
  if(d?.ok!==true||d?.context!=='nondot')return '<section class="panel"><h2>NON-DOT access unavailable</h2><p>This workspace requires an independently authorized NON-DOT subscription and feature entitlement.</p></section>';
  const section=sections.find(x=>x.id===d.section)||sections[1];
  const eligible=new Set(Array.isArray(d.available_sections)?d.available_sections:[]);
- const tabs='<nav class="nondot-module-nav" aria-label="NON-DOT modules">'+sections.filter(x=>eligible.has(x.id)).map(x=>'<a href="/nondot-workspace.html?section='+x.id+'" class="'+(x.id===section.id?'active':'')+'"'+(x.id===section.id?' aria-current="page"':'')+'>'+esc(x.label)+'</a>').join('')+'</nav>';
+ const standalone=/^\/nondot-(people|programs|pools|testing|results)\.html$/.test(location.pathname);
+ const tabs=standalone?'':'<nav class="nondot-module-nav" aria-label="NON-DOT modules">'+sections.filter(x=>eligible.has(x.id)).map(x=>'<a href="/nondot-'+x.id+'.html" class="'+(x.id===section.id?'active':'')+'"'+(x.id===section.id?' aria-current="page"':'')+'>'+esc(x.label)+'</a>').join('')+'</nav>';
  const body=drawData(section.id,d.data||{});
  const managers=d.can_manage===true&&d.read_only===false;
  const employers=(d.data?.employers||[]).filter(x=>x&&x.id);
