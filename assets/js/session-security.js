@@ -25,7 +25,7 @@ async function guard(){try{
   const w=W.read();
   if(!w||w.user_id!==session.user.id){W.clear();try{sessionStorage.removeItem(KEY_CTX)}catch{};location.replace('/workspace.html');return}
   const isNondot=w.surface==='nondot';
-  if(isNondot&&!new Set(['nondot-workspace.html','nondot-employers.html','nondot-people.html','nondot-programs.html','nondot-pools.html','nondot-testing.html','nondot-results.html','profile.html','account-settings.html','support.html']).has(P)){location.replace('/nondot-workspace.html');return;}
+  if(isNondot&&!new Set(['dashboard.html','nondot-workspace.html','nondot-employers.html','nondot-people.html','nondot-programs.html','nondot-pools.html','nondot-testing.html','nondot-results.html','profile.html','account-settings.html','support.html']).has(P)){location.replace('/nondot-workspace.html');return;}
   const cached=readCachedContext(session,w);
   if(cached){finishAuth(cached);return}
   const r=await fetch(C.workforceUrl+(isNondot?'/functions/v1/nondot-workforce-session-context':'/functions/v1/ctpa-dot/session?forceFunctionRegion=ca-central-1'),{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+session.access_token,'apikey':C.workforceKey},body:JSON.stringify(isNondot?{portal_code:'ctpa_workforce',ctpa_id:w.ctpa_id,subscription_id:w.subscription_id}:{ctpa_id:w.ctpa_id,subscription_id:w.subscription_id,page:P.replace('.html','')})});
