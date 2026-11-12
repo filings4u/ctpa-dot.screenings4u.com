@@ -14,9 +14,18 @@ Deno.serve(async(req:Request)=>{
   const {data:{user},error:authError}=await auth.auth.getUser(token);
   if(authError||!user?.id||!user.email_confirmed_at)return out({error:"Verified sign-in required"},401);
   const payload=await req.json().catch(()=>({}));
-  const action=String(payload.action||"access"),ctpaId=String(payload.ctpa_id||"");
-  if(!["access","overview"].includes(action)||!uuid(ctpaId))return out({error:"Invalid request"},400);
+  const action=String(payload.action||"access"),ctpaId=String(payload.ctpa_id||""),subscriptionId=String(payload.subscription_id||"");
+  if(!["access","overview"].includes(action)||!uuid(ctpaId)||!uuid(subscriptionId))return out({error:"Invalid C/TPA workspace and subscription"},400);
   const db=createClient(url,secret,{auth:{persistSession:false,autoRefreshToken:false}});
+  // Reuse the C/TPA's verified workspace boundary; organization membership alone is insufficient.
+  const session=await db.rpc("ctpa_dot_session_context",{p_user_id:user.id,p_ctpa_id:ctpaId,p_subscription_id:subscriptionId});
+  if(session.error)throw session.error;
+  const ctx=session.data;
+  const validPlan=["dot_ctpa_essential","dot_ctpa_professional","dot_ctpa_enterprise"].includes(String(ctx?.plan?.code||""));
+  const subscriptionActive=["active","trial","trialing"].includes(String(ctx?.subscription?.status||""));
+  if(!ctx?.ctpa||!ctx?.membership||ctx.subscription?.id!==subscriptionId||!validPlan||ctx.plan?.active===false||
+     ctx.portal_access?.enabled!==true||(!ctx.unlimited_access&&!subscriptionActive))
+    return out({authorized:false,reason:"C/TPA subscription or portal access is not active"},403);
   const c=await db.from("ctpas").select("id,organization_id,status").eq("id",ctpaId).maybeSingle();
   if(c.error)throw c.error;
   if(!c.data?.organization_id||c.data.status!=="active")return out({authorized:false,reason:"C/TPA workspace unavailable"},403);
