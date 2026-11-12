@@ -35,6 +35,7 @@ try{
  const sub=url.searchParams.get('subscription_id')||'';
  const membership=url.searchParams.get('membership_id')||'';
  const isUuid=value=>/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+ if(isNondot&&(!isUuid(ctpa)||!isUuid(sub)||!isUuid(membership)))throw Error('A verified NON-DOT subscription and membership are required.');
  if(ctpa&&sub&&isUuid(ctpa)&&isUuid(sub)){
   setStatus('Opening your assigned C/TPA workspace…');
   const r=await fetch(C.workforceUrl+(isDot?'/functions/v1/ctpa-dot/session?forceFunctionRegion=ca-central-1':'/functions/v1/nondot-workforce-session-context'),{
@@ -52,7 +53,7 @@ try{
   }
   if(!r.ok||!d.ok||d.has_access===false)throw Error(d.error||'This C/TPA subscription is not currently available.');
   const actualCtpa=d.ctpa?.id,actualSub=d.subscription?.id;
-  if(isNondot&&d.portal_code!=='ctpa_workforce')throw Error('NON-DOT C/TPA session mismatch.');
+  if(isNondot&&(d.portal_code!=='ctpa_workforce'||d.membership?.id!==membership||!String(d.plan?.code||'').startsWith('workforce_ctpa_')))throw Error('NON-DOT C/TPA membership or plan mismatch.');
   if(String(actualCtpa)!==ctpa||String(actualSub)!==sub)throw Error('Your selected C/TPA subscription could not be verified.');
   const W=window.S4UCTPAWorkspace;
   if(!W)throw Error('C/TPA workspace configuration is unavailable.');
