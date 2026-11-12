@@ -89,8 +89,8 @@ function buildNavigation(ctx={}){
   const e=ctx.entitlements||{};
   const items=[
     ['dashboard','Dashboard','⌂',null],['workforce-context','DOT / NON-DOT','⇄',null],['nondot-workspace','NON-DOT Workspace','⇄',null],
-    ['employers','1. Employers','▣','employer_management'],['people','2. People','●','employee_management'],['programs','3. Programs','◎','programs'],
-    ['pools','4. Pools','◉','consortium_pools'],['selections','5. Selections','↻','random_selections'],['testing','6. Testing','◆','testing_orders'],['results','7. Results','✓','results_summary'],
+    ['employers','Employers','▣','employer_management'],['people','People','●','employee_management'],['programs','Programs','◎','programs'],
+    ['pools','Pools','◉','consortium_pools'],['selections','Selections','↻','random_selections'],['testing','Testing','◆','testing_orders'],['results','Results','✓','results_summary'],
 ['compliance','Compliance','◇','compliance'],['new-entrant-audits','New Entrant Audits','☑',null],['documents','Documents','▤','documents'],['legal-documents','Signed Legal Documents','▤',null],['reports','Reports','▥','standard_reports'],['occupational-health','Occupational Health','✚','testing_orders'],['notifications','Employer Messages','✉','notifications'],
     ['create-order','Create Order','＋',null],['price-list','Testing Price List','$',null],['order-services','Add Features','＋',null],['order-history','Order History','≡',null],['subscription','Subscription','◫',null],['billing','Workforce Billing','$','billing_tools'],['employer-billing','Employer Billing','$','client_invoicing'],
     ['branding','Branding','◐','white_label'],['integrations','Integrations','↔','integrations'],['locations','Locations','⌖','locations'],['lab-services','Lab Account','⚗',null],['users-roles','Users & Roles','♙','team_users'],['audit-history','Audit & Log History','◷','audit_history'],['schedule-demo','Schedule Demo','◫',null],['attend-demo','Attend Demo','▶',null],['support','Support','? ',null]
@@ -177,6 +177,27 @@ function syncLabNavigation(){return}
 
 async function access(){if(window.S4UCTPAVerifiedContext)return window.S4UCTPAVerifiedContext;if(window.S4UCTPAAuthReady)return await window.S4UCTPAAuthReady;throw Object.assign(new Error('Authentication verification is unavailable.'),{status:500})}
 
+function organizePortalNavigation(){
+ const groups=[
+  ["People & Programs",["employers","people","programs","pools","selections","owner-operators"]],
+  ["Testing & Compliance",["testing","results","compliance","new-entrant-audits","occupational-health","documents","legal-documents","reports"]],
+  ["Services & Billing",["create-order","price-list","order-services","order-history","subscription","billing","employer-billing"]],
+  ["Account & Support",["notifications","branding","integrations","locations","users-roles","audit-history","schedule-demo","attend-demo","support"]]
+ ];
+ for(const nav of document.querySelectorAll('.side .nav,.mobile-nav-links')){
+  const items=[...nav.querySelectorAll(':scope > a[href]')];
+  const byKey=new Map(items.map(a=>[norm(new URL(a.href,location.origin).pathname.split('/').pop()?.replace('.html','')||''),a]));
+  for(const [title,keys] of groups){
+   const members=keys.map(k=>byKey.get(k.replaceAll('-','_'))).filter(Boolean);
+   if(!members.length)continue;
+   const details=document.createElement('details');details.className='workforce-nav-group';
+   details.open=members.some(a=>a.classList.contains('active'));
+   const summary=document.createElement('summary');summary.textContent=title;details.append(summary);
+   for(const a of members)details.append(a);
+   nav.append(details);
+  }
+ }
+}
 function shell(ctx){
   const current=page();
   NAV=buildNavigation(ctx);
@@ -186,6 +207,7 @@ function shell(ctx){
   if(current!=='support')supportCtxWrite({page_url:location.href,page_title:document.title,page_id:current,captured_at:new Date().toISOString()});
   document.body.className='';
   document.body.innerHTML=`<div class="app"><aside class="side" id="side"><div class="brand"><img src="images/logo2.png" alt="Workforce"></div><nav class="nav"><div class="nav-title">${esc(planLabel)}</div>${links}</nav><div class="side-foot"><div style="font-size:0.5625rem;color:#9fb3c7">Portal</div><div style="font-size:0.6875rem;font-weight:800;color:#fff;margin-top:3px">Workforce C/TPA</div></div></aside><main class="main"><header class="top"><div class="top-left"><button class="menu" id="menu" type="button" aria-label="Open navigation" aria-expanded="false" aria-controls="mobileNav"><span class="menu-bars" aria-hidden="true"><span></span><span></span><span></span></span></button><div class="top-context"><span class="top-eyebrow">${esc(planLabel)}</span><span class="crumb">${esc(cfgPage(current).label)}</span></div></div><div class="top-right"><div class="top-utility-group top-time-group"><div class="portal-clock" aria-label="Current date and time"><span id="portalClockDate" class="portal-clock-date"></span><strong id="portalClockTime" class="portal-clock-time"></strong></div></div><div class="top-utility-group top-accessibility-group"><span class="top-utility-label">Text size</span><div class="font-sizer" role="group" aria-label="Page font size"><button type="button" id="fontDown" aria-label="Decrease font size" title="Decrease font size">A−</button><button type="button" class="font-reset" id="fontSizeValue" aria-label="Reset font size to default" title="Reset font size">${portalFontSize===FONT_DEFAULT?'Default':portalFontSize}</button><button type="button" id="fontUp" aria-label="Increase font size" title="Increase font size">A+</button></div></div><div class="top-utility-group top-action-group"><span class="pill">${esc(C.kind==='self'?'Self Service':'Management')}</span>${C.agency?`<span class="pill">${esc(C.agency)}</span>`:''}<button class="top-support${current==='support'?' active':''}" id="supportShortcut" type="button"${current==='support'?' aria-current="page"':''}>Support</button><a href="https://workforceapps.screenings4u.com/selector.html" id="s4uSwitchPortal" aria-label="Switch portal" style="display:inline-flex;align-items:center;justify-content:center;padding:9px 13px;border-radius:9px;background:#FDC102;color:#01122F;font-size:12px;font-weight:800;text-decoration:none;white-space:nowrap">↔ Switch Portal</a><button class="signout" id="logout">Sign out</button></div></div></header><section class="mobile-nav" id="mobileNav" aria-hidden="true" aria-label="Portal navigation"><div class="mobile-nav-inner"><div class="mobile-nav-head"><div><span>Portal navigation</span><strong>${esc(planLabel)}</strong></div><span class="mobile-nav-current">${esc(cfgPage(current).label)}</span></div><nav class="mobile-nav-links">${links}</nav><div class="mobile-nav-foot"><span>${esc(C.domain)}</span><small>Select a page to close this menu.</small></div></div></section><div class="content"><div id="error"></div><section class="hero"><span class="hero-kicker">${esc(planLabel)}</span><h1>${esc(cfgPage(current).label)}</h1><p id="subtitle">Your Workforce C/TPA workspace.</p><div class="hero-actions" id="actions"></div></section><section class="section" id="content"></section></div></main></div>`;
+  organizePortalNavigation();
   requestAnimationFrame(()=>{const nav=document.querySelector('.side .nav'),active=nav?.querySelector('a.active');if(nav&&active){const top=active.offsetTop-nav.clientHeight/2+active.clientHeight/2;nav.scrollTop=Math.max(0,top)}});
   const menuBtn=$('#menu'),mobileNav=$('#mobileNav');
   const setMobileNav=open=>{
