@@ -63,10 +63,26 @@ Deno.serve(async(req:Request)=>{
     .contains("metadata",{source:"lab_account_portal",ctpa_id:ctpaId})
     .order("created_at",{ascending:false}).limit(100);
    if(cases.error)throw cases.error;
+   const caseIds=(cases.data||[]).map((x:any)=>x.id);
+   const passByCase=new Map<string,{status:string,issued_at:string|null}>();
+   if(caseIds.length){
+    // Pass status only. Never return pass numbers, donor names or pass URLs
+    // through this migration inventory; the dedicated pass workflow owns them.
+    const passes=await db.from("testing_donor_passes")
+     .select("testing_case_id,status,issued_at,created_at")
+     .eq("customer_user_id",grant.data.linked_customer_user_id)
+     .in("testing_case_id",caseIds)
+     .order("created_at",{ascending:false}).limit(250);
+    if(passes.error)throw passes.error;
+    for(const p of passes.data||[])if(!passByCase.has(p.testing_case_id))
+     passByCase.set(p.testing_case_id,{status:String(p.status||"pending"),issued_at:p.issued_at||null});
+   }
    testingRequests=(cases.data||[]).map((x:any)=>({
     id:x.id,case_number:x.case_number,status:x.status,test_type:x.test_type,
     created_at:x.created_at,scheduled_at:x.scheduled_at,
-    collected_at:x.collected_at,completed_at:x.completed_at
+    collected_at:x.collected_at,completed_at:x.completed_at,
+    donor_pass_status:passByCase.get(x.id)?.status||"not_issued",
+    donor_pass_issued_at:passByCase.get(x.id)?.issued_at||null
    }));
   }
   return out({
