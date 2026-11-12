@@ -890,9 +890,15 @@ async function switchOperatingWorkspace(desired){
  const data=await response.json().catch(()=>({}));
  if(!response.ok)throw Error(data.error||'Unable to verify workspace');
  const current=workspace();
- const available=(Array.isArray(data.workspaces)?data.workspaces:[]).find(x=>x.operating_context===desired&&x.ctpa_id===current?.ctpa_id&&x.subscription_id);
- if(!available)throw Error('Workspace is not assigned to this account');
- W.set({...current,...available,surface:desired,ctpa_id:available.ctpa_id,subscription_id:available.subscription_id});
+ const rows=Array.isArray(data.workspaces)?data.workspaces:[];
+ // DOT and NON-DOT C/TPA rows have distinct legacy IDs. They belong to the same
+ // combined subscription when the server verifies their shared organization.
+ const parent=rows.find(x=>x.ctpa_id===current?.ctpa_id&&x.subscription_id===current?.subscription_id);
+ const orgId=current?.organization_id||parent?.organization_id;
+ if(!orgId)throw Error('Unable to identify the current C/TPA organization. Please select your account again.');
+ const available=rows.find(x=>x.operating_context===desired&&x.organization_id===orgId);
+ if(!available)throw Error('This C/TPA organization does not have an authorized '+(desired==='dot'?'DOT':'NON-DOT')+' workspace.');
+ W.set({...current,...available,surface:desired,ctpa_id:available.ctpa_id,subscription_id:available.subscription_id,organization_id:available.organization_id,plan_name:available.plan_name||current.plan_name});
  location.assign('/dashboard.html');
 }
 function installFastNavigation(){
