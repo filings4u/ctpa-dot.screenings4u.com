@@ -759,6 +759,10 @@ async function navigatePortal(url,{replace=false,pop=false}={}){
   if(u.origin!==location.origin||!u.pathname.endsWith('.html')){location.href=u.href;return}
   const prepared=await prepareTarget(u.href);
   const targetPage=prepared.targetPage,targetSearch=u.search;
+  if(targetPage==='lab_services'){
+    try{const lab=await labServiceCall('access');window.portalCtx.labAddonVerified=lab.authorized===true;}
+    catch{window.portalCtx.labAddonVerified=false;}
+  }
   if(!pageAccess(window.portalCtx,targetPage).allowed){
     if(!pop){if(replace)history.replaceState({s4u:true},'',u.pathname+u.search+u.hash);else history.pushState({s4u:true},'',u.pathname+u.search+u.hash)}
     document.body.dataset.portalPage=targetPage;
@@ -784,7 +788,13 @@ function installFastNavigation(){
 async function init(){
   try{
     const ctx=await access();if(!ctx?.has_access)throw new Error(ctx?.reason||'Portal access denied.');
-    window.portalCtx=ctx;shell(ctx);installFastNavigation();
+    window.portalCtx=ctx;
+    // Direct Lab Services entry must verify the add-on before rendering or reading cached data.
+    if(page()==='lab_services'){
+      try{const lab=await labServiceCall('access');ctx.labAddonVerified=lab.authorized===true;}
+      catch{ctx.labAddonVerified=false;}
+    }
+    shell(ctx);installFastNavigation();
     const p=page(),search=location.search,cached=await getCachedPageData(p,search);
     if(cached!==null){await render(ctx,cached);loadPageDataCached(p,search,{force:true}).then(d=>{if(page()===p&&location.search===search)render(ctx,d)}).catch(console.warn)}
     else {const d=await loadPageDataCached(p,search,{force:false});await render(ctx,d)}
