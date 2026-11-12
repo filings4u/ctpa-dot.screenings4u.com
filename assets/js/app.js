@@ -79,7 +79,8 @@ function pageAccess(ctx,p){
  const feature=PAGE_FEATURES[key];
  if(feature&&!planHas(ctx,feature))return {allowed:false,reason:'This feature is not included with your current C/TPA subscription.',feature};
  if(MANAGER_PAGES.has(key)&&!managerRole(ctx))return {allowed:false,reason:'Your C/TPA team role does not permit this administrative action.',feature};
- if((key==='lab_services'||key==='lab_accounts')&&ctx?.labAddonVerified!==true)return {allowed:false,reason:'An active Lab Account add-on is required for this workspace.',feature:'lab_account'};
+ // Lab Account navigation is part of the C/TPA workspace. Protected lab
+ // records and mutations remain exclusively authorized in the backend.
  if(key==='nondot_workspace'&&ctx?.nondotVerified!==true)return {allowed:false,reason:'An independently authorized NON-DOT subscription is required for this C/TPA organization.',feature:'nondot_access'};
  return {allowed:true};
 }
@@ -95,7 +96,7 @@ function buildNavigation(ctx={}){
     ['branding','Branding','◐','white_label'],['integrations','Integrations','↔','integrations'],['locations','Locations','⌖','locations'],['lab-services','Lab Account','⚗',null],['users-roles','Users & Roles','♙','team_users'],['audit-history','Audit & Log History','◷','audit_history'],['schedule-demo','Schedule Demo','◫',null],['attend-demo','Attend Demo','▶',null],['support','Support','? ',null]
   ];
   const enterprise=String(ctx?.plan?.code||ctx?.subscription?.plan_code||'').toLowerCase()==='dot_ctpa_enterprise';
-  return items.filter(x=>(!x[3]||e[x[3]]===true)&&(!x[4]||enterprise)&&(x[0]!=='lab-services'||ctx.labAddonVerified===true)&&(x[0]!=='nondot-workspace'||ctx.nondotVerified===true)&&pageAccess(ctx,norm(x[0])).allowed).map(x=>({id:x[0],label:x[1],icon:x[2],href:`/${x[0]}.html`}));
+  return items.filter(x=>(!x[3]||e[x[3]]===true)&&(!x[4]||enterprise)&&(x[0]!=='nondot-workspace'||ctx.nondotVerified===true)&&pageAccess(ctx,norm(x[0])).allowed).map(x=>({id:x[0],label:x[1],icon:x[2],href:`/${x[0]}.html`}));
 }
 const cfgPage=id=>NAV.find(x=>norm(x.id)===norm(id))||{id,label:pretty(id),icon:'•',href:`/${id}.html`};
 
@@ -170,75 +171,9 @@ async function labServiceCall(action="access",details={}){
  if(!response.ok||data.error||data.authorized===false)throw Object.assign(new Error(data.error||data.reason||"Lab Account add-on unavailable"),{status:response.status});
  return data;
 }
-async function syncLabNavigation(ctx){
- try{
-  const result=await labServiceCall("access");
-  if(result.authorized!==true)return;
-  ctx.labAddonVerified=true;
-  NAV=buildNavigation(ctx);
-  const labTabs=[
-   ["Overview","overview"],["Laboratory Accounts","accounts"],
-   ["Lab Client Directory","clients"],["Create Testing Order","orders"],
-   ["Lab Orders & Donor Passes","tracking"],["Released Lab Results","results"],
-   ["Result Delivery","deliveries"],["Supplies & Shipping","supplies"],
-   ["Supply Alerts","alerts"],["Lab Documents & CCFs","documents"],
-   ["Billing & Order History","billing"],["Lab Analytics","analytics"],
-   ["Previous Consortiums","consortium"],["Lab Service Requests","services"],
-   ["Previous Benefits","benefits"],["Lab Support","support"]
-  ];
-  const reusableLabPages=[
-   ["Employers & Client Directory","/employers.html","employers"],
-   ["Drivers & Donors","/people.html","people"],
-   ["Programs","/programs.html","programs"],
-   ["Consortium & Pools","/pools.html","pools"],
-   ["Random Selections","/selections.html","selections"],
-   ["Testing Orders","/testing.html","testing"],
-   ["Test Results","/results.html","results"],
-   ["Reporting & Analytics","/reports.html","reports"],
-   ["Compliance","/compliance.html","compliance"],
-   ["Documents","/documents.html","documents"],
-   ["Support","/support.html","support"]
-  ];
-  for(const nav of document.querySelectorAll(".side .nav,.mobile-nav-links")){
-   const old=nav.querySelector('a[href="/lab-services.html"]');
-   if(old)old.remove();
-   if(nav.querySelector(".lab-side-group"))continue;
-   const group=document.createElement("details");
-   group.className="lab-side-group";
-   group.open=page()==="lab_services";
-   const label=document.createElement("summary");
-   label.textContent="Lab Account";
-   group.append(label);
-   for(const [name,section] of labTabs){
-    const link=document.createElement("a");
-    link.href="/lab-services.html?lab="+encodeURIComponent(section);
-    link.textContent=name;
-    link.className="lab-side-link";
-    if(page()==="lab_services"&&(new URLSearchParams(location.search).get("lab")||"overview")===section){
-     link.classList.add("active");link.setAttribute("aria-current","page");
-    }
-    group.append(link);
-   }
-   const reuseHeader=document.createElement("span");
-   reuseHeader.className="lab-side-caption";
-   reuseHeader.textContent="Existing C/TPA tools";
-   group.append(reuseHeader);
-   for(const [name,href,route] of reusableLabPages){
-    if(!pageAccess(ctx,route).allowed)continue;
-    if(PAGE_FEATURES[route]&&!planHas(ctx,PAGE_FEATURES[route]))continue;
-    const link=document.createElement("a");
-    link.href=href;link.textContent=name;link.className="lab-side-link lab-side-reuse";
-    if(page()===route){link.classList.add("active");link.setAttribute("aria-current","page")}
-    group.append(link);
-   }
-   const target=nav.querySelector('a[href="/testing.html"]');
-   if(target)target.insertAdjacentElement("afterend",group);else nav.append(group);
-  }
- }catch(e){
-  // Missing or unverified add-on is expected: do not display a premium feature link.
-  if(e?.status!==403&&e?.status!==401)console.warn("Lab add-on status unavailable",e);
- }
-}
+// Lab Account is a single C/TPA destination. It reuses existing C/TPA
+// modules instead of duplicating 16 additional sidebar page links.
+function syncLabNavigation(){return}
 
 async function access(){if(window.S4UCTPAVerifiedContext)return window.S4UCTPAVerifiedContext;if(window.S4UCTPAAuthReady)return await window.S4UCTPAAuthReady;throw Object.assign(new Error('Authentication verification is unavailable.'),{status:500})}
 
@@ -423,7 +358,7 @@ function bindUtilityPage(p,d,ctx){
 }
 
 async function ctpaData(p){
-  if(p==='lab_services')return labServiceCall('overview');
+  if(p==='lab_services')return {authorized:false,loading:true};
   if(p==='nondot_workspace')return nondotWorkspaceData();
   if(p==='employers'||p==='employer_form')return invoke('workforce-ctpa-employers',{action:'workspace'});
   if(p==='owner_operators')return invoke('workforce-ctpa-owner-operators',{action:'workspace'});
@@ -875,10 +810,6 @@ async function navigatePortal(url,{replace=false,pop=false}={}){
     try{window.portalCtx.nondotVerified=await nondotWorkspaceAccess();}
     catch{window.portalCtx.nondotVerified=false;}
   }
-  if(targetPage==='lab_services'||targetPage==='lab_accounts'){
-    try{const lab=await labServiceCall('access');window.portalCtx.labAddonVerified=lab.authorized===true;}
-    catch{window.portalCtx.labAddonVerified=false;}
-  }
   if(!pageAccess(window.portalCtx,targetPage).allowed){
     if(!pop){if(replace)history.replaceState({s4u:true},'',u.pathname+u.search+u.hash);else history.pushState({s4u:true},'',u.pathname+u.search+u.hash)}
     document.body.dataset.portalPage=targetPage;
@@ -897,19 +828,14 @@ async function navigatePortal(url,{replace=false,pop=false}={}){
 }
 function installFastNavigation(){
   document.addEventListener('click',e=>{const a=e.target.closest?.('a[href]');if(!a||e.defaultPrevented||e.button!==0||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey||a.target||a.hasAttribute('download'))return;const u=new URL(a.href,location.href);if(u.origin!==location.origin||!u.pathname.endsWith('.html')||u.pathname==='/workforce-context.html')return;e.preventDefault();navigatePortal(u.href).catch(err=>{console.warn('Soft navigation fallback',err);location.href=u.href})},true);
-  const pre=e=>{const a=e.target.closest?.('a[href]');if(!a)return;const u=new URL(a.href,location.href);if(u.origin!==location.origin||!u.pathname.endsWith('.html')||u.pathname==='/workforce-context.html')return;prepareTarget(u.href).then(({targetPage,u})=>loadPageDataCached(targetPage,u.search,{force:false})).catch(()=>{})};
-  document.addEventListener('pointerenter',pre,true);document.addEventListener('focusin',pre,true);document.addEventListener('touchstart',pre,{capture:true,passive:true});
+  // Deliberately avoid preloading pages or backend calls on hover/touch.
+  // Only the destination selected by the user should request its data.
   addEventListener('popstate',()=>navigatePortal(location.href,{pop:true}).catch(()=>location.reload()));
 }
 async function init(){
   try{
     const ctx=await access();if(!ctx?.has_access)throw new Error(ctx?.reason||'Portal access denied.');
     window.portalCtx=ctx;
-    // Direct Lab Services entry must verify the add-on before rendering or reading cached data.
-    if(workspace()?.surface!=='nondot'&&(page()==='lab_services'||page()==='lab_accounts')){
-      try{const lab=await labServiceCall('access');ctx.labAddonVerified=lab.authorized===true;}
-      catch{ctx.labAddonVerified=false;}
-    }
     if(page()==='nondot_workspace'){
       try{ctx.nondotVerified=await nondotWorkspaceAccess();}
       catch{ctx.nondotVerified=false;}
@@ -918,7 +844,7 @@ async function init(){
     const p=page(),search=location.search,cached=await getCachedPageData(p,search);
     if(cached!==null){await render(ctx,cached);loadPageDataCached(p,search,{force:true}).then(d=>{if(page()===p&&location.search===search)render(ctx,d)}).catch(console.warn)}
     else {const d=await loadPageDataCached(p,search,{force:false});await render(ctx,d)}
-    if(workspace()?.surface!=='nondot')void syncLabNavigation(ctx);
+
     void syncNondotNavigation(ctx);
     startRealtime(ctx);
   }
