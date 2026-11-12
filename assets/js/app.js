@@ -43,18 +43,56 @@ const stored=()=>workspace()?.membership_id||'';
 const storedCtpa=()=>workspace()?.ctpa_id||'';
 const saveMid=()=>{};
 let NAV=[];
+/* Plan policy derives from signed-in C/TPA subscription context (Supabase plan_features).
+   Do not treat Enterprise as an unconditional override: disabled catalog entries stay disabled.
+   Backend functions must independently authorize every protected read and mutation. */
+const PAGE_FEATURES=Object.freeze({
+ employers:'employer_management',employer_form:'employer_management',owner_operators:'employer_management',
+ people:'employee_management',people_form:'employee_management',people_company:'employee_management',
+ programs:'programs',program_form:'programs',program_detail:'programs',
+ pools:'consortium_pools',pool_detail:'consortium_pools',pool_form:'consortium_pools',
+ selections:'random_selections',selection_detail:'random_selections',
+ testing:'testing_orders',testing_order:'testing_orders',create_order:'testing_orders',
+ results:'results_summary',result_detail:'results_summary',
+ compliance:'compliance',documents:'documents',
+ reports:'standard_reports',report_generate:'standard_reports',report_view:'standard_reports',report_archive:'standard_reports',
+ occupational_health:'testing_orders',
+ notifications:'notifications',order_history:'testing_orders',
+ billing:'billing_tools',employer_billing:'client_invoicing',
+ employer_invoice_form:'client_invoicing',employer_invoice_view:'client_invoicing',
+ employer_invoice_send:'client_invoicing',employer_invoice_delete:'client_invoicing',employer_remittance:'client_invoicing',
+ branding:'white_label',integrations:'integrations',integration_connect:'integrations',integration_workspace:'integrations',
+ locations:'locations',location_form:'locations',
+ users_roles:'team_users',staff_form:'team_users',staff_view:'team_users',staff_invite:'team_users',staff_delete:'team_users',
+ audit_history:'audit_history'
+});
+const MANAGER_PAGES=new Set(['staff_form','staff_invite','staff_delete','integration_connect','branding','employer_invoice_delete']);
+const planHas=(ctx,feature)=>ctx?.entitlements?.[feature]===true;
+const managerRole=ctx=>{
+ const membership=ctx?.membership||{},role=String(membership.role_code||membership.membership_role||'').toLowerCase();
+ return membership.is_primary===true||role==='owner'||role.includes('admin');
+};
+function pageAccess(ctx,p){
+ if(C.kind!=='ctpa')return {allowed:true};
+ const key=norm(p);
+ const feature=PAGE_FEATURES[key];
+ if(feature&&!planHas(ctx,feature))return {allowed:false,reason:'This feature is not included with your current C/TPA subscription.',feature};
+ if(MANAGER_PAGES.has(key)&&!managerRole(ctx))return {allowed:false,reason:'Your C/TPA team role does not permit this administrative action.',feature};
+ if(key==='lab_services'&&ctx?.labAddonVerified!==true)return {allowed:false,reason:'An active Lab Account add-on is required for this workspace.',feature:'lab_account'};
+ return {allowed:true};
+}
 function buildNavigation(ctx={}){
   const e=ctx.entitlements||{};
   const items=[
     ['dashboard','Dashboard','⌂',null],['workforce-context','DOT / NON-DOT','⇄',null],
     ['employers','1. Employers','▣','employer_management'],['people','2. People','●','employee_management'],['programs','3. Programs','◎','programs'],
     ['pools','4. Pools','◉','consortium_pools'],['selections','5. Selections','↻','random_selections'],['testing','6. Testing','◆','testing_orders'],['results','7. Results','✓','results_summary'],
-['compliance','Compliance','◇','compliance'],['new-entrant-audits','New Entrant Audits','☑',null],['documents','Documents','▤','documents'],['legal-documents','Signed Legal Documents','▤',null],['reports','Reports','▥','standard_reports'],['occupational-health','Occupational Health','✚','testing_orders'],['notifications','Employer Messages','✉','notifications','enterprise'],
+['compliance','Compliance','◇','compliance'],['new-entrant-audits','New Entrant Audits','☑',null],['documents','Documents','▤','documents'],['legal-documents','Signed Legal Documents','▤',null],['reports','Reports','▥','standard_reports'],['occupational-health','Occupational Health','✚','testing_orders'],['notifications','Employer Messages','✉','notifications'],
     ['create-order','Create Order','＋',null],['price-list','Testing Price List','$',null],['order-services','Add Features','＋',null],['order-history','Order History','≡',null],['subscription','Subscription','◫',null],['billing','Workforce Billing','$','billing_tools'],['employer-billing','Employer Billing','$','client_invoicing'],
     ['branding','Branding','◐','white_label'],['integrations','Integrations','↔','integrations'],['locations','Locations','⌖','locations'],['lab-accounts','Lab Accounts','⌬',null],['lab-services','Lab Services','⚗',null],['users-roles','Users & Roles','♙','team_users'],['audit-history','Audit & Log History','◷','audit_history'],['schedule-demo','Schedule Demo','◫',null],['attend-demo','Attend Demo','▶',null],['support','Support','? ',null]
   ];
   const enterprise=String(ctx?.plan?.code||ctx?.subscription?.plan_code||'').toLowerCase()==='dot_ctpa_enterprise';
-  return items.filter(x=>(!x[3]||e[x[3]]===true)&&(!x[4]||enterprise)&&(x[0]!=='lab-services'||ctx.labAddonVerified===true)).map(x=>({id:x[0],label:x[1],icon:x[2],href:`/${x[0]}.html`}));
+  return items.filter(x=>(!x[3]||e[x[3]]===true)&&(!x[4]||enterprise)&&(x[0]!=='lab-services'||ctx.labAddonVerified===true)&&pageAccess(ctx,norm(x[0])).allowed).map(x=>({id:x[0],label:x[1],icon:x[2],href:`/${x[0]}.html`}));
 }
 const cfgPage=id=>NAV.find(x=>norm(x.id)===norm(id))||{id,label:pretty(id),icon:'•',href:`/${id}.html`};
 
@@ -519,6 +557,8 @@ async function loadPageDataCached(p,search=location.search,{force=false}={}){
 }
 function schedulePortalPrefetch(){} // Deliberately disabled. Bulk prefetching overloaded the backend.
 async function loadPageData(p){
+  const authorization=pageAccess(window.portalCtx,p);
+  if(!authorization.allowed)return {__feature_denied:authorization.reason,__required_feature:authorization.feature};
   let d;
   if(C.kind==='self')d=await selfData();else if(C.kind==='ctpa')d=await ctpaData(p);else d=await employerData(p);
   if(isUtilityPage(p)&&!(C.kind==='ctpa'&&p==='integrations'&&window.CtpaIntegrations))d=await utilityData(p);
@@ -526,7 +566,17 @@ async function loadPageData(p){
 }
 async function render(ctx,prefetched){
   $('#actions').innerHTML='';const p=page();
+  const pagePermission=pageAccess(ctx,p);
+  if(!pagePermission.allowed){
+    setSubtitle('Access is determined by your purchased subscription and team permissions.');
+    $('#content').innerHTML='<section class="panel" role="alert"><h2>Feature not included</h2><p>'+esc(pagePermission.reason)+'</p><a class="btn ghost" href="/subscription.html">Review subscription</a></section>';
+    return;
+  }
   const d=prefetched!==undefined?prefetched:await loadPageData(p);
+  if(d?.__feature_denied){
+    $('#content').innerHTML='<section class="panel" role="alert"><h2>Feature not included</h2><p>'+esc(d.__feature_denied)+'</p></section>';
+    return;
+  }
   if(C.kind==='self')setSubtitle('View your own records and complete only the actions assigned to you.');
   else if(C.kind==='agency')setSubtitle(`${C.agency} company management workspace. Changes apply only to your company.`);
   else setSubtitle(p==='dashboard'?'Company-wide snapshot of employers, testing, randoms, compliance, billing, and recent activity.':'Manage your company records, people, programs, testing and compliance.');
@@ -709,6 +759,13 @@ async function navigatePortal(url,{replace=false,pop=false}={}){
   if(u.origin!==location.origin||!u.pathname.endsWith('.html')){location.href=u.href;return}
   const prepared=await prepareTarget(u.href);
   const targetPage=prepared.targetPage,targetSearch=u.search;
+  if(!pageAccess(window.portalCtx,targetPage).allowed){
+    if(!pop){if(replace)history.replaceState({s4u:true},'',u.pathname+u.search+u.hash);else history.pushState({s4u:true},'',u.pathname+u.search+u.hash)}
+    document.body.dataset.portalPage=targetPage;
+    shell(window.portalCtx);
+    await render(window.portalCtx);
+    return;
+  }
   const cached=await getCachedPageData(targetPage,targetSearch);
   if(!pop){if(replace)history.replaceState({s4u:true},'',u.pathname+u.search+u.hash);else history.pushState({s4u:true},'',u.pathname+u.search+u.hash)}
   document.body.dataset.portalPage=targetPage;
