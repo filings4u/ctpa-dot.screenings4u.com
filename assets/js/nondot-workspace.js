@@ -42,12 +42,50 @@ function drawData(section,data){
   recordsTable(['Report','Status','Updated'],reports.slice(0,250).map(r=>row([r.report_number||r.testing_order?.order_number||r.order_number||'—',pretty(r.status||r.result_status),formatDate(r.updated_at||r.released_at)])));
 }
 function render(d){
- if(d?.ok!==true||d?.context!=='nondot'||d?.read_only!==true)return '<section class="panel"><h2>NON-DOT access unavailable</h2><p>This workspace requires an independently authorized NON-DOT subscription and feature entitlement.</p></section>';
+ if(d?.ok!==true||d?.context!=='nondot')return '<section class="panel"><h2>NON-DOT access unavailable</h2><p>This workspace requires an independently authorized NON-DOT subscription and feature entitlement.</p></section>';
  const section=sections.find(x=>x.id===d.section)||sections[1];
  const eligible=new Set(Array.isArray(d.available_sections)?d.available_sections:[]);
  const tabs='<nav class="nondot-module-nav" aria-label="NON-DOT modules">'+sections.filter(x=>eligible.has(x.id)).map(x=>'<a href="/nondot-workspace.html?section='+x.id+'" class="'+(x.id===section.id?'active':'')+'"'+(x.id===section.id?' aria-current="page"':'')+'>'+esc(x.label)+'</a>').join('')+'</nav>';
  const body=drawData(section.id,d.data||{});
- return '<div class="nondot-workspace"><section class="panel"><div class="panel-head"><div><h2>NON-DOT Workforce</h2><p>Company-policy operations for your authorized C/TPA company. These records stay separate from DOT-regulated records.</p></div><span class="badge">Read-only migration view</span></div>'+tabs+'</section><section class="panel"><div class="panel-head"><div><h2>'+esc(section.label)+'</h2><p>'+esc(section.detail)+'</p></div></div>'+body+'</section><p class="nondot-privacy-note">This migration view does not create tests, run random selections, release results, or change employee records. Existing authorized NON-DOT tools remain available on the legacy portal until the replacement is tested.</p></div>';
+ const managers=d.can_manage===true&&d.read_only===false;
+ const employers=(d.data?.employers||[]).filter(x=>x&&x.id);
+ const employerOptions=employers.map(e=>'<option value="'+esc(e.id)+'">'+esc(e.legal_name||'Employer')+'</option>').join('');
+ const canCreate=managers&&employers.length>0&&['people','programs'].includes(section.id);
+ const form=canCreate?'<section class="panel nondot-create"><div class="panel-head"><h2>'+esc(section.id==='people'?'Add NON-DOT Employee':'Create NON-DOT Program')+'</h2></div>'+
+ '<form id="nondot-create-form"><label>Employer<select name="employer_id" required><option value="">Select an employer</option>'+employerOptions+'</select></label>'+
+ (section.id==='people'?'<label>First name<input name="first_name" required maxlength="120" autocomplete="off"></label><label>Last name<input name="last_name" required maxlength="120" autocomplete="off"></label><label>Employee number (optional)<input name="employee_number" maxlength="40" autocomplete="off"></label>':'<label>Program name<input name="name" required maxlength="120" autocomplete="off"></label>')+
+ '<p class="nondot-privacy-note">Only NON-DOT records for the selected employer will be created. Your subscription and role are checked again when you submit.</p><button type="submit" class="btn primary">Save '+esc(section.id==='people'?'employee':'program')+'</button><p id="nondot-create-status" aria-live="polite" role="status"></p></form></section>':'';
+
+ return '<div class="nondot-workspace"><section class="panel"><div class="panel-head"><div><h2>NON-DOT Workforce</h2><p>Company-policy operations for your authorized C/TPA company. These records stay separate from DOT-regulated records.</p></div><span class="badge">Read-only migration view</span></div>'+tabs+'</section><section class="panel"><div class="panel-head"><div><h2>'+esc(section.label)+'</h2><p>'+esc(section.detail)+'</p></div></div>'+body+'</section>'+form+'<p class="nondot-privacy-note">This migration view does not create tests, run random selections, release results, or change employee records. Existing authorized NON-DOT tools remain available on the legacy portal until the replacement is tested.</p></div>';
 }
-window.CtpaNondotWorkspace=Object.freeze({render});
+function bind(data,submit){
+ const form=document.querySelector('#nondot-create-form');
+ if(!form||!submit||data?.can_manage!==true||data?.read_only!==false)return;
+ form.addEventListener('submit',async event=>{
+  event.preventDefault();
+  const fd=new FormData(form);
+  const section=String(data.section);
+  if(section!=='people'&&section!=='programs')return;
+  const saveButton=form.querySelector('button[type="submit"]'),message=form.querySelector('#nondot-create-status');
+  if(saveButton.disabled)return;
+  const record={employer_id:String(fd.get('employer_id')||'')};
+  if(section==='people'){
+   record.first_name=String(fd.get('first_name')||'').trim();
+   record.last_name=String(fd.get('last_name')||'').trim();
+   record.employee_number=String(fd.get('employee_number')||'').trim();
+  }else record.name=String(fd.get('name')||'').trim();
+  saveButton.disabled=true;
+  message.textContent='Saving your NON-DOT record…';
+  try{
+   await submit({section,action:section==='people'?'save_employee':'save_program',
+    [section==='people'?'employee':'program']:record});
+   message.textContent='Saved. Refreshing your workspace…';
+   location.reload();
+  }catch(error){
+   message.textContent=error?.message||'Unable to save this record.';
+   saveButton.disabled=false;
+  }
+ });
+}
+window.CtpaNondotWorkspace=Object.freeze({render,bind});
 })();
