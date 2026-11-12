@@ -19,7 +19,7 @@ function drawData(section,data){
  if(section==='people'){
   const employers=data.employers||[],employees=data.employees||[];
   const cards='<div class="metrics"><div class="metric"><small>Employers</small><strong>'+employers.length+'</strong></div><div class="metric"><small>Employees</small><strong>'+employees.length+'</strong></div></div>';
-  return cards+recordsTable(['Employee','Employer','Status'],employees.slice(0,250).map(e=>row([[e.first_name,e.last_name].filter(Boolean).join(' ')||'—',(employers.find(x=>x.id===e.employer_id)||{}).legal_name||'—',pretty(e.employment_status||e.status)])))+
+  return cards+recordsTable(['Employee','Employee number','Employer','Status'],employees.slice(0,250).map(e=>row([[e.first_name,e.last_name].filter(Boolean).join(' ')||'—',e.employee_number||'—',(employers.find(x=>x.id===e.employer_id)||{}).legal_name||'—',pretty(e.employment_status||e.status)])))+
    (employees.length>250?'<p class="notice">Showing the first 250 employee records.</p>':'');
  }
  if(section==='programs'){
@@ -59,7 +59,7 @@ function render(d){
   return '<details class="nondot-edit"><summary>'+esc(section.id==='people'?[item.first_name,item.last_name].filter(Boolean).join(' '):item.name||item.program_name)+'</summary>'+
    '<form class="nondot-edit-form" data-section="'+esc(section.id)+'">'+
    '<input type="hidden" name="record_id" value="'+id+'"><input type="hidden" name="employer_id" value="'+employerId+'">'+
-   (section.id==='people'?'<label>First name<input name="first_name" required maxlength="120" value="'+esc(item.first_name)+'"></label><label>Last name<input name="last_name" required maxlength="120" value="'+esc(item.last_name)+'"></label>':
+   (section.id==='people'?'<label>First name<input name="first_name" required maxlength="120" value="'+esc(item.first_name)+'"></label><label>Last name<input name="last_name" required maxlength="120" value="'+esc(item.last_name)+'"></label><label>Employee number (optional)<input name="employee_number" maxlength="40" value="'+esc(item.employee_number||'')+'"></label>':
     '<label>Program name<input name="name" required maxlength="120" value="'+esc(item.name||item.program_name)+'"></label>')+
    '<button type="submit" class="btn primary">Save changes</button><p role="status" aria-live="polite"></p></form></details>';
  }).join('')+'</section>':'';
@@ -108,7 +108,7 @@ function bind(data,submit){
    const button=form.querySelector('button[type="submit"]');
    if(button.disabled)return;
    const value={id:String(fd.get('record_id')||''),employer_id:String(fd.get('employer_id')||'')};
-   if(section==='people'){value.first_name=String(fd.get('first_name')||'').trim();value.last_name=String(fd.get('last_name')||'').trim();}
+   if(section==='people'){value.first_name=String(fd.get('first_name')||'').trim();value.last_name=String(fd.get('last_name')||'').trim();value.employee_number=String(fd.get('employee_number')||'').trim();}
    else value.name=String(fd.get('name')||'').trim();
    button.disabled=true;status.textContent='Saving changes…';
    try{await submit({section,action:section==='people'?'update_employee':'update_program',[section==='people'?'employee':'program']:value});location.reload();}
