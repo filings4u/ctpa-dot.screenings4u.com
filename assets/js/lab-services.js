@@ -50,6 +50,7 @@ function render(d){
  '<section class="section" data-lab-panel="supplies"><h2>Physical supply shipment tracking</h2>'+
  (shipments.length?shipments.map(s=>{const href=track(s.carrier,s.tracking_number);return '<div class="panel lab-migration-row"><div><strong>'+esc(s.items_description||"Laboratory supplies")+'</strong><small>'+esc(s.carrier||"Carrier pending")+' · '+esc(s.tracking_number||"Tracking pending")+'</small><small>Created '+date(s.created_at)+'</small></div><div><span class="badge">'+esc(tag(s.status))+'</span>'+(href?'<a class="btn ghost" target="_blank" rel="noopener noreferrer" href="'+esc(href)+'">Track package</a>':'')+'</div></div>'}).join(''):'<div class="panel">Shipment tracking appears when Workforce management assigns supplies to a verified Lab Account purchase.</div>')+'</section>'+
  supplyForm()+
+ '<section class="section" data-lab-panel="tracking"><h2>Issued laboratory donor passes</h2><p>Pass details appear only after issuance by Workforce Testing. Laboratory registration and collection appointments are not automatically created when a request is submitted.</p><div id="lab-issued-passes" aria-live="polite">Loading issued passes…</div><dialog id="lab-pass-modal" class="lab-document-dialog lab-pass-dialog"><div class="lab-document-dialog-bar"><h3 id="lab-pass-title">Issued donor pass</h3><button class="btn ghost" id="lab-pass-close" type="button">Close</button></div><div id="lab-pass-content" class="lab-pass-content"></div><div class="lab-pass-actions"><button class="btn primary" type="button" id="lab-pass-print">Print donor pass</button></div></dialog></section>'+
  '<section class="section" data-lab-panel="tracking"><h2>Lab Account testing requests</h2><p>Read-only request status for records linked to this C/TPA. Requests without verified company linkage stay in the original Lab Account portal until Workforce completes the account mapping.</p>'+
  (requests.length?requests.map(r=>'<div class="panel lab-migration-row"><div><strong>'+esc(r.case_number||"Testing request")+'</strong><small>'+esc(r.test_type||"Test type pending")+' · Submitted '+date(r.created_at)+'</small><small>Donor pass: '+esc(tag(r.donor_pass_status||"not_issued"))+(r.donor_pass_issued_at?' · Issued '+date(r.donor_pass_issued_at):'')+'</small></div><span class="badge">'+esc(tag(r.status))+'</span></div>').join(''):'<div class="panel">No testing requests are currently verified for this C/TPA. Existing orders remain available in the original Lab Account portal during migration.</div>')+'</section>'+
  labForm()+ 
@@ -68,6 +69,7 @@ function bind(call){
   if(selected==='orders')loadServices();
   if(selected==='supplies')loadSupplies();
   if(selected==='documents')loadDocuments();
+  if(selected==='tracking')loadPasses();
  }
  buttons.forEach(button=>button.addEventListener('click',()=>selectTab(button.dataset.labTab)));
  const form=root.querySelector('#lab-order-form'),select=root.querySelector('#lab-order-service'),message=root.querySelector('#lab-order-message');
@@ -90,6 +92,35 @@ function bind(call){
   wrap.hidden=!dot;const authority=wrap.querySelector('select');authority.required=dot;
   if(!dot)authority.value='';
  });
+ const passHost=root.querySelector('#lab-issued-passes'),passModal=root.querySelector('#lab-pass-modal');
+ let passes=null;
+ async function loadPasses(){
+  if(passes!==null)return;
+  passHost.textContent='Loading issued laboratory passes…';
+  try{
+   const result=await call('issued_passes');passes=result.passes||[];
+   passHost.innerHTML=passes.length?passes.map(pass=>
+    '<div class="panel lab-document-row"><div><strong>'+esc(pass.pass_number||'Issued donor pass')+'</strong><small>'+esc(pass.test_type||'Testing')+' · Issued '+date(pass.issued_at)+'</small><small>'+esc(pass.collection_site_name||'Collection site not assigned')+'</small></div><button class="btn ghost" type="button" data-lab-pass="'+esc(pass.id)+'">View / Print</button></div>'
+   ).join(''):'<div class="panel">No issued laboratory donor passes are linked to this account.</div>';
+  }catch(error){passHost.textContent=error.message||'Unable to load issued passes.'}
+ }
+ passHost.addEventListener('click',event=>{
+  const button=event.target.closest('[data-lab-pass]');if(!button)return;
+  const pass=passes?.find(x=>x.id===button.dataset.labPass);if(!pass)return;
+  root.querySelector('#lab-pass-title').textContent=pass.pass_number||'Issued donor pass';
+  const details=[
+   ['Donor',pass.donor_name],['Test type',pass.test_type],
+   ['Collection site',pass.collection_site_name],['Collection address',pass.collection_site_address],
+   ['Collection deadline',pass.collection_deadline?date(pass.collection_deadline):'Not assigned'],
+   ['Pass status',pass.status]
+  ];
+  root.querySelector('#lab-pass-content').innerHTML=details.map(([label,value])=>
+   '<div><small>'+esc(label)+'</small><strong>'+esc(value||'Not provided')+'</strong></div>'
+  ).join('');
+  if(!passModal.open)passModal.showModal();
+ });
+ root.querySelector('#lab-pass-close').addEventListener('click',()=>passModal.close());
+ root.querySelector('#lab-pass-print').addEventListener('click',()=>window.print());
  const documentsHost=root.querySelector('#lab-published-documents'),docModal=root.querySelector('#lab-document-preview');
  let documentRecords=null;
  async function loadDocuments(){
