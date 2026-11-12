@@ -105,7 +105,7 @@ function render(d){
  const form=canCreate&&eligibleCreate?'<section class="panel nondot-create"><div class="panel-head"><h2>'+esc(section.id==='people'?'Add NON-DOT Employee':section.id==='pools'?'Create NON-DOT Random Pool':section.id==='testing'?'Create NON-DOT Testing Order':'Create NON-DOT Program')+'</h2></div>'+
  '<form id="nondot-create-form"><label>Employer<select name="employer_id" required><option value="">Select an employer</option>'+employerOptions+'</select></label>'+
  (section.id==='people'?'<label>First name<input name="first_name" required maxlength="120" autocomplete="off"></label><label>Last name<input name="last_name" required maxlength="120" autocomplete="off"></label><label>Employee number (optional)<input name="employee_number" maxlength="40" autocomplete="off"></label>' :section.id==='testing'?'<label>NON-DOT employee<select name="employee_id" required><option value="">Select an employee</option>'+employees.map(e=>'<option value="'+esc(e.id)+'" data-employer-id="'+esc(e.employer_id)+'">'+esc([e.first_name,e.last_name].filter(Boolean).join(' ')||'Employee')+'</option>').join('')+'</select></label><label>NON-DOT program<select name="program_id" required><option value="">Select a program</option>'+programs.map(p=>'<option value="'+esc(p.id)+'" data-employer-id="'+esc(p.employer_id)+'">'+esc(p.name||'Program')+'</option>').join('')+'</select></label><label>Testing type<select name="test_type" required><option value="drug">Drug test</option><option value="alcohol">Alcohol test</option></select></label>':section.id==='pools'?'<label>NON-DOT program<select name="program_id" required><option value="">Select a program</option>'+programs.map(p=>'<option value="'+esc(p.id)+'" data-employer-id="'+esc(p.employer_id)+'">'+esc(p.name||'Program')+'</option>').join('')+'</select></label><label>Pool name<input name="name" required maxlength="120" autocomplete="off"></label>':'<label>Program name<input name="name" required maxlength="120" autocomplete="off"></label>')+
- '<p class="nondot-privacy-note">Only NON-DOT records for the selected employer will be created. Your subscription and role are checked again when you submit.</p><button type="submit" class="btn primary">Save '+esc(section.id==='people'?'employee':section.id==='pools'?'draft pool':section.id==='testing'?'testing order':'program')+'</button><p id="nondot-create-status" aria-live="polite" role="status"></p></form></section>':'';
+ '<p class="nondot-privacy-note">Only NON-DOT records for the selected employer will be created. Your subscription and role are checked again when you submit. Creating a testing order record does not confirm payment, laboratory submission, collection scheduling, or donor notification.</p><button type="submit" class="btn primary">Save '+esc(section.id==='people'?'employee':section.id==='pools'?'draft pool':section.id==='testing'?'testing order':'program')+'</button><p id="nondot-create-status" aria-live="polite" role="status"></p></form></section>':'';
 
  return '<div class="nondot-workspace"><section class="panel"><div class="panel-head"><div><h2>NON-DOT Workforce</h2><p>Company-policy operations for your authorized C/TPA company. These records stay separate from DOT-regulated records.</p></div><span class="badge">'+(managers?'Authorized account manager':'Read-only migration view')+'</span></div>'+tabs+'</section><section class="panel"><div class="panel-head"><div><h2>'+esc(section.label)+'</h2><p>'+esc(section.detail)+'</p></div></div>'+body+'</section>'+form+editForms+poolEdit+poolMembersControl+deadlineEdit+'<p class="nondot-privacy-note">Authorized primary managers can create and rename NON-DOT employees and programs, create and rename draft pools, manage employer-pool memberships, and create testing orders. Random selections, result release and delivery, and other administrative changes remain in their original secured workflows.</p></div>';
 }
@@ -178,6 +178,11 @@ function bind(data,submit){
  }
  const form=document.querySelector('#nondot-create-form');
  if(!form)return;
+ if(data.section==='testing'){
+  // A retry of the same submission uses the same identifier. Editing the form
+  // intentionally starts a new request, preventing a stale retry being reused.
+  form.addEventListener('change',()=>{delete form.dataset.orderRequestId;});
+ }
  if(data.section==='pools'||data.section==='testing'){
   const employer=form.querySelector('[name="employer_id"]'),program=form.querySelector('[name="program_id"]'),employee=form.querySelector('[name="employee_id"]');
   const filter=()=>{const selected=employer.value;for(const input of [program,employee]){if(!input)continue;for(const o of input.options){if(!o.value)continue;o.hidden=o.dataset.employerId!==selected;}if(input.selectedOptions[0]?.hidden)input.value='';}};
@@ -201,6 +206,8 @@ function bind(data,submit){
    if(section==='testing'){
     record.employee_id=String(fd.get('employee_id')||'');
     record.test_type=String(fd.get('test_type')||'');
+    if(!form.dataset.orderRequestId)form.dataset.orderRequestId=crypto.randomUUID();
+    record.client_request_id=form.dataset.orderRequestId;
    }
   }
   saveButton.disabled=true;
