@@ -5,6 +5,7 @@ import path from 'node:path';
 
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const code=readFileSync(path.join(root,'supabase/functions/workforce-ctpa-lab-services/index.ts'),'utf8');
+const client=readFileSync(path.join(root,'assets/js/lab-services.js'),'utf8');
 const begin=code.indexOf('account_numbers:(()=>{');
 const end=code.indexOf('})()',begin);
 assert.ok(begin!==-1&&end>begin,'lab number mapping is present');
@@ -16,8 +17,10 @@ for(const [label,valid] of [
  ['does not always populate DOT from account_code',!section.includes('dot:String(x.config?.account_numbers?.dot||x.account_code')],
  ['preserves existing per-type number assignments',section.includes('numbers[key]=String(configured[key]||"")')],
  ['limits untyped fallback to legacy records',section.includes('!accountType&&!allowed.some(key=>numbers[key])')],
+ ['untyped account is not labeled DOT',section.includes('numbers.unclassified=String(x.account_code)')&&!section.includes('numbers.dot=String(x.account_code)')],
+ ['unclassified numbers are visibly flagged',client.includes('Unclassified account · confirm with Workforce')],
  ['requires purchased Lab Account entitlement',code.includes('.eq("entitlement_code","lab_account").eq("status","active")')],
  ['limits records to selected C/TPA',code.includes('.eq("ctpa_id",ctpaId)')],
  ['does not create or alter customer records',!code.includes('.insert(')&&!code.includes('.update(')]
 ]){console.log(`${valid?'PASS':'FAIL'} ${label}`);assert.ok(valid,label)}
-console.log('9/9 C/TPA lab account source mapping checks passed');
+console.log('11/11 C/TPA lab account source mapping checks passed');
