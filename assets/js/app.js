@@ -78,7 +78,7 @@ function pageAccess(ctx,p){
  const feature=PAGE_FEATURES[key];
  if(feature&&!planHas(ctx,feature))return {allowed:false,reason:'This feature is not included with your current C/TPA subscription.',feature};
  if(MANAGER_PAGES.has(key)&&!managerRole(ctx))return {allowed:false,reason:'Your C/TPA team role does not permit this administrative action.',feature};
- if(key==='lab_services'&&ctx?.labAddonVerified!==true)return {allowed:false,reason:'An active Lab Account add-on is required for this workspace.',feature:'lab_account'};
+ if((key==='lab_services'||key==='lab_accounts')&&ctx?.labAddonVerified!==true)return {allowed:false,reason:'An active Lab Account add-on is required for this workspace.',feature:'lab_account'};
  return {allowed:true};
 }
 function buildNavigation(ctx={}){
@@ -89,7 +89,7 @@ function buildNavigation(ctx={}){
     ['pools','4. Pools','◉','consortium_pools'],['selections','5. Selections','↻','random_selections'],['testing','6. Testing','◆','testing_orders'],['results','7. Results','✓','results_summary'],
 ['compliance','Compliance','◇','compliance'],['new-entrant-audits','New Entrant Audits','☑',null],['documents','Documents','▤','documents'],['legal-documents','Signed Legal Documents','▤',null],['reports','Reports','▥','standard_reports'],['occupational-health','Occupational Health','✚','testing_orders'],['notifications','Employer Messages','✉','notifications'],
     ['create-order','Create Order','＋',null],['price-list','Testing Price List','$',null],['order-services','Add Features','＋',null],['order-history','Order History','≡',null],['subscription','Subscription','◫',null],['billing','Workforce Billing','$','billing_tools'],['employer-billing','Employer Billing','$','client_invoicing'],
-    ['branding','Branding','◐','white_label'],['integrations','Integrations','↔','integrations'],['locations','Locations','⌖','locations'],['lab-accounts','Lab Accounts','⌬',null],['lab-services','Lab Services','⚗',null],['users-roles','Users & Roles','♙','team_users'],['audit-history','Audit & Log History','◷','audit_history'],['schedule-demo','Schedule Demo','◫',null],['attend-demo','Attend Demo','▶',null],['support','Support','? ',null]
+    ['branding','Branding','◐','white_label'],['integrations','Integrations','↔','integrations'],['locations','Locations','⌖','locations'],['lab-services','Lab Services','⚗',null],['users-roles','Users & Roles','♙','team_users'],['audit-history','Audit & Log History','◷','audit_history'],['schedule-demo','Schedule Demo','◫',null],['attend-demo','Attend Demo','▶',null],['support','Support','? ',null]
   ];
   const enterprise=String(ctx?.plan?.code||ctx?.subscription?.plan_code||'').toLowerCase()==='dot_ctpa_enterprise';
   return items.filter(x=>(!x[3]||e[x[3]]===true)&&(!x[4]||enterprise)&&(x[0]!=='lab-services'||ctx.labAddonVerified===true)&&pageAccess(ctx,norm(x[0])).allowed).map(x=>({id:x[0],label:x[1],icon:x[2],href:`/${x[0]}.html`}));
@@ -125,7 +125,7 @@ async function syncLabNavigation(ctx){
    const anchor=document.createElement("a");anchor.href="/lab-services.html";
    anchor.innerHTML='<span class="ico">⚗</span><span>Lab Services</span>';
    if(page()==="lab_services")anchor.classList.add("active");
-   const target=nav.querySelector('a[href="/lab-accounts.html"]');
+   const target=nav.querySelector('a[href="/testing.html"]');
    if(target)target.insertAdjacentElement("afterend",anchor);else nav.append(anchor);
   }
  }catch(e){
@@ -759,7 +759,7 @@ async function navigatePortal(url,{replace=false,pop=false}={}){
   if(u.origin!==location.origin||!u.pathname.endsWith('.html')){location.href=u.href;return}
   const prepared=await prepareTarget(u.href);
   const targetPage=prepared.targetPage,targetSearch=u.search;
-  if(targetPage==='lab_services'){
+  if(targetPage==='lab_services'||targetPage==='lab_accounts'){
     try{const lab=await labServiceCall('access');window.portalCtx.labAddonVerified=lab.authorized===true;}
     catch{window.portalCtx.labAddonVerified=false;}
   }
@@ -790,7 +790,7 @@ async function init(){
     const ctx=await access();if(!ctx?.has_access)throw new Error(ctx?.reason||'Portal access denied.');
     window.portalCtx=ctx;
     // Direct Lab Services entry must verify the add-on before rendering or reading cached data.
-    if(page()==='lab_services'){
+    if(page()==='lab_services'||page()==='lab_accounts'){
       try{const lab=await labServiceCall('access');ctx.labAddonVerified=lab.authorized===true;}
       catch{ctx.labAddonVerified=false;}
     }
