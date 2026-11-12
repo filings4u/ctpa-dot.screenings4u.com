@@ -56,6 +56,13 @@ const dotLinks={
  clearinghouse_tools:'/compliance.html',results_sensitive:'/results.html',branded_email:'/branding.html',
  collection_sites:'/testing.html',enrollment_documents:'/documents.html'
 };
+const nondotLinks={
+ employee_management:'/nondot-workspace.html?section=people',
+ programs:'/nondot-workspace.html?section=programs',
+ consortium_pools:'/nondot-workspace.html?section=pools',
+ testing_orders:'/nondot-workspace.html?section=testing',
+ results_sensitive:'/nondot-workspace.html?section=results'
+};
 if(!C?.workforceUrl||!C?.workforceKey||!window.S4UGetSupabaseClient){
  message('Portal configuration unavailable.',true);return;
 }
@@ -98,11 +105,12 @@ function paint(){
    const badge=el('span','wfc-badge',f.enabled?'Included':'Not included');
    top.append(badge);
    card.append(top,el('p','',f.description||'Feature of the Workforce C/TPA plan.'));
-   // Existing DOT routes are protected by their own verified server session.
-   // NON-DOT actions are not offered until migrated into this hostname.
-   if(active==='dot'&&f.enabled&&dotLinks[f.code]){
-    const action=el('a','wfc-link','Open tool');
-    action.href=dotLinks[f.code];
+   // DOT writes continue through the C/TPA backend. NON-DOT links open
+   // read-only, independently authorized modules until their write APIs are migrated.
+   const route=active==='dot'?dotLinks[f.code]:nondotLinks[f.code];
+   if(f.enabled&&route){
+    const action=el('a','wfc-link',active==='dot'?'Open tool':'View NON-DOT records');
+    action.href=route;
     card.append(action);
    }
    grid.append(card);
