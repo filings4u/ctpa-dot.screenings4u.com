@@ -11,6 +11,7 @@ const sections=[
  {id:'testing',label:'Testing Orders',detail:'NON-DOT testing orders and statuses'},
  {id:'results',label:'Results',detail:'Restricted released result inventory'}
 ];
+const localDeadline=v=>{if(!v)return '';const d=new Date(v);if(Number.isNaN(d.getTime()))return '';const pad=n=>String(n).padStart(2,'0');return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'T'+pad(d.getHours())+':'+pad(d.getMinutes())};
 const statusTag=v=>'<span class="badge">'+esc(pretty(v||'pending'))+'</span>';
 const recordsTable=(headers,rows)=>'<div class="table-wrap"><table><thead><tr>'+headers.map(h=>'<th scope="col">'+esc(h)+'</th>').join('')+'</tr></thead><tbody>'+rows.join('')+'</tbody></table></div>';
 const td=v=>'<td>'+esc(v)+'</td>';
@@ -35,7 +36,7 @@ function drawData(section,data){
  if(section==='testing'){
   const orders=data.orders||[],employers=data.employers||[];
   return '<p class="nondot-privacy-note">Order details and donor records remain protected by the existing testing workflow. This view shows status only.</p>'+
-   recordsTable(['Order','Employer','Created','Status'],orders.slice(0,250).map(o=>row([o.order_number||'—',(employers.find(x=>x.id===o.employer_id)||{}).legal_name||'—',formatDate(o.created_at),pretty(o.status)])));
+   recordsTable(['Order','Employer','Created','Collection deadline','Status'],orders.slice(0,250).map(o=>row([o.order_number||'—',(employers.find(x=>x.id===o.employer_id)||{}).legal_name||'—',formatDate(o.created_at),formatDate(o.collection_deadline),pretty(o.status)])));
  }
  const reports=data.reports||[];
  return '<p class="nondot-privacy-note">Released and sensitive reports require explicit result permissions. Download and delivery operations remain with their secured original workflow.</p>'+
@@ -94,7 +95,7 @@ function render(d){
  editableOrders.slice(0,100).map(o=>'<form class="nondot-order-deadline-form">'+
  '<input type="hidden" name="order_id" value="'+esc(o.id)+'">'+
  '<strong>'+esc(o.order_number||'Order')+'</strong>'+
- '<label>Collection deadline (your local time)<input name="collection_deadline" type="datetime-local" required></label>'+
+ '<label>Collection deadline (your local time)<input name="collection_deadline" type="datetime-local" required value="'+esc(localDeadline(o.collection_deadline))+'"></label>'+
  '<button class="btn primary" type="submit">Update deadline</button><p role="status" aria-live="polite"></p>'+
  '</form>').join('')+'</section>':'';
  const canCreate=managers&&employers.length>0&&['people','programs','pools','testing'].includes(section.id);
