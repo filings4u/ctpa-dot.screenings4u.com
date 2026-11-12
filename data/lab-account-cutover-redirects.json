@@ -1,0 +1,328 @@
+{
+  "description": "Cutover mapping for the retired standalone Lab Account host. Apply as domain-level redirects only after migration testing and before deleting its repository.",
+  "source_host": "lab-account.screenings4u.com",
+  "entries": [
+    {
+      "source": "https://lab-account.screenings4u.com/analytics.html",
+      "destination": "https://ctpa.screenings4u.com/lab-services.html?lab=analytics",
+      "status": 301,
+      "preserve_query": false,
+      "notes": "Route former Lab Account page into consolidated Workforce portal"
+    },
+    {
+      "source": "https://lab-account.screenings4u.com/attend-demo.html",
+      "destination": "https://ctpa.screenings4u.com/attend-demo.html",
+      "status": 301,
+      "preserve_query": false,
+      "notes": "Route former Lab Account page into consolidated Workforce portal"
+    },
+    {
+      "source": "https://lab-account.screenings4u.com/auth-handoff.html",
+      "destination": "https://workforceapps.screenings4u.com/",
+      "status": 301,
+      "preserve_query": false,
+      "notes": "Route former Lab Account page into consolidated Workforce portal"
+    },
+    {
+      "source": "https://lab-account.screenings4u.com/benefits.html",
+      "destination": "https://ctpa.screenings4u.com/lab-services.html?lab=benefits",
+      "status": 301,
+      "preserve_query": false,
+      "notes": "Route former Lab Account page into consolidated Workforce portal"
+    },
+    {
+      "source": "https://lab-account.screenings4u.com/billing.html",
+      "destination": "https://ctpa.screenings4u.com/lab-services.html?lab=billing",
+      "status": 301,
+      "preserve_query": false,
+      "notes": "Route former Lab Account page into consolidated Workforce portal"
+    },
+    {
+      "source": "https://lab-account.screenings4u.com/ccf-archive.html",
+      "destination": "https://ctpa.screenings4u.com/lab-services.html?lab=documents",
+      "status": 301,
+      "preserve_query": false,
+      "notes": "Route former Lab Account page into consolidated Workforce portal"
+    },
+    {
+      "source": "https://lab-account.screenings4u.com/client-directory.html",
+      "destination": "https://ctpa.screenings4u.com/lab-services.html?lab=clients",
+      "status": 301,
+      "preserve_query": false,
+      "notes": "Route former Lab Account page into consolidated Workforce portal"
+    },
+    {
+      "source": "https://lab-account.screenings4u.com/compliance-center.html",
+      "destination": "https://ctpa.screenings4u.com/compliance.html",
+      "status": 301,
+      "preserve_query": false,
+      "notes": "Route former Lab Account page into consolidated Workforce portal"
+    },
+    {
+      "source": "https://lab-account.screenings4u.com/consortium-detail.html",
+      "destination": "https://ctpa.screenings4u.com/lab-services.html?lab=consortium",
+      "status": 301,
+      "preserve_query": false,
+      "notes": "Route former Lab Account page into consolidated Workforce portal"
+    },
+    {
+      "source": "https://lab-account.screenings4u.com/consortium-form.html",
+      "destination": "https://ctpa.screenings4u.com/lab-services.html?lab=consortium",
+      "status": 301,
+      "preserve_query": false,
+      "notes": "Route former Lab Account page into consolidated Workforce portal"
+    },
+    {
+      "source": "https://lab-account.screenings4u.com/consortium.html",
+      "destination": "https://ctpa.screenings4u.com/lab-services.html?lab=consortium",
+      "status": 301,
+      "preserve_query": false,
+      "notes": "Route former Lab Account page into consolidated Workforce portal"
+    },
+    {
+      "source": "https://lab-account.screenings4u.com/create-testing-order.html",
+      "destination": "https://ctpa.screenings4u.com/lab-services.html?lab=orders",
+      "status": 301,
+      "preserve_query": false,
+      "notes": "Route former Lab Account page into consolidated Workforce portal"
+    },
+    {
+      "source": "https://lab-account.screenings4u.com/dashboard.html",
+      "destination": "https://ctpa.screenings4u.com/lab-services.html?lab=overview",
+      "status": 301,
+      "preserve_query": false,
+      "notes": "Route former Lab Account page into consolidated Workforce portal"
+    },
+    {
+      "source": "https://lab-account.screenings4u.com/documents.html",
+      "destination": "https://ctpa.screenings4u.com/lab-services.html?lab=documents",
+      "status": 301,
+      "preserve_query": false,
+      "notes": "Route former Lab Account page into consolidated Workforce portal"
+    },
+    {
+      "source": "https://lab-account.screenings4u.com/donor-pass-view.html",
+      "destination": "https://ctpa.screenings4u.com/lab-services.html?lab=tracking",
+      "status": 301,
+      "preserve_query": false,
+      "notes": "Route former Lab Account page into consolidated Workforce portal"
+    },
+    {
+      "source": "https://lab-account.screenings4u.com/forgot-password.html",
+      "destination": "https://workforceapps.screenings4u.com/",
+      "status": 301,
+      "preserve_query": false,
+      "notes": "Route former Lab Account page into consolidated Workforce portal"
+    },
+    {
+      "source": "https://lab-account.screenings4u.com/global-checkout.html",
+      "destination": "https://ctpa.screenings4u.com/global-checkout.html",
+      "status": 301,
+      "preserve_query": false,
+      "notes": "Route former Lab Account page into consolidated Workforce portal"
+    },
+    {
+      "source": "https://lab-account.screenings4u.com/index.html",
+      "destination": "https://ctpa.screenings4u.com/lab-services.html?lab=overview",
+      "status": 301,
+      "preserve_query": false,
+      "notes": "Route former Lab Account page into consolidated Workforce portal"
+    },
+    {
+      "source": "https://lab-account.screenings4u.com/invoice-view.html",
+      "destination": "https://ctpa.screenings4u.com/lab-services.html?lab=billing",
+      "status": 301,
+      "preserve_query": false,
+      "notes": "Route former Lab Account page into consolidated Workforce portal"
+    },
+    {
+      "source": "https://lab-account.screenings4u.com/lab-account-intake.html",
+      "destination": "https://ctpa.screenings4u.com/lab-services.html?lab=documents",
+      "status": 301,
+      "preserve_query": false,
+      "notes": "Route former Lab Account page into consolidated Workforce portal"
+    },
+    {
+      "source": "https://lab-account.screenings4u.com/lab-accounts.html",
+      "destination": "https://ctpa.screenings4u.com/lab-services.html?lab=accounts",
+      "status": 301,
+      "preserve_query": false,
+      "notes": "Route former Lab Account page into consolidated Workforce portal"
+    },
+    {
+      "source": "https://lab-account.screenings4u.com/login.html",
+      "destination": "https://workforceapps.screenings4u.com/",
+      "status": 301,
+      "preserve_query": false,
+      "notes": "Route former Lab Account page into consolidated Workforce portal"
+    },
+    {
+      "source": "https://lab-account.screenings4u.com/onboarding.html",
+      "destination": "https://ctpa.screenings4u.com/lab-services.html?lab=overview",
+      "status": 301,
+      "preserve_query": false,
+      "notes": "Route former Lab Account page into consolidated Workforce portal"
+    },
+    {
+      "source": "https://lab-account.screenings4u.com/order-history.html",
+      "destination": "https://ctpa.screenings4u.com/lab-services.html?lab=billing",
+      "status": 301,
+      "preserve_query": false,
+      "notes": "Route former Lab Account page into consolidated Workforce portal"
+    },
+    {
+      "source": "https://lab-account.screenings4u.com/order-view.html",
+      "destination": "https://ctpa.screenings4u.com/lab-services.html?lab=billing",
+      "status": 301,
+      "preserve_query": false,
+      "notes": "Route former Lab Account page into consolidated Workforce portal"
+    },
+    {
+      "source": "https://lab-account.screenings4u.com/pay-invoice.html",
+      "destination": "https://ctpa.screenings4u.com/pay-invoice.html",
+      "status": 301,
+      "preserve_query": true,
+      "notes": "Preserve invoice id/token query"
+    },
+    {
+      "source": "https://lab-account.screenings4u.com/portal-login.html",
+      "destination": "https://workforceapps.screenings4u.com/",
+      "status": 301,
+      "preserve_query": false,
+      "notes": "Route former Lab Account page into consolidated Workforce portal"
+    },
+    {
+      "source": "https://lab-account.screenings4u.com/reset-password.html",
+      "destination": "https://workforceapps.screenings4u.com/",
+      "status": 301,
+      "preserve_query": false,
+      "notes": "Route former Lab Account page into consolidated Workforce portal"
+    },
+    {
+      "source": "https://lab-account.screenings4u.com/result-delivery.html",
+      "destination": "https://ctpa.screenings4u.com/lab-services.html?lab=deliveries",
+      "status": 301,
+      "preserve_query": false,
+      "notes": "Route former Lab Account page into consolidated Workforce portal"
+    },
+    {
+      "source": "https://lab-account.screenings4u.com/result-detail.html",
+      "destination": "https://ctpa.screenings4u.com/lab-services.html?lab=results",
+      "status": 301,
+      "preserve_query": false,
+      "notes": "Route former Lab Account page into consolidated Workforce portal"
+    },
+    {
+      "source": "https://lab-account.screenings4u.com/result-view.html",
+      "destination": "https://ctpa.screenings4u.com/lab-services.html?lab=results",
+      "status": 301,
+      "preserve_query": false,
+      "notes": "Route former Lab Account page into consolidated Workforce portal"
+    },
+    {
+      "source": "https://lab-account.screenings4u.com/results-detail.html",
+      "destination": "https://ctpa.screenings4u.com/lab-services.html?lab=results",
+      "status": 301,
+      "preserve_query": false,
+      "notes": "Route former Lab Account page into consolidated Workforce portal"
+    },
+    {
+      "source": "https://lab-account.screenings4u.com/results.html",
+      "destination": "https://ctpa.screenings4u.com/lab-services.html?lab=results",
+      "status": 301,
+      "preserve_query": false,
+      "notes": "Route former Lab Account page into consolidated Workforce portal"
+    },
+    {
+      "source": "https://lab-account.screenings4u.com/schedule-demo.html",
+      "destination": "https://ctpa.screenings4u.com/schedule-demo.html",
+      "status": 301,
+      "preserve_query": false,
+      "notes": "Route former Lab Account page into consolidated Workforce portal"
+    },
+    {
+      "source": "https://lab-account.screenings4u.com/selector.html",
+      "destination": "https://workforceapps.screenings4u.com/",
+      "status": 301,
+      "preserve_query": false,
+      "notes": "Route former Lab Account page into consolidated Workforce portal"
+    },
+    {
+      "source": "https://lab-account.screenings4u.com/specimen-shipment.html",
+      "destination": "https://ctpa.screenings4u.com/lab-services.html?lab=tracking",
+      "status": 301,
+      "preserve_query": false,
+      "notes": "Route former Lab Account page into consolidated Workforce portal"
+    },
+    {
+      "source": "https://lab-account.screenings4u.com/store.html",
+      "destination": "https://ctpa.screenings4u.com/order-services.html",
+      "status": 301,
+      "preserve_query": false,
+      "notes": "Route former Lab Account page into consolidated Workforce portal"
+    },
+    {
+      "source": "https://lab-account.screenings4u.com/supplies.html",
+      "destination": "https://ctpa.screenings4u.com/lab-services.html?lab=supplies",
+      "status": 301,
+      "preserve_query": false,
+      "notes": "Route former Lab Account page into consolidated Workforce portal"
+    },
+    {
+      "source": "https://lab-account.screenings4u.com/supply-alerts.html",
+      "destination": "https://ctpa.screenings4u.com/lab-services.html?lab=alerts",
+      "status": 301,
+      "preserve_query": false,
+      "notes": "Route former Lab Account page into consolidated Workforce portal"
+    },
+    {
+      "source": "https://lab-account.screenings4u.com/supply-request.html",
+      "destination": "https://ctpa.screenings4u.com/lab-services.html?lab=supplies",
+      "status": 301,
+      "preserve_query": false,
+      "notes": "Route former Lab Account page into consolidated Workforce portal"
+    },
+    {
+      "source": "https://lab-account.screenings4u.com/support-ticket.html",
+      "destination": "https://ctpa.screenings4u.com/support.html",
+      "status": 301,
+      "preserve_query": false,
+      "notes": "Route former Lab Account page into consolidated Workforce portal"
+    },
+    {
+      "source": "https://lab-account.screenings4u.com/support.html",
+      "destination": "https://ctpa.screenings4u.com/support.html",
+      "status": 301,
+      "preserve_query": false,
+      "notes": "Route former Lab Account page into consolidated Workforce portal"
+    },
+    {
+      "source": "https://lab-account.screenings4u.com/testing-order-edit.html",
+      "destination": "https://ctpa.screenings4u.com/lab-services.html?lab=tracking",
+      "status": 301,
+      "preserve_query": false,
+      "notes": "Route former Lab Account page into consolidated Workforce portal"
+    },
+    {
+      "source": "https://lab-account.screenings4u.com/testing-order-view.html",
+      "destination": "https://ctpa.screenings4u.com/lab-services.html?lab=tracking",
+      "status": 301,
+      "preserve_query": false,
+      "notes": "Route former Lab Account page into consolidated Workforce portal"
+    },
+    {
+      "source": "https://lab-account.screenings4u.com/testing-order.html",
+      "destination": "https://ctpa.screenings4u.com/lab-services.html?lab=tracking",
+      "status": 301,
+      "preserve_query": false,
+      "notes": "Route former Lab Account page into consolidated Workforce portal"
+    },
+    {
+      "source": "https://lab-account.screenings4u.com/tracking.html",
+      "destination": "https://ctpa.screenings4u.com/lab-services.html?lab=tracking",
+      "status": 301,
+      "preserve_query": false,
+      "notes": "Route former Lab Account page into consolidated Workforce portal"
+    }
+  ]
+}
