@@ -225,10 +225,25 @@ function bind(call,data={}){
     .map(([label,value])=>'<div><dt>'+esc(label)+'</dt><dd>'+esc(value)+'</dd></div>').join('')+'</dl>'+
     '<h4>Invoice line items</h4>'+(d.items||[]).map(item=>
       '<div class="lab-invoice-line"><span>'+esc(item.description||'Service')+' · '+esc(item.quantity)+'</span><strong>'+formatMoney(item.line_total,i.currency)+'</strong></div>'
-    ).join('');
+    ).join('')+
+    (Number(i.amount_due||0)>0&&!['paid','void','uncollectible'].includes(String(i.status||'').toLowerCase())?
+     '<div class="lab-invoice-actions"><button type="button" class="btn primary" data-lab-invoice-pay="'+esc(i.id)+'">Pay invoice securely</button></div>':'');
    if(!billingModal.open)billingModal.showModal();
   }catch(error){billingInvoiceHost.insertAdjacentHTML('afterbegin','<p role="alert" class="lab-doc-error">'+esc(error.message||'Invoice unavailable')+'</p>')}
   finally{button.disabled=false}
+ });
+ billingModal.addEventListener('click',async event=>{
+  const button=event.target.closest('[data-lab-invoice-pay]');
+  if(!button||button.disabled)return;
+  const id=button.dataset.labInvoicePay;
+  if(!labInvoiceRecords.some(x=>x.id===id))return;
+  button.disabled=true;
+  try{
+   const response=await call('lab_invoice_pay_link',{invoice_id:id});
+   if(!/^https:\/\/ctpa\.screenings4u\.com\/pay-invoice\.html\?/.test(response.payment_url||''))
+    throw Error('Secure Workforce invoice payment route unavailable.');
+   window.location.assign(response.payment_url);
+  }catch(e){button.insertAdjacentHTML('afterend','<p role="alert" class="lab-doc-error">'+esc(e.message||'Unable to open invoice payment')+'</p>');button.disabled=false}
  });
  root.querySelector('#lab-invoice-close').addEventListener('click',()=>billingModal.close());
  const deliveryForm=root.querySelector('#lab-delivery-form');
