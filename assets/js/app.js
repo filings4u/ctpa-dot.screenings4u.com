@@ -47,6 +47,7 @@ const LABORATORY_PAGES=Object.freeze({"laboratory_overview":{"label":"Laboratory
 const isLaboratoryPage=p=>Boolean(LABORATORY_PAGES[norm(p)]);
 const NONDOT_PAGES=Object.freeze({nondot_people:'people',nondot_programs:'programs',nondot_pools:'pools',nondot_testing:'testing',nondot_results:'results'});
 const isNonDotPage=p=>p==='nondot_workspace'||Boolean(NONDOT_PAGES[norm(p)]);
+const SHARED_WORKSPACE_PAGES=new Set(['support','profile','account_settings']);
 const nondotSection=p=>NONDOT_PAGES[norm(p)]||new URLSearchParams(location.search).get('section')||'programs';
 /* Plan policy derives from signed-in C/TPA subscription context (Supabase plan_features).
    Do not treat Enterprise as an unconditional override: disabled catalog entries stay disabled.
@@ -80,13 +81,14 @@ const managerRole=ctx=>{
 function pageAccess(ctx,p){
  if(C.kind!=='ctpa')return {allowed:true};
  const key=norm(p);
- if(workspace()?.surface==='nondot'&&!isNonDotPage(key)&&key!=='support')return {allowed:false,reason:'Select the DOT workspace to use DOT features.',feature:'nondot_access'};
+ if(workspace()?.surface==='nondot'&&!isNonDotPage(key)&&!SHARED_WORKSPACE_PAGES.has(key))return {allowed:false,reason:'This is a DOT-only page. Select the DOT workspace to use DOT features.',feature:'nondot_access'};
+ if(workspace()?.surface==='dot'&&isNonDotPage(key))return {allowed:false,reason:'Select the NON-DOT workspace to use NON-DOT features.',feature:'nondot_access'};
  const feature=PAGE_FEATURES[key];
  if(feature&&!planHas(ctx,feature))return {allowed:false,reason:'This feature is not included with your current C/TPA subscription.',feature};
  if(MANAGER_PAGES.has(key)&&!managerRole(ctx))return {allowed:false,reason:'Your C/TPA team role does not permit this administrative action.',feature};
  // Lab Account navigation is part of the C/TPA workspace. Protected lab
  // records and mutations remain exclusively authorized in the backend.
- if(isNonDotPage(key)&&(workspace()?.surface!=='nondot'||ctx?.nondotVerified!==true))return {allowed:false,reason:'An independently authorized NON-DOT subscription is required for this C/TPA organization.',feature:'nondot_access'};
+ if(workspace()?.surface==='nondot'&&(isNonDotPage(key)||SHARED_WORKSPACE_PAGES.has(key))&&ctx?.nondotVerified!==true)return {allowed:false,reason:'This NON-DOT workspace is not authorized for the selected C/TPA account.',feature:'nondot_access'};
  return {allowed:true};
 }
 function buildNavigation(ctx={}){
@@ -104,7 +106,7 @@ function buildNavigation(ctx={}){
    ['nondot-results','Results','✓']
   ];
   return [...workspaces,...sections.map(([id,label,icon])=>({id,label,icon,href:'/'+id+'.html'})),
-   ...[['support','Support','?']].map(([id,label,icon])=>({id,label,icon,href:'/'+id+'.html'}))];
+   ...[['profile','Profile','●'],['account-settings','Account Settings','⚙'],['support','Support','?']].map(([id,label,icon])=>({id,label,icon,href:'/'+id+'.html'}))];
  }
  const e=ctx.entitlements||{};
  const items=[
@@ -122,7 +124,7 @@ function buildNavigation(ctx={}){
   ['branding','Branding','◐','white_label'],['integrations','Integrations','↔','integrations'],
   ['locations','Locations','⌖','locations'],['users-roles','Users & Roles','♙','team_users'],
   ['audit-history','Audit & Log History','◷','audit_history'],['schedule-demo','Schedule Demo','◫',null],
-  ['attend-demo','Attend Demo','▶',null],['support','Support','? ',null]
+  ['attend-demo','Attend Demo','▶',null],['profile','Profile','●',null],['account-settings','Account Settings','⚙',null],['support','Support','? ',null]
  ];
  for(const [id,meta] of Object.entries(LABORATORY_PAGES))items.push([id.replaceAll('_','-'),meta.label,'⚗',null]);
  return [...workspaces,...items.filter(x=>(!x[3]||e[x[3]]===true)&&pageAccess(ctx,norm(x[0])).allowed)
@@ -200,13 +202,13 @@ function organizePortalNavigation(){
  const groups=workspace()?.surface==='nondot'?[
   ['People & Programs',['nondot-people','nondot-programs','nondot-pools']],
   ['Testing & Results',['nondot-testing','nondot-results']],
-  ['Account & Support',['subscription','billing','notifications','support']]
+  ['Account & Support',['profile','account-settings','support']]
  ]:[
   ["People & Programs",["employers","people","programs","pools","selections","owner-operators","laboratory-clients","laboratory-consortiums"]],
   ["Testing & Laboratory Services",["testing","create-order","order-history","results","occupational-health","laboratory-overview","laboratory-accounts","laboratory-orders","laboratory-tracking","laboratory-results","laboratory-delivery","laboratory-supplies","laboratory-alerts","laboratory-analytics"]],
   ["Compliance & Documents",["compliance","new-entrant-audits","documents","legal-documents","reports","laboratory-documents","laboratory-benefits"]],
   ["Services & Billing",["price-list","order-services","subscription","billing","employer-billing","laboratory-services","laboratory-billing"]],
-  ["Account & Support",["notifications","branding","integrations","locations","users-roles","audit-history","schedule-demo","attend-demo","support"]]
+  ["Account & Support",["notifications","branding","integrations","locations","users-roles","audit-history","schedule-demo","attend-demo","profile","account-settings","support"]]
  ];
  for(const nav of document.querySelectorAll('.side .nav,.mobile-nav-links')){
   const items=[...nav.querySelectorAll(':scope > a[href]')];
@@ -227,7 +229,7 @@ function shell(ctx){
   NAV=buildNavigation(ctx);
   const surfaceName=workspace()?.surface==='nondot'?'NON-DOT':'DOT';
   const planLabel=surfaceName+' Workspace';
-  const links=NAV.map(x=>`<a href="${esc(x.href||('/'+x.id+'.html'))}" ${x.switchSurface?`data-workspace="${esc(x.switchSurface)}" `:''}class="${(current===norm(x.id)||(norm(x.id)==='nondot_workspace'&&isNonDotPage(current))||(norm(x.id)==='people'&&current==='people_company')||(norm(x.id)==='pools'&&(current==='pool_detail'||current==='pool_form'))||(norm(x.id)==='locations'&&current==='location_form')||(norm(x.id)==='users_roles'&&['staff_form','staff_view','staff_invite','staff_delete'].includes(current)))?'active':''}"><span class="ico">${esc(x.icon||'•')}</span><span>${esc(x.label||pretty(x.id))}</span></a>`).join('');
+  const links=NAV.map(x=>`<a href="${esc(x.href||('/'+x.id+'.html'))}" ${x.switchSurface?`data-workspace="${esc(x.switchSurface)}" `:''}class="${(current===norm(x.id)||(norm(x.id)==='nondot_workspace'&&current==='nondot_workspace')||(norm(x.id)==='people'&&current==='people_company')||(norm(x.id)==='pools'&&(current==='pool_detail'||current==='pool_form'))||(norm(x.id)==='locations'&&current==='location_form')||(norm(x.id)==='users_roles'&&['staff_form','staff_view','staff_invite','staff_delete'].includes(current)))?'active':''}"><span class="ico">${esc(x.icon||'•')}</span><span>${esc(x.label||pretty(x.id))}</span></a>`).join('');
   document.title=`${cfgPage(current).label} | ${planLabel}`;
   if(current!=='support')supportCtxWrite({page_url:location.href,page_title:document.title,page_id:current,captured_at:new Date().toISOString()});
   document.body.className='';
@@ -408,6 +410,7 @@ function bindUtilityPage(p,d,ctx){
 async function ctpaData(p){
   if(p==='lab_services'||isLaboratoryPage(p))return {authorized:false,loading:true};
   if(isNonDotPage(p))return nondotWorkspaceData();
+  if(SHARED_WORKSPACE_PAGES.has(p))return {workspace:workspace(),profile:(await getSession())?.user||null};
   if(p==='employers'||p==='employer_form')return invoke('workforce-ctpa-employers',{action:'workspace'});
   if(p==='owner_operators')return invoke('workforce-ctpa-owner-operators',{action:'workspace'});
   if(p==='new_entrant_audits'){const id=new URLSearchParams(location.search).get('id')||'';return invoke('ctpa-new-entrant-audits',id?{action:'audit',audit_id:id}:{action:'workspace'});}
@@ -673,7 +676,9 @@ async function render(ctx,prefetched){
   else if(C.kind==='agency')setSubtitle(`${C.agency} company management workspace. Changes apply only to your company.`);
   else setSubtitle(p==='dashboard'?'Company-wide snapshot of employers, testing, randoms, compliance, billing, and recent activity.':'Manage your company records, people, programs, testing and compliance.');
   let html='';
-  if(C.kind==='ctpa'&&p==='integrations'&&window.CtpaIntegrations){setSubtitle('Connect enterprise business systems to your C/TPA account.');html=window.CtpaIntegrations.renderCatalog(d,ctx);}
+  if(C.kind==='ctpa'&&p==='profile'){const user=d?.profile||{},m=user.user_metadata||{};setSubtitle('Manage your own Workforce profile.');html=`<section class="panel"><h2>My Profile</h2><form id="workforce-profile-form"><div class="form-grid"><label>First name<input name="first_name" maxlength="100" autocomplete="given-name" value="${esc(m.first_name||'')}"></label><label>Last name<input name="last_name" maxlength="100" autocomplete="family-name" value="${esc(m.last_name||'')}"></label></div><p><strong>Email:</strong> ${esc(user.email||'')}</p><button type="submit" class="btn primary">Save Profile</button><p id="workforce-profile-status" role="status" aria-live="polite"></p></form></section>`;}
+  else if(C.kind==='ctpa'&&p==='account_settings'){const w=workspace()||{};setSubtitle('View the current authorized account and workspace.');html=`<section class="panel"><h2>Account Settings</h2><p><strong>Organization:</strong> ${esc(w.organization_name||'C/TPA account')}</p><p><strong>Workspace:</strong> ${w.surface==='nondot'?'NON-DOT':'DOT'}</p><p><strong>Subscription:</strong> ${esc(w.plan_name||w.plan_code||'Assigned plan')}</p><p>Manage access to other portals using the Workforce portal selector.</p><a class="btn primary" href="https://workforceapps.screenings4u.com/selector.html">Switch Portal</a></section>`;}
+  else if(C.kind==='ctpa'&&p==='integrations'&&window.CtpaIntegrations){setSubtitle('Connect enterprise business systems to your C/TPA account.');html=window.CtpaIntegrations.renderCatalog(d,ctx);}
   else if(C.kind==='ctpa'&&p==='integration_connect'&&window.CtpaIntegrations){setSubtitle('Connect this integration using your business credentials or API access.');html=window.CtpaIntegrations.renderConnect(d,ctx);}
   else if(C.kind==='ctpa'&&p==='integration_workspace'&&window.CtpaIntegrations){setSubtitle('Manage, test, and use this connected integration.');html=window.CtpaIntegrations.renderWorkspace(d,ctx);}
   else if(C.kind==='ctpa'&&p==='location_form'&&window.CtpaLocations){setSubtitle('Add or edit a location for your C/TPA, an Employer, or an Owner-Operator.');html=window.CtpaLocations.renderForm(d,ctx);}
@@ -854,7 +859,7 @@ async function navigatePortal(url,{replace=false,pop=false}={}){
   if(u.origin!==location.origin||!u.pathname.endsWith('.html')){location.href=u.href;return}
   const prepared=await prepareTarget(u.href);
   const targetPage=prepared.targetPage,targetSearch=u.search;
-  if(isNonDotPage(targetPage)&&workspace()?.surface==='nondot'){
+  if(workspace()?.surface==='nondot'){
     try{window.portalCtx.nondotVerified=await nondotWorkspaceAccess();}
     catch{window.portalCtx.nondotVerified=false;}
   }
@@ -890,6 +895,7 @@ async function switchOperatingWorkspace(desired){
  location.assign(desired==='dot'?'/dashboard.html':'/nondot-workspace.html');
 }
 function installFastNavigation(){
+  document.addEventListener('submit',async e=>{const form=e.target;if(form?.id!=='workforce-profile-form')return;e.preventDefault();const status=document.getElementById('workforce-profile-status'),button=form.querySelector('button[type="submit"]');if(button)button.disabled=true;try{const data=new FormData(form);const first_name=String(data.get('first_name')||'').trim(),last_name=String(data.get('last_name')||'').trim();const {error}=await sb.auth.updateUser({data:{first_name,last_name}});if(error)throw error;if(status)status.textContent='Profile saved.';}catch(err){if(status)status.textContent=err.message||'Unable to save profile.';}finally{if(button)button.disabled=false;}},true);
   document.addEventListener('click',e=>{const a=e.target.closest?.('a[data-workspace]');if(!a||!a.dataset.workspace)return;
   const desired=a.dataset.workspace;
   if(desired===workspace()?.surface)return;
@@ -905,7 +911,7 @@ async function init(){
   try{
     const ctx=await access();if(!ctx?.has_access)throw new Error(ctx?.reason||'Portal access denied.');
     window.portalCtx=ctx;
-    if(isNonDotPage(page())&&workspace()?.surface==='nondot'){
+    if(workspace()?.surface==='nondot'){
       try{ctx.nondotVerified=await nondotWorkspaceAccess();}
       catch{ctx.nondotVerified=false;}
     }
