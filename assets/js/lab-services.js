@@ -90,11 +90,31 @@ function render(d){
  '<section class="section" data-lab-panel="analytics"><h2>Laboratory testing analytics</h2><p>Live measures for laboratory requests belonging to the selected C/TPA. General operational reporting is available in the existing C/TPA Reports module.</p><div id="lab-analytics" aria-live="polite">Open Analytics to load your laboratory metrics.</div></section>'+ '<section class="section" data-lab-panel="documents"><h2>Lab Account documents and collection forms</h2><p>View Workforce-published laboratory account documents. Existing C/TPA and testing documents remain available in their original Workforce modules.</p><div id="lab-published-documents" class="lab-document-list" aria-live="polite">Loading published documents…</div><h3>Intake and historical Lab Account files</h3><p>Original setup forms, uploaded intake attachments, completed service documents, and laboratory account files.</p><div id="lab-historical-documents" class="lab-document-list" aria-live="polite">Open Documents to load previous records.</div><dialog id="lab-intake-dialog" class="lab-document-dialog lab-intake-dialog"><div class="lab-document-dialog-bar"><h3 id="lab-intake-title">Lab Account intake</h3><button class="btn ghost" id="lab-intake-close" type="button">Close</button></div><div class="lab-intake-body" id="lab-intake-fields"></div></dialog><h3>Released chain-of-custody forms (CCFs)</h3><p>Only released CCFs belonging to your laboratory testing cases are available here.</p><div id="lab-ccf-archive" class="lab-document-list" aria-live="polite">Open Documents to load your CCFs.</div><dialog id="lab-document-preview" class="lab-document-dialog"><div class="lab-document-dialog-bar"><h3 id="lab-document-title">Document preview</h3><button class="btn ghost" type="button" id="lab-document-close">Close</button></div><iframe title="Lab Account document preview" id="lab-document-frame"></iframe></dialog>'+scopedLink('/documents.html','C/TPA Documents','Existing company documents workspace')+scopedLink('/testing-documents.html','Testing documents','Existing C/TPA testing documentation')+'</section>'+
  '<section class="section" data-lab-panel="billing"><h2>Laboratory purchases and invoices</h2><p>View invoices and purchases linked to the verified Lab Account purchase. Your existing C/TPA billing remains separate.</p><h3>Lab Account purchase</h3><div id="lab-purchase-history" class="lab-document-list" aria-live="polite">Loading purchase history…</div><h3>Lab Account invoices</h3><div id="lab-invoice-list" class="lab-document-list" aria-live="polite">Loading laboratory invoices…</div><dialog id="lab-invoice-detail" class="lab-document-dialog lab-invoice-dialog"><div class="lab-document-dialog-bar"><h3 id="lab-invoice-heading">Invoice details</h3><button type="button" class="btn ghost" id="lab-invoice-close">Close</button></div><div class="lab-invoice-content" id="lab-invoice-content"></div></dialog>'+scopedLink('/billing.html','Workforce Billing','Existing C/TPA billing and invoices')+scopedLink('/order-history.html','Order history','Existing C/TPA purchase records')+'</section>'+
  '<section class="section" data-lab-panel="support"><h2>Lab Account support</h2><p>Contact Workforce support for test registration, collection instructions, or laboratory-account issues.</p>'+scopedLink('/support.html','Contact Support','Existing C/TPA support workflow')+'</section>'+
+ '<dialog id="lab-confirm-dialog" class="lab-document-dialog lab-confirm-dialog"><div class="lab-document-dialog-bar"><h3>Confirm Lab Account action</h3></div><div class="lab-confirm-body"><p id="lab-confirm-description"></p><div class="lab-confirm-actions"><button type="button" class="btn ghost" id="lab-confirm-cancel">Cancel</button><button type="button" class="btn primary" id="lab-confirm-ok">Confirm</button></div></div></dialog>'+
  '<section class="notice" data-lab-panel="overview"><strong>One Workforce C/TPA portal</strong><p>This Lab Account section uses existing C/TPA modules for shared services and the current Workforce testing backend for lab requests. Laboratory registration, donor-pass issuance, result release and shipment fulfillment remain controlled by Workforce Testing Management.</p></section></div>';
 }
 function bind(call,data={}){
  const root=document.querySelector('.lab-migration-hub');if(!root)return;
  const buttons=[...root.querySelectorAll('[data-lab-tab]')];
+ const confirmDialog=root.querySelector('#lab-confirm-dialog');
+ const askConfirmation=(prompt)=>new Promise(resolve=>{
+  const message=root.querySelector('#lab-confirm-description');
+  const yes=root.querySelector('#lab-confirm-ok');
+  const no=root.querySelector('#lab-confirm-cancel');
+  if(!confirmDialog?.showModal){resolve(false);return}
+  message.textContent=prompt;
+  let settled=false;
+  const finish=value=>{if(settled)return;settled=true;
+   yes.removeEventListener('click',accepted);no.removeEventListener('click',declined);
+   confirmDialog.removeEventListener('close',closed);
+   if(confirmDialog.open)confirmDialog.close();
+   resolve(value);
+  };
+  const accepted=()=>finish(true),declined=()=>finish(false),closed=()=>finish(false);
+  yes.addEventListener('click',accepted);no.addEventListener('click',declined);
+  confirmDialog.addEventListener('close',closed);
+  confirmDialog.showModal();
+ });
  function selectTab(value){
   const selected=sections.some(x=>x.id===value)?value:'overview';
   root.querySelectorAll('[data-lab-panel]').forEach(panel=>{panel.hidden=panel.dataset.labPanel!==selected;});
@@ -336,7 +356,7 @@ function bind(call,data={}){
    const record=legacyCache[section]?.find(r=>r.id===id);if(!record)return;
    if(button.dataset.labClientEdit){formSet(clientFormEl,record);clientFormEl.querySelector('[name="company_name"]').focus();return}
    if(button.dataset.labAlertEdit){formSet(alertFormEl,record);alertFormEl.querySelector('[name="supply_name"]').focus();return}
-   if(!window.confirm('Remove this saved Lab Account '+(section==='clients'?'contact':'supply alert')+'?'))return;
+   if(!await askConfirmation('Remove this saved Lab Account '+(section==='clients'?'contact':'supply alert')+'?'))return;
    button.disabled=true;
    try{
     await call(section==='clients'?'lab_client_archive':'supply_alert_delete',{id});
@@ -628,7 +648,7 @@ function bind(call,data={}){
   if(!button||button.disabled)return;
   const isDelivery=Boolean(button.dataset.labSupplyDelivered);
   const id=button.dataset.labSupplyDelivered||button.dataset.labSupplyCancel;
-  if(!window.confirm(isDelivery?'Confirm that this physical shipment has been received?':'Cancel this pending supply request?'))return;
+  if(!await askConfirmation(isDelivery?'Confirm that this physical shipment has been received?':'Cancel this pending supply request?'))return;
   button.disabled=true;
   try{
    await call(isDelivery?'confirm_supply_delivery':'cancel_supply_order',
