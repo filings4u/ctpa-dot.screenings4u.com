@@ -35,6 +35,7 @@ const specimenForm=(requests=[])=>{
  (eligible.length?'<form class="panel lab-specimen-form" id="lab-specimen-form"><label>Collected case<select name="case_id" required><option value="">Choose a collected case</option>'+eligible.map(r=>'<option value="'+esc(r.id)+'">'+esc(r.case_number||r.id)+'</option>').join('')+'</select></label><label>Carrier<input name="carrier" required maxlength="100"></label><label>Tracking number<input name="tracking_number" required maxlength="180"></label><label>Tracking link (optional)<input name="tracking_url" type="url" maxlength="1000" placeholder="https://"></label><button class="btn primary" type="submit">Report specimen shipment</button><p id="lab-specimen-status" role="status" aria-live="polite"></p></form>':'<div class="panel">There are no collected laboratory cases ready for shipment reporting.</div>')+
  '</section>';
 };
+const deliveryRequestForm=()=>'<section class="section" data-lab-panel="deliveries"><h2>Request laboratory result delivery</h2><p>Choose a released laboratory case and an authorized recipient. Workforce reviews the request before any results are delivered.</p><form id="lab-delivery-form" class="panel"><div class="lab-migration-grid"><label>Released testing case<select name="case_id" id="lab-delivery-cases" required><option value="">Loading released cases…</option></select></label><label>Recipient name<input name="recipient_name" maxlength="150"></label><label>Recipient email<input name="recipient_email" type="email" maxlength="254" required></label></div><button type="submit" class="btn primary">Request result delivery</button><p id="lab-delivery-status" role="status" aria-live="polite"></p></form></section>';
 const legacyRecordPanel=(section,label,description)=>
  '<section class="section" data-lab-panel="'+esc(section)+'"><h2>'+esc(label)+'</h2><p>'+esc(description)+'</p><div id="lab-records-'+esc(section)+'" class="lab-record-list" aria-live="polite">Loading existing Lab Account records…</div></section>';
 const scopedLink=(href,label,detail)=>'<a class="panel lab-feature-link" href="'+esc(href)+'"><strong>'+esc(label)+'</strong><small>'+esc(detail)+'</small></a>';
@@ -68,6 +69,7 @@ function render(d){
  labForm()+ 
  specimenForm(requests)+
  legacyRecordPanel('clients','Lab client directory','Previously saved Lab Account contacts. Use the existing C/TPA Employers module for current company management; these legacy contact records are retained separately until reconciled.')+
+ deliveryRequestForm()+
  legacyRecordPanel('deliveries','Lab result delivery history','Previously requested result deliveries associated with your original Lab Account. Actual testing results remain in authorized Workforce Results workflows.')+
  legacyRecordPanel('alerts','Supply reorder alerts','Existing Lab Account supply alert records are preserved while laboratory supplies are consolidated.')+
 
@@ -88,6 +90,7 @@ function bind(call,data={}){
   if(selected==='documents'){loadDocuments();loadCcfArchive();}
   if(selected==='tracking')loadPasses();
   if(['clients','alerts','deliveries'].includes(selected))loadLegacyRecords(selected);
+  if(selected==='deliveries')loadReleasedCases();
  }
  buttons.forEach(button=>button.addEventListener('click',()=>selectTab(button.dataset.labTab)));
  const form=root.querySelector('#lab-order-form'),select=root.querySelector('#lab-order-service'),message=root.querySelector('#lab-order-message');
@@ -160,6 +163,38 @@ function bind(call,data={}){
    specimenFormEl.reset();
   }catch(error){status.textContent=error.message||'Unable to report this specimen shipment.'}
   finally{action.disabled=false}
+ });
+ const deliveryForm=root.querySelector('#lab-delivery-form');
+ const deliverySelect=root.querySelector('#lab-delivery-cases');
+ const deliveryStatus=root.querySelector('#lab-delivery-status');
+ let releasedCases=null,releasedLoading=false;
+ async function loadReleasedCases(){
+  if(releasedLoading||releasedCases!==null)return;
+  releasedLoading=true;
+  try{
+   const data=await call('released_cases');releasedCases=data.released_cases||[];
+   deliverySelect.innerHTML='<option value="">Choose a released case</option>'+releasedCases.map(x=>
+    '<option value="'+esc(x.id)+'">'+esc(x.case_number||x.id)+' · '+esc(x.test_type||'Test')+'</option>'
+   ).join('');
+   if(!releasedCases.length)deliveryStatus.textContent='No released cases are available for delivery requests.';
+  }catch(e){deliveryStatus.textContent=e.message||'Unable to load released testing cases.'}
+  finally{releasedLoading=false}
+ }
+ deliveryForm.addEventListener('submit',async event=>{
+  event.preventDefault();if(!deliveryForm.reportValidity())return;
+  const request=Object.fromEntries(new FormData(deliveryForm).entries());
+  if(!releasedCases?.some(x=>x.id===request.case_id)){deliveryStatus.textContent='Select an available released case.';return}
+  const button=deliveryForm.querySelector('button[type="submit"]');if(button.disabled)return;
+  button.disabled=true;deliveryStatus.textContent='Submitting to Workforce for review…';
+  try{
+   const data=await call('request_result_delivery',request);
+   deliveryStatus.textContent='Result delivery request '+String(data.delivery?.id||'submitted').slice(0,8)+' is pending Workforce review.';
+   deliveryForm.reset();
+   const entry={id:data.delivery.id,recipient_email:request.recipient_email,recipient_name:request.recipient_name,
+    status:'pending_review',created_at:data.delivery.created_at};
+   if(legacyCache.deliveries)legacyCache.deliveries.unshift(entry);
+  }catch(e){deliveryStatus.textContent=e.message||'Unable to request result delivery.'}
+  finally{button.disabled=false}
  });
  const legacyConfig={
   clients:{action:'legacy_clients',fields:[['Company','company_name'],['Contact','contact_name'],['Email','contact_email'],['Phone','phone'],['Program','program_type']]},
