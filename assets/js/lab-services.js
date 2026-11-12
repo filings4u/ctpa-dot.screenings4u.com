@@ -16,6 +16,9 @@ const card=(label,value)=>'<div class="metric"><small>'+esc(label)+'</small><str
 const sections=[
  {id:"overview",label:"Overview"},
  {id:"analytics",label:"Lab analytics"},
+ {id:"results",label:"Released lab results"},
+ {id:"consortium",label:"Previous consortiums"},
+ {id:"services",label:"Lab service requests"},
  {id:"accounts",label:"Laboratory accounts"},
  {id:"clients",label:"Lab client directory"},
  {id:"orders",label:"Order a test"},
@@ -79,6 +82,9 @@ function render(d){
  alertForm()+
  legacyRecordPanel('alerts','Supply reorder alerts','Existing Lab Account supply alert records are preserved while laboratory supplies are consolidated.')+
 
+ '<section class="section" data-lab-panel="results"><h2>Released laboratory results</h2><p>Only released laboratory case summaries belonging to your verified Lab Account are shown. Use the existing Workforce Results module for broader C/TPA reports and authorized result documents.</p><div id="lab-released-results" class="lab-document-list" aria-live="polite">Open this section to load released results.</div>'+scopedLink('/results.html','C/TPA Results','Existing Workforce testing results workflow')+'</section>'+
+ '<section class="section" data-lab-panel="consortium"><h2>Previous Lab Account consortiums</h2><p>Original Lab Account program rosters remain visible without duplicating your existing C/TPA Programs and Pools.</p><div id="lab-original-consortiums" class="lab-document-list" aria-live="polite">Open this section to load previous consortiums.</div>'+scopedLink('/pools.html','C/TPA Pools','Manage your current consortium and pool programs')+'</section>'+
+ '<section class="section" data-lab-panel="services"><h2>Laboratory service request history</h2><p>Track service requests already submitted through the original Lab Account portal. Completed service files are also available under Documents.</p><div id="lab-service-history" class="lab-document-list" aria-live="polite">Open this section to load existing service requests.</div>'+scopedLink('/order-services.html','Workforce Services','Existing C/TPA service ordering tools')+'</section>'+
  '<section class="section" data-lab-panel="analytics"><h2>Laboratory testing analytics</h2><p>Live measures for laboratory requests belonging to the selected C/TPA. General operational reporting is available in the existing C/TPA Reports module.</p><div id="lab-analytics" aria-live="polite">Open Analytics to load your laboratory metrics.</div></section>'+ '<section class="section" data-lab-panel="documents"><h2>Lab Account documents and collection forms</h2><p>View Workforce-published laboratory account documents. Existing C/TPA and testing documents remain available in their original Workforce modules.</p><div id="lab-published-documents" class="lab-document-list" aria-live="polite">Loading published documents…</div><h3>Intake and historical Lab Account files</h3><p>Original setup forms, uploaded intake attachments, completed service documents, and laboratory account files.</p><div id="lab-historical-documents" class="lab-document-list" aria-live="polite">Open Documents to load previous records.</div><dialog id="lab-intake-dialog" class="lab-document-dialog lab-intake-dialog"><div class="lab-document-dialog-bar"><h3 id="lab-intake-title">Lab Account intake</h3><button class="btn ghost" id="lab-intake-close" type="button">Close</button></div><div class="lab-intake-body" id="lab-intake-fields"></div></dialog><h3>Released chain-of-custody forms (CCFs)</h3><p>Only released CCFs belonging to your laboratory testing cases are available here.</p><div id="lab-ccf-archive" class="lab-document-list" aria-live="polite">Open Documents to load your CCFs.</div><dialog id="lab-document-preview" class="lab-document-dialog"><div class="lab-document-dialog-bar"><h3 id="lab-document-title">Document preview</h3><button class="btn ghost" type="button" id="lab-document-close">Close</button></div><iframe title="Lab Account document preview" id="lab-document-frame"></iframe></dialog>'+scopedLink('/documents.html','C/TPA Documents','Existing company documents workspace')+scopedLink('/testing-documents.html','Testing documents','Existing C/TPA testing documentation')+'</section>'+
  '<section class="section" data-lab-panel="billing"><h2>Laboratory purchases and invoices</h2><p>View invoices and purchases linked to the verified Lab Account purchase. Your existing C/TPA billing remains separate.</p><h3>Lab Account purchase</h3><div id="lab-purchase-history" class="lab-document-list" aria-live="polite">Loading purchase history…</div><h3>Lab Account invoices</h3><div id="lab-invoice-list" class="lab-document-list" aria-live="polite">Loading laboratory invoices…</div><dialog id="lab-invoice-detail" class="lab-document-dialog lab-invoice-dialog"><div class="lab-document-dialog-bar"><h3 id="lab-invoice-heading">Invoice details</h3><button type="button" class="btn ghost" id="lab-invoice-close">Close</button></div><div class="lab-invoice-content" id="lab-invoice-content"></div></dialog>'+scopedLink('/billing.html','Workforce Billing','Existing C/TPA billing and invoices')+scopedLink('/order-history.html','Order history','Existing C/TPA purchase records')+'</section>'+
  '<section class="section" data-lab-panel="support"><h2>Lab Account support</h2><p>Contact Workforce support for test registration, collection instructions, or laboratory-account issues.</p>'+scopedLink('/support.html','Contact Support','Existing C/TPA support workflow')+'</section>'+
@@ -99,6 +105,9 @@ function bind(call,data={}){
   if(selected==='deliveries')loadReleasedCases();
   if(selected==='billing')loadLabBilling();
   if(selected==='analytics')loadLabAnalytics();
+  if(selected==='results')loadLabReleasedResults();
+  if(selected==='consortium')loadOriginalConsortiums();
+  if(selected==='services')loadLabServiceHistory();
  }
  buttons.forEach(button=>button.addEventListener('click',()=>selectTab(button.dataset.labTab)));
  const form=root.querySelector('#lab-order-form'),select=root.querySelector('#lab-order-service'),message=root.querySelector('#lab-order-message');
@@ -317,6 +326,53 @@ function bind(call,data={}){
    }catch(e){button.insertAdjacentHTML('afterend','<span role="alert">'+esc(e.message||'Unable to update record')+'</span>')}
    finally{button.disabled=false}
   });
+ }
+ const resultsHost=root.querySelector('#lab-released-results');
+ const consortiumHost=root.querySelector('#lab-original-consortiums');
+ const serviceHistoryHost=root.querySelector('#lab-service-history');
+ let releasedResults=null,originalConsortiums=null,serviceHistory=null;
+ async function loadLabReleasedResults(){
+  if(releasedResults!==null)return;resultsHost.textContent='Loading released laboratory results…';
+  try{
+   const data=await call('lab_released_results');releasedResults=data.results||[];
+   resultsHost.innerHTML=releasedResults.length?releasedResults.map(r=>
+    '<div class="panel lab-document-row"><div><strong>'+esc(r.case_number||'Laboratory case')+'</strong><small>'+esc(r.test_type||'Test')+' · Released '+date(r.released_at)+'</small><small>Result: '+esc(tag(r.overall_result||'Released'))+'</small></div><span class="badge">'+esc(tag(r.status))+'</span></div>'
+   ).join(''):'<div class="panel">No released Lab Account testing results are available for this signed-in customer.</div>';
+  }catch(e){resultsHost.textContent=e.message||'Unable to load released laboratory results.'}
+ }
+ async function loadOriginalConsortiums(){
+  if(originalConsortiums!==null)return;consortiumHost.textContent='Loading previous Lab Account consortiums…';
+  try{
+   const data=await call('lab_consortiums');originalConsortiums=data.programs||[];
+   consortiumHost.innerHTML=originalConsortiums.length?originalConsortiums.map(p=>
+    '<div class="panel lab-document-row"><div><strong>'+esc(p.name||'Consortium')+'</strong><small>'+esc(p.program_type||'')+' '+esc(p.dot_agency||'')+' · '+esc(tag(p.status))+'</small><small>'+esc(p.member_count||0)+' members · '+esc(p.eligible_count||0)+' eligible</small></div><button type="button" class="btn ghost" data-lab-consortium-members="'+esc(p.id)+'">View original roster</button></div>'
+   ).join(''):'<div class="panel">No previous Lab Account consortium programs were found.</div>';
+  }catch(e){consortiumHost.textContent=e.message||'Unable to load previous consortiums.'}
+ }
+ consortiumHost.addEventListener('click',async event=>{
+  const button=event.target.closest('[data-lab-consortium-members]');if(!button||button.disabled)return;
+  if(!originalConsortiums?.some(x=>x.id===button.dataset.labConsortiumMembers))return;
+  button.disabled=true;
+  try{
+   const d=await call('lab_consortium_members',{program_id:button.dataset.labConsortiumMembers});
+   const existing=consortiumHost.querySelector('[data-lab-roster]');if(existing)existing.remove();
+   const container=document.createElement('div');container.className='panel lab-original-roster';container.dataset.labRoster='';
+   container.innerHTML='<h3>'+esc(d.program?.name||'Original consortium roster')+'</h3>'+
+    ((d.members||[]).length?d.members.map(m=>
+      '<div class="lab-document-row"><strong>'+esc([m.first_name,m.last_name].filter(Boolean).join(' '))+'</strong><small>'+esc(tag(m.eligibility_status))+' · '+esc(tag(m.employment_status))+'</small></div>'
+    ).join(''):'<p>No roster members found.</p>');
+   consortiumHost.append(container);
+  }catch(e){consortiumHost.insertAdjacentHTML('afterbegin','<p role="alert" class="lab-doc-error">'+esc(e.message||'Unable to view original roster')+'</p>')}
+  finally{button.disabled=false}
+ });
+ async function loadLabServiceHistory(){
+  if(serviceHistory!==null)return;serviceHistoryHost.textContent='Loading previous laboratory service requests…';
+  try{
+   const data=await call('lab_service_requests');serviceHistory=data.requests||[];
+   serviceHistoryHost.innerHTML=serviceHistory.length?serviceHistory.map(item=>
+    '<div class="panel lab-document-row"><div><strong>'+esc(item.title||item.request_type||'Lab Account service')+'</strong><small>'+date(item.created_at)+' · '+esc(item.feature_code||'Service')+'</small></div><span class="badge">'+esc(tag(item.status))+'</span></div>'
+   ).join(''):'<div class="panel">No previous laboratory service requests were found.</div>';
+  }catch(e){serviceHistoryHost.textContent=e.message||'Unable to load laboratory service history.'}
  }
  const analyticsHost=root.querySelector('#lab-analytics');
  let labAnalyticsLoaded=false;
