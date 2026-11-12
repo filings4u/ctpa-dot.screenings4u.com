@@ -33,7 +33,7 @@ const sections=[
 ];
 const tabLinks=()=>'<nav class="lab-section-nav" aria-label="Lab Account sections">'+sections.map(x=>'<button class="btn ghost lab-section-tab" type="button" data-lab-tab="'+esc(x.id)+'">'+esc(x.label)+'</button>').join('')+'</nav>';
 const labForm=()=>'<section class="section" data-lab-panel="orders"><h2>Order a laboratory test</h2><p>Submit a request into Workforce Testing Management. Scheduling and donor-pass issuance follow staff review.</p><p id="lab-order-message" role="status" aria-live="polite"></p><form id="lab-order-form" class="panel"><div class="lab-migration-grid"><label>Test service <select name="service_id" required id="lab-order-service"><option value="">Loading available services…</option></select></label><label>First name <input name="first_name" maxlength="100" required></label><label>Last name <input name="last_name" maxlength="100" required></label><label>Donor email <input name="donor_email" type="email" required></label><label>Donor phone <input name="donor_phone" type="tel" maxlength="35"></label><label>Date of birth <input name="date_of_birth" type="date" required></label><label>State of residence <input name="state_of_residence" maxlength="2" pattern="[A-Za-z]{2}" placeholder="IL" required></label><label>Reason for testing <select name="reason_for_test" required><option value="">Choose reason</option><option value="PE">Pre-employment</option><option value="RN">Random</option><option value="PA">Post-accident</option><option value="RS">Reasonable suspicion</option><option value="RT">Return to duty</option><option value="FU">Follow-up</option><option value="NI">Other / not indicated</option></select></label><label id="lab-authority-wrap" hidden>DOT authority <select name="testing_authority"><option value="">Choose agency</option><option value="FMCSA">FMCSA</option><option value="FAA">FAA</option><option value="FRA">FRA</option><option value="FTA">FTA</option><option value="PHMSA">PHMSA</option><option value="USCG">USCG</option></select></label></div><label>Notes for Workforce Testing <textarea name="notes" maxlength="1000" rows="3"></textarea></label><div><button class="btn primary" type="submit" id="lab-order-submit">Submit testing request</button></div></form></section>';
-const supplyForm=()=>'<section class="section" data-lab-panel="supplies"><h2>Request testing supplies</h2><p>Choose physical supply items and provide the shipping destination. Workforce Testing Management handles fulfillment and tracking.</p><p id="lab-supply-status" role="status" aria-live="polite"></p><form id="lab-supply-form" class="panel"><div id="lab-supply-catalog">Open the Supplies tab to load available items.</div><div class="lab-migration-grid"><label>Recipient <input name="recipient" required maxlength="180"></label><label>Street address <input name="line1" required maxlength="180"></label><label>Address line 2 <input name="line2" maxlength="180"></label><label>City <input name="city" required maxlength="180"></label><label>State <input name="state" required minlength="2" maxlength="2" pattern="[A-Za-z]{2}"></label><label>ZIP code <input name="postal_code" required pattern="[0-9]{5}(-[0-9]{4})?"></label></div><label>Special instructions <textarea name="notes" maxlength="1000" rows="3"></textarea></label><button class="btn primary" type="submit" id="lab-supply-submit">Request supplies</button></form></section>';
+const supplyForm=()=>'<section class="section" data-lab-panel="supplies"><h2>Laboratory supplies</h2><h3>Previous supply requests and shipment tracking</h3><div id="lab-supply-history" class="lab-document-list" aria-live="polite">Open Supplies to load your requests.</div><h3>Request testing supplies</h3><p>Choose physical supply items and provide the shipping destination. Workforce Testing Management handles fulfillment and tracking.</p><p id="lab-supply-status" role="status" aria-live="polite"></p><form id="lab-supply-form" class="panel"><div id="lab-supply-catalog">Open the Supplies tab to load available items.</div><div class="lab-migration-grid"><label>Recipient <input name="recipient" required maxlength="180"></label><label>Street address <input name="line1" required maxlength="180"></label><label>Address line 2 <input name="line2" maxlength="180"></label><label>City <input name="city" required maxlength="180"></label><label>State <input name="state" required minlength="2" maxlength="2" pattern="[A-Za-z]{2}"></label><label>ZIP code <input name="postal_code" required pattern="[0-9]{5}(-[0-9]{4})?"></label></div><label>Special instructions <textarea name="notes" maxlength="1000" rows="3"></textarea></label><button class="btn primary" type="submit" id="lab-supply-submit">Request supplies</button></form></section>';
 const specimenForm=(requests=[])=>{
  const eligible=requests.filter(r=>r.collected_at&&["collected","specimen_collected","collected_awaiting_shipment"].includes(String(r.status||"").toLowerCase()));
  return '<section class="section" data-lab-panel="tracking"><h2>Report collected specimens shipped</h2><p>Use this only after specimens have been collected and handed to the carrier. Workforce Testing verifies receipt and laboratory accession separately.</p>'+
@@ -100,7 +100,7 @@ function bind(call,data={}){
   root.querySelectorAll('[data-lab-panel]').forEach(panel=>{panel.hidden=panel.dataset.labPanel!==selected;});
   buttons.forEach(button=>{const on=button.dataset.labTab===selected;button.classList.toggle('active',on);button.setAttribute('aria-pressed',String(on));});
   if(selected==='orders')loadServices();
-  if(selected==='supplies')loadSupplies();
+  if(selected==='supplies'){loadSupplies();loadSupplyOrderHistory();}
   if(selected==='documents'){loadDocuments();loadCcfArchive();loadHistoricalDocs();}
   if(selected==='tracking')loadPasses();
   if(['clients','alerts','deliveries'].includes(selected))loadLegacyRecords(selected);
@@ -601,6 +601,42 @@ function bind(call,data={}){
   }catch(e){ccfHost.insertAdjacentHTML('afterbegin','<p role="alert" class="lab-doc-error">'+esc(e.message||'Unable to open CCF')+'</p>')}
   finally{button.disabled=false}
  });
+ const supplyHistory=root.querySelector('#lab-supply-history');
+ let supplyOrderHistory=null,supplyHistoryLoading=false;
+ async function loadSupplyOrderHistory(refresh=false){
+  if(refresh)supplyOrderHistory=null;
+  if(supplyOrderHistory!==null||supplyHistoryLoading)return;
+  supplyHistoryLoading=true;supplyHistory.textContent='Loading laboratory supply orders and shipments…';
+  try{
+   const data=await call('supply_orders');supplyOrderHistory=data;
+   const orders=data.orders||[],shipments=data.shipments||[];
+   supplyHistory.innerHTML='<h4>Supply requests</h4>'+
+    (orders.length?orders.map(o=>
+      '<article class="panel lab-document-row"><div><strong>Request '+esc(String(o.id).slice(0,8))+'</strong><small>'+date(o.created_at)+' · '+esc(tag(o.status))+'</small><small>'+esc(o.carrier||'')+' '+esc(o.tracking_number||'')+'</small></div>'+
+      (o.status==='requested'?'<button class="btn ghost" type="button" data-lab-supply-cancel="'+esc(o.id)+'">Cancel request</button>':'')+'</article>'
+    ).join(''):'<div class="panel">No supply requests are linked to this C/TPA account yet.</div>')+
+    '<h4>Laboratory supply shipments</h4>'+
+    (shipments.length?shipments.map(o=>
+      '<article class="panel lab-document-row"><div><strong>'+esc(o.items_description||'Laboratory supplies')+'</strong><small>'+date(o.created_at)+' · '+esc(tag(o.status))+'</small><small>'+esc(o.carrier||'')+' '+esc(o.tracking_number||'')+'</small></div>'+
+      (o.status==='shipped'&&data.can_confirm_delivery?'<button class="btn ghost" type="button" data-lab-supply-delivered="'+esc(o.id)+'">Confirm delivery</button>':'')+'</article>'
+    ).join(''):'<div class="panel">No laboratory supply shipments are recorded.</div>');
+  }catch(e){supplyHistory.textContent=e.message||'Unable to load supply requests.'}
+  finally{supplyHistoryLoading=false}
+ }
+ supplyHistory.addEventListener('click',async event=>{
+  const button=event.target.closest('[data-lab-supply-cancel],[data-lab-supply-delivered]');
+  if(!button||button.disabled)return;
+  const isDelivery=Boolean(button.dataset.labSupplyDelivered);
+  const id=button.dataset.labSupplyDelivered||button.dataset.labSupplyCancel;
+  if(!window.confirm(isDelivery?'Confirm that this physical shipment has been received?':'Cancel this pending supply request?'))return;
+  button.disabled=true;
+  try{
+   await call(isDelivery?'confirm_supply_delivery':'cancel_supply_order',
+    isDelivery?{shipment_id:id}:{order_id:id});
+   await loadSupplyOrderHistory(true);
+  }catch(e){button.insertAdjacentHTML('afterend','<span class="lab-doc-error" role="alert">'+esc(e.message||'Unable to update supply status')+'</span>')}
+  finally{button.disabled=false}
+ });
  const supplyFormEl=root.querySelector('#lab-supply-form'),supplyCatalog=root.querySelector('#lab-supply-catalog'),
   supplyStatus=root.querySelector('#lab-supply-status');
  let supplyItems=[],supplyLoading=false;
@@ -628,6 +664,7 @@ function bind(call,data={}){
    const result=await call('request_supplies',{lines:items,shipping_address,notes:raw.notes||''});
    supplyStatus.textContent='Supply request '+String(result.request?.id||'submitted').slice(0,8)+' was received by Workforce Testing.';
    supplyFormEl.reset();
+   await loadSupplyOrderHistory(true);
   }catch(error){supplyStatus.textContent=error.message||'Unable to submit supplies.'}
   finally{button.disabled=false}
  });
