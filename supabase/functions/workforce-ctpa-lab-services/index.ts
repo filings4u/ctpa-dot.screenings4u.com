@@ -229,22 +229,38 @@ Deno.serve(async(req:Request)=>{
    // Lab invoice listing is tied to the verified Lab Account purchase order,
    // not every invoice belonging to this user or company.
    const invoices=await db.from("invoices")
-    .select("id,invoice_number,status,issue_date,due_date,total,amount_paid,amount_due,currency,notes,terms,sent_at,paid_at,order_id")
-    .eq("order_id",grant.data.source_order_id).eq("customer_user_id",user.id)
+    .select("id,invoice_number,status,issue_date,due_date,total,amount_paid,amount_due,currency,notes,terms,sent_at,paid_at,order_id,customer_user_id,customer_email")
+    .eq("order_id",grant.data.source_order_id)
     .neq("status","draft").not("sent_at","is",null)
     .order("issue_date",{ascending:false}).limit(100);
    if(invoices.error)throw invoices.error;
-   if(action==="lab_invoices")return out({authorized:true,invoices:invoices.data||[]});
+   // Invoices created before consolidated identities may have no user ID.
+   // Permit those only when their exact verified email and paid source order
+   // both match this account; never match a different assigned user by email.
+   const linkedInvoices=(invoices.data||[]).filter((invoice:any)=>
+    invoice.customer_user_id===user.id||
+    (!invoice.customer_user_id&&String(invoice.customer_email||"").trim().toLowerCase()===
+       String(user.email||"").trim().toLowerCase())
+   );
+   const publicInvoice=(invoice:any)=>{
+    const {customer_user_id,customer_email,...display}=invoice;
+    return display;
+   };
+   if(action==="lab_invoices")return out({authorized:true,invoices:linkedInvoices.map(publicInvoice)});
    if(!uuid(payload.invoice_id))return out({error:"Valid Lab Account invoice required"},400);
-   const invoice=(invoices.data||[]).find((x:any)=>x.id===payload.invoice_id);
+   const invoice=linkedInvoices.find((x:any)=>x.id===payload.invoice_id);
    if(!invoice)return out({error:"Invoice not linked to this Lab Account purchase"},404);
    if(action==="lab_invoice_pay_link"){
     if(Number(invoice.amount_due||0)<=0||["paid","void","uncollectible"].includes(String(invoice.status||"").toLowerCase()))
      return out({error:"This invoice has no payable balance"},409);
-    const token=await db.from("invoices").select("public_token,public_token_revoked_at")
-     .eq("id",invoice.id).eq("order_id",grant.data.source_order_id)
-     .eq("customer_user_id",user.id).maybeSingle();
+    const token=await db.from("invoices").select("public_token,public_token_revoked_at,customer_user_id,customer_email")
+     .eq("id",invoice.id).eq("order_id",grant.data.source_order_id).maybeSingle();
     if(token.error)throw token.error;
+    if(!token.data||
+       !(token.data.customer_user_id===user.id||
+        (!token.data.customer_user_id&&String(token.data.customer_email||"").trim().toLowerCase()===
+        String(user.email||"").trim().toLowerCase())))
+     return out({error:"Invoice is not owned by this signed-in Lab Account purchaser"},403);
     if(token.data?.public_token_revoked_at||!/^[0-9a-f]{64}$/i.test(String(token.data?.public_token||"")))
      return out({error:"Secure invoice payment link unavailable. Contact Workforce billing."},409);
     return out({ok:true,payment_url:"https://ctpa.screenings4u.com/pay-invoice.html?id="+
@@ -254,7 +270,7 @@ Deno.serve(async(req:Request)=>{
     .select("id,description,quantity,unit_price,discount_amount,tax_amount,line_total")
     .eq("invoice_id",invoice.id).order("created_at",{ascending:true});
    if(items.error)throw items.error;
-   return out({authorized:true,invoice,items:items.data||[]});
+   return out({authorized:true,invoice:publicInvoice(invoice),items:items.data||[]});
   }
   if(action==="released_cases"||action==="request_result_delivery"){
    // The legacy Lab Account delivery request is a review queue, not an
