@@ -15,7 +15,7 @@ Deno.serve(async(req:Request)=>{
   if(authError||!user?.id||!user.email_confirmed_at)return out({error:"Verified sign-in required"},401);
   const payload=await req.json().catch(()=>({}));
   const action=String(payload.action||"access"),ctpaId=String(payload.ctpa_id||""),subscriptionId=String(payload.subscription_id||"");
-  if(!["access","overview","catalog","create_order","supply_catalog","request_supplies","documents","document_url","issued_passes","legacy_clients","legacy_supply_alerts","legacy_deliveries","report_specimen_shipped"].includes(action)||!uuid(ctpaId)||!uuid(subscriptionId))return out({error:"Invalid C/TPA workspace and subscription"},400);
+  if(!["access","overview","catalog","create_order","supply_catalog","request_supplies","documents","document_url","issued_passes","legacy_clients","legacy_supply_alerts","legacy_deliveries","report_specimen_shipped","order_details","update_order"].includes(action)||!uuid(ctpaId)||!uuid(subscriptionId))return out({error:"Invalid C/TPA workspace and subscription"},400);
   const db=createClient(url,secret,{auth:{persistSession:false,autoRefreshToken:false}});
   // Reuse the C/TPA's verified workspace boundary; organization membership alone is insufficient.
   const session=await db.rpc("ctpa_dot_session_context",{p_user_id:user.id,p_ctpa_id:ctpaId,p_subscription_id:subscriptionId});
@@ -38,6 +38,54 @@ Deno.serve(async(req:Request)=>{
   if(grant.error)throw grant.error;
   if(!grant.data)return out({authorized:false,reason:"Lab Account add-on not enabled for this company"},403);
   if(action==="access")return out({authorized:true,features:{lab_account:true},organization_id:c.data.organization_id});
+  if(action==="order_details"||action==="update_order"){
+   // Donor PII and order editing are restricted to the individual who created
+   // this Lab Account case. Company membership alone never reveals donor data.
+   const caseId=String(payload.case_id||"");
+   if(!uuid(caseId))return out({error:"Valid laboratory case required"},400);
+   const query=()=>db.from("testing_cases")
+    .select("id,case_number,status,customer_user_id,donor_name,donor_email,donor_phone,test_reason,metadata,updated_at")
+    .eq("id",caseId).eq("customer_user_id",user.id)
+    .contains("metadata",{source:"lab_account_portal",ctpa_id:ctpaId,organization_id:c.data.organization_id});
+   const old=await query().maybeSingle();
+   if(old.error)throw old.error;
+   if(!old.data)return out({error:"Laboratory case not found in your account"},404);
+   if(action==="order_details")return out({authorized:true,order:{
+    id:old.data.id,case_number:old.data.case_number,status:old.data.status,
+    donor_name:old.data.donor_name,donor_email:old.data.donor_email,
+    donor_phone:old.data.donor_phone,test_reason:old.data.test_reason,
+    date_of_birth:old.data.metadata?.donor_date_of_birth||"",
+    state_of_residence:old.data.metadata?.state_of_residence||"",
+    notes:old.data.metadata?.request_notes||""
+   }});
+   if(old.data.status!=="awaiting_schedule")
+    return out({error:"Only laboratory orders awaiting scheduling may be edited"},409);
+   const first=String(payload.first_name||"").trim(),last=String(payload.last_name||"").trim();
+   const email=String(payload.donor_email||"").trim(),phone=String(payload.donor_phone||"").trim();
+   const reason=String(payload.reason_for_test||"").trim().toUpperCase();
+   const notes=String(payload.notes||"").trim(),state=String(payload.state_of_residence||"").trim().toUpperCase();
+   const dob=String(payload.date_of_birth||"").trim();
+   if(!first||!last||first.length>100||last.length>100||
+     !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||email.length>254||
+     phone.length>35||notes.length>1000||!["PE","RN","PA","RS","RT","FU","NI"].includes(reason)||
+     !/^[A-Z]{2}$/.test(state)||!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(dob)||
+     Number.isNaN(Date.parse(dob))||new Date(dob)>new Date())
+     return out({error:"Complete valid donor and testing information"},400);
+   // Preserve all existing test service, agency, case identity and routing
+   // metadata. Only fields editable in the legacy awaiting-schedule form change.
+   const metadata={...(old.data.metadata||{}),donor_date_of_birth:dob,
+     state_of_residence:state,request_notes:notes};
+   const updated=await db.from("testing_cases").update({
+    donor_name:first+" "+last,donor_email:email,donor_phone:phone||null,
+    test_reason:reason,metadata,updated_at:new Date().toISOString()
+   }).eq("id",caseId).eq("customer_user_id",user.id).eq("status","awaiting_schedule")
+    .eq("updated_at",old.data.updated_at)
+    .contains("metadata",{source:"lab_account_portal",ctpa_id:ctpaId,organization_id:c.data.organization_id})
+    .select("id,case_number,status").maybeSingle();
+   if(updated.error)throw updated.error;
+   if(!updated.data)return out({error:"The laboratory order changed. Reload it before editing."},409);
+   return out({ok:true,order:updated.data});
+  }
   if(action==="report_specimen_shipped"){
    // Reuse the existing Workforce Testing specimen-shipment RPC after checking
    // that the specific case belongs to the signed-in user and selected company.
