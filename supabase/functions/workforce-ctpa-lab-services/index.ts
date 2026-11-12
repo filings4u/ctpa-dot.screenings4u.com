@@ -16,7 +16,7 @@ Deno.serve(async(req:Request)=>{
   if(authError||!user?.id||!user.email_confirmed_at)return out({error:"Verified sign-in required"},401);
   const payload=await req.json().catch(()=>({}));
   const action=String(payload.action||"access"),ctpaId=String(payload.ctpa_id||""),subscriptionId=String(payload.subscription_id||"");
-  if(!["access","overview","catalog","create_order","supply_catalog","request_supplies","documents","document_url","issued_passes","legacy_clients","legacy_supply_alerts","legacy_deliveries","report_specimen_shipped","order_details","update_order","ccf_archive","ccf_url","released_cases","request_result_delivery","lab_purchases","lab_invoices","lab_invoice_detail","historical_documents","historical_document_url","lab_intake_details","lab_intake_pdf","lab_client_save","lab_client_archive","supply_alert_save","supply_alert_delete","lab_analytics","lab_released_results","lab_consortiums","lab_consortium_members","lab_service_requests","legacy_benefits","generated_benefit_url"].includes(action)||!uuid(ctpaId)||!uuid(subscriptionId))return out({error:"Invalid C/TPA workspace and subscription"},400);
+  if(!["access","overview","catalog","create_order","supply_catalog","request_supplies","documents","document_url","issued_passes","legacy_clients","legacy_supply_alerts","legacy_deliveries","report_specimen_shipped","order_details","update_order","ccf_archive","ccf_url","released_cases","request_result_delivery","lab_purchases","lab_invoices","lab_invoice_detail","historical_documents","historical_document_url","lab_intake_details","lab_intake_pdf","lab_client_save","lab_client_archive","supply_alert_save","supply_alert_delete","lab_analytics","lab_released_results","lab_consortiums","lab_consortium_members","lab_service_requests","legacy_benefits","generated_benefit_url","lab_invoice_pay_link"].includes(action)||!uuid(ctpaId)||!uuid(subscriptionId))return out({error:"Invalid C/TPA workspace and subscription"},400);
   const db=createClient(url,secret,{auth:{persistSession:false,autoRefreshToken:false}});
   // Reuse the C/TPA's verified workspace boundary; organization membership alone is insufficient.
   const session=await db.rpc("ctpa_dot_session_context",{p_user_id:user.id,p_ctpa_id:ctpaId,p_subscription_id:subscriptionId});
@@ -190,7 +190,7 @@ Deno.serve(async(req:Request)=>{
    if(signed.error||!signed.data?.signedUrl)throw signed.error||Error("Document download unavailable");
    return out({url:signed.data.signedUrl,title,mime_type:mime,expires_in:120});
   }
-  if(["lab_purchases","lab_invoices","lab_invoice_detail"].includes(action)){
+  if(["lab_purchases","lab_invoices","lab_invoice_detail","lab_invoice_pay_link"].includes(action)){
    // These records are individually purchased or addressed; no billing data is
    // shared across C/TPA members or exposed by matching customer email.
    if(!grant.data.source_order_id||grant.data.linked_customer_user_id!==user.id)
@@ -238,6 +238,18 @@ Deno.serve(async(req:Request)=>{
    if(!uuid(payload.invoice_id))return out({error:"Valid Lab Account invoice required"},400);
    const invoice=(invoices.data||[]).find((x:any)=>x.id===payload.invoice_id);
    if(!invoice)return out({error:"Invoice not linked to this Lab Account purchase"},404);
+   if(action==="lab_invoice_pay_link"){
+    if(Number(invoice.amount_due||0)<=0||["paid","void","uncollectible"].includes(String(invoice.status||"").toLowerCase()))
+     return out({error:"This invoice has no payable balance"},409);
+    const token=await db.from("invoices").select("public_token,public_token_revoked_at")
+     .eq("id",invoice.id).eq("order_id",grant.data.source_order_id)
+     .eq("customer_user_id",user.id).maybeSingle();
+    if(token.error)throw token.error;
+    if(token.data?.public_token_revoked_at||!/^[0-9a-f]{64}$/i.test(String(token.data?.public_token||"")))
+     return out({error:"Secure invoice payment link unavailable. Contact Workforce billing."},409);
+    return out({ok:true,payment_url:"https://ctpa.screenings4u.com/pay-invoice.html?id="+
+     encodeURIComponent(invoice.id)+"&token="+encodeURIComponent(token.data.public_token)});
+   }
    const items=await db.from("invoice_items")
     .select("id,description,quantity,unit_price,discount_amount,tax_amount,line_total")
     .eq("invoice_id",invoice.id).order("created_at",{ascending:true});
