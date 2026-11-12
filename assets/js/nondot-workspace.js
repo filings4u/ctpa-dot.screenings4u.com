@@ -5,6 +5,7 @@ const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const pretty=v=>String(v??'—').replaceAll('_',' ').replace(/\b\w/g,x=>x.toUpperCase());
 const formatDate=v=>{if(!v)return '—';const d=new Date(v);return Number.isNaN(d.getTime())?'—':d.toLocaleDateString('en-US',{year:'numeric',month:'short',day:'numeric'})};
 const sections=[
+ {id:'employers',label:'Employers',detail:'NON-DOT employer directory'},
  {id:'people',label:'Employees',detail:'NON-DOT employer clients and their employees'},
  {id:'programs',label:'Programs',detail:'Company-policy testing programs'},
  {id:'pools',label:'Random Pools',detail:'NON-DOT pool membership and eligibility'},
@@ -49,9 +50,15 @@ function render(d){
   const cards=sections.filter(x=>eligible.has(x.id)).map(x=>'<a class="card utility-card" href="/nondot-'+x.id+'.html"><h3>'+esc(x.label)+'</h3><p>'+esc(x.detail)+'</p><strong>Open NON-DOT module</strong></a>').join('');
   return '<section class="panel"><h2>NON-DOT Dashboard</h2><p>Manage company-policy testing and NON-DOT records in this workspace. DOT compliance records are managed separately under DOT Workspace.</p></section>'+(cards?'<div class="cards utility-grid">'+cards+'</div>':'<section class="panel"><h3>No NON-DOT modules assigned</h3><p>Your current subscription has no authorized NON-DOT modules. Contact Workforce support for assistance.</p></section>');
  }
+ if(location.pathname==='/nondot-employers.html'){
+  const employers=Array.isArray(d.data?.employers)?d.data.employers:[];
+  const eligible=new Set(Array.isArray(d.available_sections)?d.available_sections:[]);
+  if(!eligible.has('people'))return '<section class="panel"><h2>Employers unavailable</h2><p>The NON-DOT employee and employer module is not enabled for this subscription.</p></section>';
+  return '<section class="panel"><h2>NON-DOT Employers</h2><p>Employers in this NON-DOT workspace. Record changes remain under the authorized NON-DOT employee and program workflow.</p></section>'+recordsTable(['Employer','Status'],employers.map(e=>row([e.legal_name||e.dba_name||'—',pretty(e.status)])));
+ }
  const section=sections.find(x=>x.id===d.section)||sections[1];
  const eligible=new Set(Array.isArray(d.available_sections)?d.available_sections:[]);
- const standalone=/^\/nondot-(people|programs|pools|testing|results)\.html$/.test(location.pathname);
+ const standalone=/^\/nondot-(employers|people|programs|pools|testing|results)\.html$/.test(location.pathname);
  const tabs=standalone?'':'<nav class="nondot-module-nav" aria-label="NON-DOT modules">'+sections.filter(x=>eligible.has(x.id)).map(x=>'<a href="/nondot-'+x.id+'.html" class="'+(x.id===section.id?'active':'')+'"'+(x.id===section.id?' aria-current="page"':'')+'>'+esc(x.label)+'</a>').join('')+'</nav>';
  const body=drawData(section.id,d.data||{});
  const managers=d.can_manage===true&&d.read_only===false;
