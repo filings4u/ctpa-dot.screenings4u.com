@@ -1773,3 +1773,15 @@ body.loading::before{content:"Loading Workforce C/TPA…"}
 .nondot-workspace td,.nondot-workspace th{padding:12px 14px;border-bottom:1px solid #e7edf5;overflow-wrap:anywhere}
 .nondot-privacy-note{font-size:.82rem;color:#637b95;line-height:1.6}
 @media(max-width:640px){.nondot-workspace .panel{padding:15px}.nondot-module-nav{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.nondot-module-nav a{font-size:.77rem}.nondot-workspace .metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.nondot-workspace td,.nondot-workspace th{padding:10px}}
+
+
+/* NON-DOT company-specific create forms: reuse Workforce spacing and form controls. */
+.nondot-workspace .nondot-create form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;max-width:960px}
+.nondot-workspace .nondot-create label{display:grid;gap:6px;color:#01122F;font-size:.85rem;font-weight:700;min-width:0}
+.nondot-workspace .nondot-create :is(input,select){width:100%;min-height:44px;padding:10px 12px;border:1px solid #cbd8e6;border-radius:8px;color:#01122F;background:#fff;font:inherit;box-sizing:border-box}
+.nondot-workspace .nondot-create :is(input,select):focus-visible{outline:2px solid #FDC102;outline-offset:2px}
+.nondot-workspace .nondot-create .nondot-privacy-note,.nondot-workspace #nondot-create-status{grid-column:1/-1}
+.nondot-workspace .nondot-create button{min-height:42px;justify-self:start;border-radius:8px;font-weight:800;background:#01122F;color:#fff;border:1px solid #01122F;padding:10px 20px}
+.nondot-workspace .nondot-create button:disabled{opacity:.55;cursor:wait}
+.nondot-workspace #nondot-create-status{min-height:22px;font-size:.83rem;color:#385b7c}
+@media(max-width:680px){.nondot-workspace .nondot-create form{grid-template-columns:1fr}.nondot-workspace .nondot-create button{width:100%;justify-self:stretch}}
