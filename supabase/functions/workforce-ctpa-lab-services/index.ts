@@ -15,7 +15,7 @@ Deno.serve(async(req:Request)=>{
   if(authError||!user?.id||!user.email_confirmed_at)return out({error:"Verified sign-in required"},401);
   const payload=await req.json().catch(()=>({}));
   const action=String(payload.action||"access"),ctpaId=String(payload.ctpa_id||""),subscriptionId=String(payload.subscription_id||"");
-  if(!["access","overview","catalog","create_order"].includes(action)||!uuid(ctpaId)||!uuid(subscriptionId))return out({error:"Invalid C/TPA workspace and subscription"},400);
+  if(!["access","overview","catalog","create_order","supply_catalog","request_supplies"].includes(action)||!uuid(ctpaId)||!uuid(subscriptionId))return out({error:"Invalid C/TPA workspace and subscription"},400);
   const db=createClient(url,secret,{auth:{persistSession:false,autoRefreshToken:false}});
   // Reuse the C/TPA's verified workspace boundary; organization membership alone is insufficient.
   const session=await db.rpc("ctpa_dot_session_context",{p_user_id:user.id,p_ctpa_id:ctpaId,p_subscription_id:subscriptionId});
@@ -38,7 +38,7 @@ Deno.serve(async(req:Request)=>{
   if(grant.error)throw grant.error;
   if(!grant.data)return out({authorized:false,reason:"Lab Account add-on not enabled for this company"},403);
   if(action==="access")return out({authorized:true,features:{lab_account:true},organization_id:c.data.organization_id});
-  if(action==="catalog"||action==="create_order"){
+  if(["catalog","create_order","supply_catalog","request_supplies"].includes(action)){
    if(!grant.data.source_order_id||!grant.data.linked_customer_user_id)
     return out({error:"A verified Lab Account purchase is required"},403);
    const [order,intake,assigned]=await Promise.all([
@@ -63,6 +63,52 @@ Deno.serve(async(req:Request)=>{
     id:x.id,name:x.name,description:x.description,sku:x.sku,
     testing_scope:x.metadata?.testing_scope||null
    }))});
+   if(action==="supply_catalog"||action==="request_supplies"){
+    const stock=await db.from("ic_portal_supply_items")
+     .select("id,sku,name,description,unit").eq("active",true).order("name").limit(100);
+    if(stock.error)throw stock.error;
+    if(action==="supply_catalog")return out({authorized:true,supplies:stock.data||[]});
+    const lines=Array.isArray(payload.lines)?payload.lines:[];
+    if(!lines.length||lines.length>40)return out({error:"Choose the required supply quantities"},400);
+    const selected=new Map<string,number>();
+    for(const line of lines){
+     const id=String(line?.item_id||""),quantity=Number(line?.quantity);
+     if(!uuid(id)||!Number.isInteger(quantity)||quantity<1||quantity>1000||selected.has(id))
+      return out({error:"Invalid supply selection or quantity"},400);
+     selected.set(id,quantity);
+    }
+    const available=new Set((stock.data||[]).map((x:any)=>x.id));
+    if([...selected.keys()].some(id=>!available.has(id)))
+     return out({error:"One or more supply items are unavailable"},409);
+    const address=payload.shipping_address&&typeof payload.shipping_address==="object"?payload.shipping_address:{};
+    const fields=["recipient","line1","city","state","postal_code"];
+    if(fields.some(k=>typeof address[k]!=="string"||!address[k].trim()||address[k].length>180))
+     return out({error:"Complete the shipping address"},400);
+    if(!/^[A-Za-z]{2}$/.test(address.state)||!/^[0-9]{5}(-[0-9]{4})?$/.test(address.postal_code))
+     return out({error:"Enter a valid state and postal code"},400);
+    const notes=String(payload.notes||"").trim();
+    if(notes.length>1000||String(address.line2||"").length>180)return out({error:"Shipping details are too long"},400);
+    const orderRow=await db.from("ic_portal_supply_orders").insert({
+     contractor_user_id:user.id,status:"requested",notes,
+     shipping_address:{
+      recipient:address.recipient.trim(),line1:address.line1.trim(),
+      line2:String(address.line2||"").trim(),city:address.city.trim(),
+      state:address.state.toUpperCase(),postal_code:address.postal_code,
+      source_portal:"lab_account",ctpa_id:ctpaId,organization_id:c.data.organization_id
+     }
+    }).select("id,status,created_at").single();
+    if(orderRow.error)throw orderRow.error;
+    const detail=await db.from("ic_portal_supply_order_lines").insert(
+     [...selected].map(([item_id,quantity])=>({order_id:orderRow.data.id,item_id,quantity}))
+    );
+    if(detail.error){
+     const removed=await db.from("ic_portal_supply_orders").delete()
+      .eq("id",orderRow.data.id).eq("contractor_user_id",user.id).eq("status","requested");
+     if(removed.error)console.error("Supply request rollback failed",removed.error);
+     throw detail.error;
+    }
+    return out({ok:true,request:orderRow.data,status_message:"Supply request sent to Workforce testing operations for processing"});
+   }
    // Preserve the original Lab Account case creation and management handoff.
    // Never issue passes or book collection appointments automatically here.
    const val=(x:unknown,max=200)=>String(x??"").trim().slice(0,max);
