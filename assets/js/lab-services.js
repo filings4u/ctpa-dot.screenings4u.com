@@ -52,7 +52,7 @@ function render(d){
  const accounts=d.lab_accounts||[],intakes=d.setup_records||[],shipments=d.shipments||[],requests=d.testing_requests||[];
  const menu=tabLinks();
  return '<div class="lab-migration-hub">'+menu+
- '<section class="section" data-lab-panel="overview"><div class="panel-head"><div><h2>Laboratory Account</h2><p>Laboratory accounts and shipments belonging to this C/TPA organization. This view is read-only during the migration.</p></div></div>'+
+ '<section class="section" data-lab-panel="overview"><div class="panel-head"><div><h2>Laboratory Account</h2><p>Manage laboratory workflows inside your existing Workforce C/TPA portal. Data and actions follow your active account permissions.</p></div></div>'+
  '<div class="metrics">'+card("Laboratory accounts",accounts.length)+card("Account setup records",intakes.length)+card("Supply shipments",shipments.length)+'</div></section>'+
  '<section class="section" data-lab-panel="overview"><h2>C/TPA tools already available in Workforce</h2><p>Use the existing modules instead of maintaining separate Lab Account copies.</p><div class="lab-reuse-grid">'+
  scopedLink('/employers.html','Client directory','Employer and client management')+
