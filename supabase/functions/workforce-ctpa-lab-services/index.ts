@@ -16,7 +16,7 @@ Deno.serve(async(req:Request)=>{
   if(authError||!user?.id||!user.email_confirmed_at)return out({error:"Verified sign-in required"},401);
   const payload=await req.json().catch(()=>({}));
   const action=String(payload.action||"access"),ctpaId=String(payload.ctpa_id||""),subscriptionId=String(payload.subscription_id||"");
-  if(!["access","overview","catalog","create_order","supply_catalog","request_supplies","documents","document_url","issued_passes","legacy_clients","legacy_supply_alerts","legacy_deliveries","report_specimen_shipped","order_details","update_order","ccf_archive","ccf_url","released_cases","request_result_delivery","lab_purchases","lab_invoices","lab_invoice_detail","historical_documents","historical_document_url","lab_intake_details","lab_intake_pdf","lab_client_save","lab_client_archive","supply_alert_save","supply_alert_delete","lab_analytics"].includes(action)||!uuid(ctpaId)||!uuid(subscriptionId))return out({error:"Invalid C/TPA workspace and subscription"},400);
+  if(!["access","overview","catalog","create_order","supply_catalog","request_supplies","documents","document_url","issued_passes","legacy_clients","legacy_supply_alerts","legacy_deliveries","report_specimen_shipped","order_details","update_order","ccf_archive","ccf_url","released_cases","request_result_delivery","lab_purchases","lab_invoices","lab_invoice_detail","historical_documents","historical_document_url","lab_intake_details","lab_intake_pdf","lab_client_save","lab_client_archive","supply_alert_save","supply_alert_delete","lab_analytics","lab_released_results","lab_consortiums","lab_consortium_members","lab_service_requests"].includes(action)||!uuid(ctpaId)||!uuid(subscriptionId))return out({error:"Invalid C/TPA workspace and subscription"},400);
   const db=createClient(url,secret,{auth:{persistSession:false,autoRefreshToken:false}});
   // Reuse the C/TPA's verified workspace boundary; organization membership alone is insufficient.
   const session=await db.rpc("ctpa_dot_session_context",{p_user_id:user.id,p_ctpa_id:ctpaId,p_subscription_id:subscriptionId});
@@ -419,6 +419,55 @@ Deno.serve(async(req:Request)=>{
     }catch(error){console.error("Lab specimen shipment email",error)}
    }
    return out({ok:true,shipment:shipped.data,lab_receipt:"not_confirmed"});
+  }
+  if(["lab_released_results","lab_consortiums","lab_consortium_members","lab_service_requests"].includes(action)){
+   if(!grant.data.source_order_id||grant.data.linked_customer_user_id!==user.id)
+    return out({authorized:true,results:[],programs:[],members:[],requests:[]});
+   if(action==="lab_released_results"){
+    // Never return result_payload, raw lab data, or unpublished MRO materials.
+    const query=await db.from("testing_cases")
+     .select("id,case_number,status,test_type,overall_result,created_at,collected_at,released_at")
+     .eq("customer_user_id",user.id)
+     .contains("metadata",{source:"lab_account_portal",ctpa_id:ctpaId,organization_id:c.data.organization_id})
+     .not("released_at","is",null)
+     .order("released_at",{ascending:false}).limit(250);
+    if(query.error)throw query.error;
+    return out({authorized:true,results:query.data||[]});
+   }
+   if(action==="lab_consortiums"){
+    const [programs,members]=await Promise.all([
+     db.from("lab_customer_consortiums")
+      .select("id,name,program_type,dot_agency,status,selection_schedule,effective_date,created_at")
+      .eq("owner_user_id",user.id).order("created_at",{ascending:false}).limit(150),
+     db.from("lab_customer_consortium_members")
+      .select("consortium_id,eligibility_status")
+      .eq("owner_user_id",user.id).limit(5000)
+    ]);
+    if(programs.error||members.error)throw programs.error||members.error;
+    return out({authorized:true,programs:(programs.data||[]).map((x:any)=>({
+     ...x,member_count:(members.data||[]).filter((m:any)=>m.consortium_id===x.id).length,
+     eligible_count:(members.data||[]).filter((m:any)=>m.consortium_id===x.id&&m.eligibility_status==="eligible").length
+    }))});
+   }
+   if(action==="lab_consortium_members"){
+    if(!uuid(payload.program_id))return out({error:"Valid Lab Account program required"},400);
+    const program=await db.from("lab_customer_consortiums").select("id,name")
+     .eq("id",payload.program_id).eq("owner_user_id",user.id).maybeSingle();
+    if(program.error)throw program.error;
+    if(!program.data)return out({error:"Consortium not found for this purchaser"},404);
+    const members=await db.from("lab_customer_consortium_members")
+     .select("id,first_name,last_name,employee_reference,eligibility_status,employment_status,dot_covered,joined_on")
+     .eq("owner_user_id",user.id).eq("consortium_id",program.data.id)
+     .order("created_at",{ascending:false}).limit(1000);
+    if(members.error)throw members.error;
+    return out({authorized:true,program:program.data,members:members.data||[]});
+   }
+   const services=await db.from("lab_plan_service_requests")
+    .select("id,title,feature_code,request_type,status,created_at,updated_at,fulfilled_at")
+    .eq("customer_user_id",user.id)
+    .order("created_at",{ascending:false}).limit(250);
+   if(services.error)throw services.error;
+   return out({authorized:true,requests:services.data||[]});
   }
   if(["lab_client_save","lab_client_archive","supply_alert_save","supply_alert_delete","lab_analytics"].includes(action)){
    // These original Lab Account records are purchaser-owned, not shared
