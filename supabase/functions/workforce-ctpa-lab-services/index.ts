@@ -16,7 +16,7 @@ Deno.serve(async(req:Request)=>{
   if(authError||!user?.id||!user.email_confirmed_at)return out({error:"Verified sign-in required"},401);
   const payload=await req.json().catch(()=>({}));
   const action=String(payload.action||"access"),ctpaId=String(payload.ctpa_id||""),subscriptionId=String(payload.subscription_id||"");
-  if(!["access","overview","catalog","create_order","supply_catalog","request_supplies","documents","document_url","issued_passes","legacy_clients","legacy_supply_alerts","legacy_deliveries","report_specimen_shipped","order_details","update_order","ccf_archive","ccf_url","released_cases","request_result_delivery","lab_purchases","lab_invoices","lab_invoice_detail","historical_documents","historical_document_url","lab_intake_details","lab_intake_pdf"].includes(action)||!uuid(ctpaId)||!uuid(subscriptionId))return out({error:"Invalid C/TPA workspace and subscription"},400);
+  if(!["access","overview","catalog","create_order","supply_catalog","request_supplies","documents","document_url","issued_passes","legacy_clients","legacy_supply_alerts","legacy_deliveries","report_specimen_shipped","order_details","update_order","ccf_archive","ccf_url","released_cases","request_result_delivery","lab_purchases","lab_invoices","lab_invoice_detail","historical_documents","historical_document_url","lab_intake_details","lab_intake_pdf","lab_client_save","lab_client_archive","supply_alert_save","supply_alert_delete","lab_analytics"].includes(action)||!uuid(ctpaId)||!uuid(subscriptionId))return out({error:"Invalid C/TPA workspace and subscription"},400);
   const db=createClient(url,secret,{auth:{persistSession:false,autoRefreshToken:false}});
   // Reuse the C/TPA's verified workspace boundary; organization membership alone is insufficient.
   const session=await db.rpc("ctpa_dot_session_context",{p_user_id:user.id,p_ctpa_id:ctpaId,p_subscription_id:subscriptionId});
@@ -419,6 +419,99 @@ Deno.serve(async(req:Request)=>{
     }catch(error){console.error("Lab specimen shipment email",error)}
    }
    return out({ok:true,shipment:shipped.data,lab_receipt:"not_confirmed"});
+  }
+  if(["lab_client_save","lab_client_archive","supply_alert_save","supply_alert_delete","lab_analytics"].includes(action)){
+   // These original Lab Account records are purchaser-owned, not shared
+   // employer/consortium records. Preserve ownership until an explicit merge.
+   if(!grant.data.source_order_id||grant.data.linked_customer_user_id!==user.id)
+    return out({error:"Your verified Lab Account purchase is required"},403);
+   if(action==="lab_client_save"){
+    const company_name=String(payload.company_name||"").trim().slice(0,160);
+    const contact_name=String(payload.contact_name||"").trim().slice(0,160);
+    const contact_email=String(payload.contact_email||"").trim().toLowerCase();
+    const phone=String(payload.phone||"").trim().slice(0,40);
+    const notes=String(payload.notes||"").trim().slice(0,1500);
+    const program_type=String(payload.program_type||"non_dot");
+    if(company_name.length<2||!["dot","non_dot","both"].includes(program_type)||
+       (contact_email&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact_email)))
+     return out({error:"Enter a company name and valid contact information"},400);
+    const fields={company_name,contact_name,contact_email:contact_email||null,
+     phone:phone||null,program_type,notes,updated_at:new Date().toISOString()};
+    let result:any;
+    if(payload.id){
+     if(!uuid(payload.id))return out({error:"Valid client ID required"},400);
+     result=await db.from("lab_portal_clients").update(fields).eq("id",payload.id)
+      .eq("customer_user_id",user.id).is("archived_at",null).select("id").maybeSingle();
+    }else{
+     result=await db.from("lab_portal_clients").insert({...fields,customer_user_id:user.id})
+      .select("id").single();
+    }
+    if(result.error)throw result.error;
+    if(!result.data)return out({error:"Lab Account client unavailable"},404);
+    return out({ok:true,id:result.data.id});
+   }
+   if(action==="lab_client_archive"){
+    if(!uuid(payload.id))return out({error:"Valid client ID required"},400);
+    const q=await db.from("lab_portal_clients").update({archived_at:new Date().toISOString()})
+     .eq("customer_user_id",user.id).eq("id",payload.id).is("archived_at",null)
+     .select("id").maybeSingle();
+    if(q.error)throw q.error;
+    return q.data?out({ok:true}):out({error:"Lab client not found"},404);
+   }
+   if(action==="supply_alert_save"){
+    const supply_name=String(payload.supply_name||"").trim().slice(0,160);
+    const reorder_threshold=Number(payload.reorder_threshold);
+    const estimated_on_hand=Number(payload.estimated_on_hand);
+    const enabled=payload.enabled!==false;
+    if(supply_name.length<2||!Number.isInteger(reorder_threshold)||reorder_threshold<1||
+       reorder_threshold>100000||!Number.isInteger(estimated_on_hand)||
+       estimated_on_hand<0||estimated_on_hand>1000000)
+     return out({error:"Enter a valid supply name and inventory quantities"},400);
+    const fields={customer_user_id:user.id,supply_name,reorder_threshold,
+     estimated_on_hand,enabled,updated_at:new Date().toISOString()};
+    // Reuse the existing unique purchaser/supply name constraint and alerts.
+    const q=await db.from("lab_portal_supply_alerts").upsert(fields,{
+     onConflict:"customer_user_id,supply_name"
+    }).select("id").single();
+    if(q.error)throw q.error;
+    return out({ok:true,id:q.data.id,needs_reorder:enabled&&estimated_on_hand<=reorder_threshold});
+   }
+   if(action==="supply_alert_delete"){
+    if(!uuid(payload.id))return out({error:"Valid supply alert ID required"},400);
+    const q=await db.from("lab_portal_supply_alerts").delete().eq("id",payload.id)
+     .eq("customer_user_id",user.id).select("id").maybeSingle();
+    if(q.error)throw q.error;
+    return q.data?out({ok:true}):out({error:"Supply alert unavailable"},404);
+   }
+   // Reuse original case metrics, but scope to the selected C/TPA rather
+   // than mixing the customer's other Lab Account activity.
+   const q=await db.from("testing_cases")
+    .select("id,status,dot_test,created_at,collected_at,released_at")
+    .contains("metadata",{source:"lab_account_portal",ctpa_id:ctpaId,organization_id:c.data.organization_id})
+    .order("created_at",{ascending:false}).limit(1000);
+   if(q.error)throw q.error;
+   const cases=q.data||[],monthly=new Map<string,{month:string,orders:number,released:number}>();
+   let released=0,dot=0,non_dot=0,turnaround=0,turnaroundN=0;
+   const statuses:Record<string,number>={};
+   for(const record of cases){
+    const month=String(record.created_at||"").slice(0,7);
+    if(!monthly.has(month))monthly.set(month,{month,orders:0,released:0});
+    monthly.get(month)!.orders++;
+    statuses[record.status||"unknown"]=(statuses[record.status||"unknown"]||0)+1;
+    if(record.dot_test)dot++;else non_dot++;
+    if(record.released_at){
+     released++;monthly.get(month)!.released++;
+     if(record.collected_at){
+      const hours=(Date.parse(record.released_at)-Date.parse(record.collected_at))/3600000;
+      if(hours>=0&&hours<8760){turnaround+=hours;turnaroundN++}
+     }
+    }
+   }
+   return out({authorized:true,metrics:{
+    orders:cases.length,released,dot,non_dot,pending:cases.length-released,
+    average_hours_to_release:turnaroundN?Math.round(turnaround/turnaroundN*10)/10:null
+   },monthly:[...monthly.values()].sort((a,b)=>a.month.localeCompare(b.month)).slice(-12),
+   statuses,limit_reached:cases.length===1000});
   }
   if(["legacy_clients","legacy_supply_alerts","legacy_deliveries"].includes(action)){
    // Preserve previously created customer-scoped Lab Account records without
