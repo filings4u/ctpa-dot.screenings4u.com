@@ -568,14 +568,50 @@ Deno.serve(async(req:Request)=>{
        reorder_threshold>100000||!Number.isInteger(estimated_on_hand)||
        estimated_on_hand<0||estimated_on_hand>1000000)
      return out({error:"Enter a valid supply name and inventory quantities"},400);
+    const previous=await db.from("lab_portal_supply_alerts")
+     .select("id,enabled,estimated_on_hand,reorder_threshold,last_alert_at")
+     .eq("customer_user_id",user.id).eq("supply_name",supply_name).maybeSingle();
+    if(previous.error)throw previous.error;
     const fields={customer_user_id:user.id,supply_name,reorder_threshold,
      estimated_on_hand,enabled,updated_at:new Date().toISOString()};
-    // Reuse the existing unique purchaser/supply name constraint and alerts.
     const q=await db.from("lab_portal_supply_alerts").upsert(fields,{
      onConflict:"customer_user_id,supply_name"
     }).select("id").single();
     if(q.error)throw q.error;
-    return out({ok:true,id:q.data.id,needs_reorder:enabled&&estimated_on_hand<=reorder_threshold});
+    const low=enabled&&estimated_on_hand<=reorder_threshold;
+    const wasLow=previous.data?.enabled&&previous.data?.estimated_on_hand<=previous.data?.reorder_threshold;
+    const last=previous.data?.last_alert_at?Date.parse(previous.data.last_alert_at):0;
+    let emailed=false;
+    if(low&&(!wasLow||!last||Date.now()-last>86400000)){
+     const apiKey=Deno.env.get("RESEND_API_KEY")||"";
+     const from=Deno.env.get("SCREENINGS4U_FROM_EMAIL")||"";
+     const safe=(v:string)=>v.replace(/[&<>"']/g,ch=>({
+      "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+     }[ch]||ch));
+     if(apiKey&&from&&user.email){
+      const html='<div style="font-family:Arial,sans-serif;background:#f2f6fb;color:#01122f;padding:24px">'+
+       '<div style="max-width:600px;margin:auto;background:#fff;border-radius:12px;overflow:hidden">'+
+       '<div style="background:#01122f;padding:20px"><img alt="Workforce" width="200" src="https://workforce.screenings4u.com/images/logo2.png"></div>'+
+       '<div style="padding:24px"><h2>Lab Account supply reorder alert</h2>'+
+       '<p>Your estimated inventory for <strong>'+safe(supply_name)+'</strong> is '+estimated_on_hand+
+       ' items, at or below your reorder threshold of '+reorder_threshold+'.</p>'+
+       '<p><a href="https://ctpa.screenings4u.com/lab-services.html?lab=alerts" style="background:#fdc102;color:#01122f;padding:12px 18px;text-decoration:none;border-radius:6px;font-weight:bold">Review Lab Account supplies</a></p>'+
+       '</div></div></div>';
+      try{
+       const delivered=await fetch("https://api.resend.com/emails",{
+        method:"POST",headers:{Authorization:"Bearer "+apiKey,"Content-Type":"application/json"},
+        body:JSON.stringify({from,to:[user.email],subject:"Workforce | Lab Account supply reorder alert",html})
+       });
+       if(delivered.ok){
+        emailed=true;
+        const updated=await db.from("lab_portal_supply_alerts").update({last_alert_at:new Date().toISOString()})
+         .eq("id",q.data.id).eq("customer_user_id",user.id);
+        if(updated.error)console.error("Supply alert timestamp update failed",updated.error);
+       }else console.error("Lab Account reorder email failed",delivered.status);
+      }catch(err){console.error("Lab Account reorder email",err)}
+     }
+    }
+    return out({ok:true,id:q.data.id,needs_reorder:low,email_sent:emailed});
    }
    if(action==="supply_alert_delete"){
     if(!uuid(payload.id))return out({error:"Valid supply alert ID required"},400);
