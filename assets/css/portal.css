@@ -1932,3 +1932,38 @@ body.loading::before{content:"Loading Workforce C/TPA…"}
 .lab-migration-hub .lab-confirm-actions button.primary{background:#fdc102;color:#01122f;border-color:#fdc102}
 .lab-migration-hub .lab-confirm-actions button.ghost{background:#fff;color:#01122f}
 @media(max-width:700px){.lab-migration-hub .lab-confirm-actions button{flex:1}}
+
+/* Consolidated Workforce C/TPA navigation: fewer visible links, clear active group. */
+.side .nav .workforce-nav-group,.mobile-nav-links .workforce-nav-group{
+ border-top:1px solid rgba(255,255,255,.14);margin:6px 9px 0;padding:4px 0;
+}
+.side .nav .workforce-nav-group>summary,.mobile-nav-links .workforce-nav-group>summary{
+ cursor:pointer;list-style:none;display:flex;justify-content:space-between;
+ align-items:center;color:#d5e2f0;font-size:.75rem;font-weight:800;
+ letter-spacing:.04em;padding:11px 12px;border-radius:7px;
+}
+.side .nav .workforce-nav-group>summary::-webkit-details-marker,
+.mobile-nav-links .workforce-nav-group>summary::-webkit-details-marker{display:none}
+.side .nav .workforce-nav-group>summary::after,.mobile-nav-links .workforce-nav-group>summary::after{
+ content:"+";font-size:1.1rem;color:#fdc102;
+}
+.side .nav .workforce-nav-group[open]>summary::after,
+.mobile-nav-links .workforce-nav-group[open]>summary::after{content:"−"}
+.side .nav .workforce-nav-group>a,.mobile-nav-links .workforce-nav-group>a{
+ display:flex;margin:1px 3px;align-items:center;gap:10px;padding:10px 12px;
+ font-size:.8rem;min-height:38px;border-radius:7px;
+}
+.side .nav .workforce-nav-group>a.active,
+.mobile-nav-links .workforce-nav-group>a.active{background:rgba(253,193,2,.13);color:#fdc102;font-weight:800}
+.side .nav .workforce-nav-group>summary:focus-visible,.mobile-nav-links .workforce-nav-group>summary:focus-visible{
+ outline:2px solid #fdc102;outline-offset:2px;
+}
+.side .nav{scrollbar-width:none}
+.side .nav::-webkit-scrollbar{display:none}
+.mobile-nav-links{scrollbar-width:none}
+.mobile-nav-links::-webkit-scrollbar{display:none}
+.lab-migration-hub .lab-more-menu{margin-left:auto;min-width:min(100%,210px);border:1px solid #d4d3d4;border-radius:8px;background:#fff}
+.lab-migration-hub .lab-more-menu summary{padding:11px 13px;cursor:pointer;font-weight:800;color:#01122f}
+.lab-migration-hub .lab-more-menu .lab-more-grid{display:flex;flex-wrap:wrap;gap:7px;padding:10px}
+.lab-migration-hub .lab-hub-access .lab-reuse-grid{margin:18px 0}
+@media(max-width:700px){.lab-migration-hub .lab-more-menu{grid-column:1/-1}}
