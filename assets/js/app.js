@@ -43,6 +43,8 @@ const stored=()=>workspace()?.membership_id||'';
 const storedCtpa=()=>workspace()?.ctpa_id||'';
 const saveMid=()=>{};
 let NAV=[];
+const LABORATORY_PAGES=Object.freeze({"laboratory_overview":{"label":"Laboratory Overview","section":"overview"},"laboratory_accounts":{"label":"Laboratory Accounts","section":"accounts"},"laboratory_orders":{"label":"Laboratory Test Orders","section":"orders"},"laboratory_tracking":{"label":"Donor Passes & Tracking","section":"tracking"},"laboratory_results":{"label":"Released Lab Results","section":"results"},"laboratory_delivery":{"label":"Result Delivery","section":"deliveries"},"laboratory_supplies":{"label":"Laboratory Supplies","section":"supplies"},"laboratory_alerts":{"label":"Supply Alerts","section":"alerts"},"laboratory_documents":{"label":"Lab Documents & CCFs","section":"documents"},"laboratory_billing":{"label":"Laboratory Invoices","section":"billing"},"laboratory_analytics":{"label":"Laboratory Analytics","section":"analytics"},"laboratory_consortiums":{"label":"Historical Consortiums","section":"consortium"},"laboratory_services":{"label":"Lab Service Requests","section":"services"},"laboratory_benefits":{"label":"Historical Benefits","section":"benefits"},"laboratory_clients":{"label":"Lab Client Directory","section":"clients"}});
+const isLaboratoryPage=p=>Boolean(LABORATORY_PAGES[norm(p)]);
 /* Plan policy derives from signed-in C/TPA subscription context (Supabase plan_features).
    Do not treat Enterprise as an unconditional override: disabled catalog entries stay disabled.
    Backend functions must independently authorize every protected read and mutation. */
@@ -85,16 +87,17 @@ function pageAccess(ctx,p){
  return {allowed:true};
 }
 function buildNavigation(ctx={}){
-  if(workspace()?.surface==='nondot')return [{id:'nondot-workspace',label:'NON-DOT Workspace',icon:'⇄',href:'/nondot-workspace.html'}];
+  if(workspace()?.surface==='nondot')return [{id:'nondot-workspace',label:'NON-DOT Workspace',icon:'⇄',href:'/nondot-workspace.html'},{id:'support',label:'Support',icon:'?',href:'/support.html'}];
   const e=ctx.entitlements||{};
   const items=[
-    ['dashboard','Dashboard','⌂',null],['workforce-context','DOT / NON-DOT','⇄',null],['nondot-workspace','NON-DOT Workspace','⇄',null],
+    ['dashboard','DOT Workspace','⌂',null],['nondot-workspace','NON-DOT Workspace','⇄',null],
     ['employers','Employers','▣','employer_management'],['people','People','●','employee_management'],['programs','Programs','◎','programs'],
     ['pools','Pools','◉','consortium_pools'],['selections','Selections','↻','random_selections'],['testing','Testing','◆','testing_orders'],['results','Results','✓','results_summary'],
 ['compliance','Compliance','◇','compliance'],['new-entrant-audits','New Entrant Audits','☑',null],['documents','Documents','▤','documents'],['legal-documents','Signed Legal Documents','▤',null],['reports','Reports','▥','standard_reports'],['occupational-health','Occupational Health','✚','testing_orders'],['notifications','Employer Messages','✉','notifications'],
     ['create-order','Create Order','＋',null],['price-list','Testing Price List','$',null],['order-services','Add Features','＋',null],['order-history','Order History','≡',null],['subscription','Subscription','◫',null],['billing','Workforce Billing','$','billing_tools'],['employer-billing','Employer Billing','$','client_invoicing'],
-    ['branding','Branding','◐','white_label'],['integrations','Integrations','↔','integrations'],['locations','Locations','⌖','locations'],['lab-services','Lab Account','⚗',null],['users-roles','Users & Roles','♙','team_users'],['audit-history','Audit & Log History','◷','audit_history'],['schedule-demo','Schedule Demo','◫',null],['attend-demo','Attend Demo','▶',null],['support','Support','? ',null]
+    ['branding','Branding','◐','white_label'],['integrations','Integrations','↔','integrations'],['locations','Locations','⌖','locations'],['users-roles','Users & Roles','♙','team_users'],['audit-history','Audit & Log History','◷','audit_history'],['schedule-demo','Schedule Demo','◫',null],['attend-demo','Attend Demo','▶',null],['support','Support','? ',null]
   ];
+  for(const [id,meta] of Object.entries(LABORATORY_PAGES))items.push([id.replaceAll('_','-'),meta.label,'⚗',null]);
   const enterprise=String(ctx?.plan?.code||ctx?.subscription?.plan_code||'').toLowerCase()==='dot_ctpa_enterprise';
   return items.filter(x=>(!x[3]||e[x[3]]===true)&&(!x[4]||enterprise)&&(x[0]!=='nondot-workspace'||ctx.nondotVerified===true)&&pageAccess(ctx,norm(x[0])).allowed).map(x=>({id:x[0],label:x[1],icon:x[2],href:`/${x[0]}.html`}));
 }
@@ -179,9 +182,10 @@ async function access(){if(window.S4UCTPAVerifiedContext)return window.S4UCTPAVe
 
 function organizePortalNavigation(){
  const groups=[
-  ["People & Programs",["employers","people","programs","pools","selections","owner-operators"]],
-  ["Testing & Compliance",["testing","results","compliance","new-entrant-audits","occupational-health","documents","legal-documents","reports"]],
-  ["Services & Billing",["create-order","price-list","order-services","order-history","subscription","billing","employer-billing"]],
+  ["People & Programs",["employers","people","programs","pools","selections","owner-operators","laboratory-clients","laboratory-consortiums"]],
+  ["Testing & Laboratory Services",["testing","create-order","order-history","results","occupational-health","laboratory-overview","laboratory-accounts","laboratory-orders","laboratory-tracking","laboratory-results","laboratory-delivery","laboratory-supplies","laboratory-alerts","laboratory-analytics"]],
+  ["Compliance & Documents",["compliance","new-entrant-audits","documents","legal-documents","reports","laboratory-documents","laboratory-benefits"]],
+  ["Services & Billing",["price-list","order-services","subscription","billing","employer-billing","laboratory-services","laboratory-billing"]],
   ["Account & Support",["notifications","branding","integrations","locations","users-roles","audit-history","schedule-demo","attend-demo","support"]]
  ];
  for(const nav of document.querySelectorAll('.side .nav,.mobile-nav-links')){
@@ -380,7 +384,7 @@ function bindUtilityPage(p,d,ctx){
 }
 
 async function ctpaData(p){
-  if(p==='lab_services')return {authorized:false,loading:true};
+  if(p==='lab_services'||isLaboratoryPage(p))return {authorized:false,loading:true};
   if(p==='nondot_workspace')return nondotWorkspaceData();
   if(p==='employers'||p==='employer_form')return invoke('workforce-ctpa-employers',{action:'workspace'});
   if(p==='owner_operators')return invoke('workforce-ctpa-owner-operators',{action:'workspace'});
@@ -602,7 +606,7 @@ const PAGE_MEMORY=new Map();
 const PAGE_INFLIGHT=new Map();
 function memoryCacheKey(p,search=location.search){return cacheIdentity(p,search)}
 async function getCachedPageData(p,search=location.search){
-  if(p==='nondot_workspace'||p==='lab_services')return null;
+  if(p==='nondot_workspace'||p==='lab_services'||isLaboratoryPage(p))return null;
   const key=memoryCacheKey(p,search),m=PAGE_MEMORY.get(key);
   if(m&&Date.now()-m.saved_at<PAGE_CACHE_MAX_AGE)return m.data;
   const d=await readPageCache(p,search);
@@ -610,7 +614,7 @@ async function getCachedPageData(p,search=location.search){
   return d;
 }
 async function setCachedPageData(p,data,search=location.search){
-  if(p==='nondot_workspace'||p==='lab_services')return;
+  if(p==='nondot_workspace'||p==='lab_services'||isLaboratoryPage(p))return;
   const key=memoryCacheKey(p,search);PAGE_MEMORY.set(key,{saved_at:Date.now(),data});
   await writePageCache(p,data,search);
 }
@@ -652,7 +656,7 @@ async function render(ctx,prefetched){
   else if(C.kind==='ctpa'&&p==='integration_workspace'&&window.CtpaIntegrations){setSubtitle('Manage, test, and use this connected integration.');html=window.CtpaIntegrations.renderWorkspace(d,ctx);}
   else if(C.kind==='ctpa'&&p==='location_form'&&window.CtpaLocations){setSubtitle('Add or edit a location for your C/TPA, an Employer, or an Owner-Operator.');html=window.CtpaLocations.renderForm(d,ctx);}
   else if(C.kind==='ctpa'&&p==='nondot_workspace'&&window.CtpaNondotWorkspace){setSubtitle('Your C/TPA NON-DOT employer, people, program, pool, testing and result records.');html=window.CtpaNondotWorkspace.render(d,ctx);}
-  else if(C.kind==='ctpa'&&p==='lab_services'&&window.CtpaLabServices){setSubtitle('Your purchased laboratory account numbers, setup progress, and physical supply shipments.');html=window.CtpaLabServices.render(d,ctx);}
+  else if(C.kind==='ctpa'&&(p==='lab_services'||isLaboratoryPage(p))&&window.CtpaLabServices){setSubtitle('Your purchased laboratory account numbers, setup progress, and physical supply shipments.');html=window.CtpaLabServices.render(d,ctx);}
   else if(C.kind==='ctpa'&&p==='lab_accounts'&&window.CtpaLabAccounts){setSubtitle('View the laboratory accounts and account numbers configured for your C/TPA.');html=window.CtpaLabAccounts.render(d,ctx);}
   else if(C.kind==='ctpa'&&p==='schedule_demo'&&window.CtpaDemos){setSubtitle('Choose a date and time for a live Workforce platform demonstration.');html=window.CtpaDemos.renderSchedule(d,ctx);}
   else if(C.kind==='ctpa'&&p==='attend_demo'&&window.CtpaDemos){setSubtitle('View your confirmed demonstration and join it from your portal on the scheduled day.');html=window.CtpaDemos.renderAttend(d,ctx);}
@@ -731,7 +735,7 @@ async function render(ctx,prefetched){
   }
   $('#content').innerHTML=html||`<div class="panel"><div class="empty">No data available.</div></div>`;
   if(C.kind==='ctpa'&&p==='nondot_workspace'&&window.CtpaNondotWorkspace)window.CtpaNondotWorkspace.bind(d,saveNondotRecord);
-  if(C.kind==='ctpa'&&p==='lab_services'&&window.CtpaLabServices)window.CtpaLabServices.bind(labServiceCall,d);
+  if(C.kind==='ctpa'&&(p==='lab_services'||isLaboratoryPage(p))&&window.CtpaLabServices)window.CtpaLabServices.bind(labServiceCall,d);
   if(isUtilityPage(p)&&!(C.kind==='ctpa'&&p==='integrations'&&window.CtpaIntegrations))bindUtilityPage(p,d,ctx);
   if(C.kind==='ctpa'&&['integrations','integration_connect','integration_workspace'].includes(p)&&window.CtpaIntegrations)window.CtpaIntegrations.bind(p,d,ctx);
   if(C.kind==='ctpa'&&p==='location_form'&&window.CtpaLocations)window.CtpaLocations.bindForm(d,ctx);
