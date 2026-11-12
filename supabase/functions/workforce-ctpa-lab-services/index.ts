@@ -129,8 +129,7 @@ Deno.serve(async(req:Request)=>{
   if(grant.data.source_order_id&&grant.data.linked_customer_user_id&&intakeIds.length){
    const cases=await db.from("testing_cases")
     .select("id,case_number,status,test_type,created_at,scheduled_at,collected_at,completed_at,metadata")
-    .eq("customer_user_id",grant.data.linked_customer_user_id)
-    .contains("metadata",{source:"lab_account_portal",ctpa_id:ctpaId})
+    .contains("metadata",{source:"lab_account_portal",ctpa_id:ctpaId,organization_id:c.data.organization_id})
     .order("created_at",{ascending:false}).limit(100);
    if(cases.error)throw cases.error;
    const caseIds=(cases.data||[]).map((x:any)=>x.id);
