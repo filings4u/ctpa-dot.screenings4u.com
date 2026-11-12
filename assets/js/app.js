@@ -92,7 +92,7 @@ function buildNavigation(ctx={}){
     ['pools','4. Pools','◉','consortium_pools'],['selections','5. Selections','↻','random_selections'],['testing','6. Testing','◆','testing_orders'],['results','7. Results','✓','results_summary'],
 ['compliance','Compliance','◇','compliance'],['new-entrant-audits','New Entrant Audits','☑',null],['documents','Documents','▤','documents'],['legal-documents','Signed Legal Documents','▤',null],['reports','Reports','▥','standard_reports'],['occupational-health','Occupational Health','✚','testing_orders'],['notifications','Employer Messages','✉','notifications'],
     ['create-order','Create Order','＋',null],['price-list','Testing Price List','$',null],['order-services','Add Features','＋',null],['order-history','Order History','≡',null],['subscription','Subscription','◫',null],['billing','Workforce Billing','$','billing_tools'],['employer-billing','Employer Billing','$','client_invoicing'],
-    ['branding','Branding','◐','white_label'],['integrations','Integrations','↔','integrations'],['locations','Locations','⌖','locations'],['lab-services','Lab Services','⚗',null],['users-roles','Users & Roles','♙','team_users'],['audit-history','Audit & Log History','◷','audit_history'],['schedule-demo','Schedule Demo','◫',null],['attend-demo','Attend Demo','▶',null],['support','Support','? ',null]
+    ['branding','Branding','◐','white_label'],['integrations','Integrations','↔','integrations'],['locations','Locations','⌖','locations'],['lab-services','Lab Account','⚗',null],['users-roles','Users & Roles','♙','team_users'],['audit-history','Audit & Log History','◷','audit_history'],['schedule-demo','Schedule Demo','◫',null],['attend-demo','Attend Demo','▶',null],['support','Support','? ',null]
   ];
   const enterprise=String(ctx?.plan?.code||ctx?.subscription?.plan_code||'').toLowerCase()==='dot_ctpa_enterprise';
   return items.filter(x=>(!x[3]||e[x[3]]===true)&&(!x[4]||enterprise)&&(x[0]!=='lab-services'||ctx.labAddonVerified===true)&&(x[0]!=='nondot-workspace'||ctx.nondotVerified===true)&&pageAccess(ctx,norm(x[0])).allowed).map(x=>({id:x[0],label:x[1],icon:x[2],href:`/${x[0]}.html`}));
@@ -161,11 +161,11 @@ async function syncNondotNavigation(ctx){
   if(e?.status!==401&&e?.status!==403)console.warn("NON-DOT access check failed",e);
  }
 }
-async function labServiceCall(action="access"){
+async function labServiceCall(action="access",details={}){
  const session=await getSession(),id=workspace()?.ctpa_id,subscriptionId=workspace()?.subscription_id;
  if(!session?.access_token||!id||!subscriptionId)throw Error("Select an authorized C/TPA workspace");
  const endpoint=C.workforceUrl+"/functions/v1/workforce-ctpa-lab-services";
- const response=await fetch(endpoint,{method:"POST",cache:"no-store",headers:{"Content-Type":"application/json",Authorization:"Bearer "+session.access_token,apikey:C.workforceKey},body:JSON.stringify({action,ctpa_id:id,subscription_id:subscriptionId})});
+ const response=await fetch(endpoint,{method:"POST",cache:"no-store",headers:{"Content-Type":"application/json",Authorization:"Bearer "+session.access_token,apikey:C.workforceKey},body:JSON.stringify({action,...details,ctpa_id:id,subscription_id:subscriptionId})});
  const data=await response.json().catch(()=>({}));
  if(!response.ok||data.error||data.authorized===false)throw Object.assign(new Error(data.error||data.reason||"Lab Account add-on unavailable"),{status:response.status});
  return data;
@@ -179,7 +179,7 @@ async function syncLabNavigation(ctx){
   for(const nav of document.querySelectorAll(".side .nav,.mobile-nav-links")){
    if(nav.querySelector('a[href="/lab-services.html"]'))continue;
    const anchor=document.createElement("a");anchor.href="/lab-services.html";
-   anchor.innerHTML='<span class="ico">⚗</span><span>Lab Services</span>';
+   anchor.innerHTML='<span class="ico">⚗</span><span>Lab Account</span>';
    if(page()==="lab_services")anchor.classList.add("active");
    const target=nav.querySelector('a[href="/testing.html"]');
    if(target)target.insertAdjacentElement("afterend",anchor);else nav.append(anchor);
@@ -724,6 +724,7 @@ async function render(ctx,prefetched){
   }
   $('#content').innerHTML=html||`<div class="panel"><div class="empty">No data available.</div></div>`;
   if(C.kind==='ctpa'&&p==='nondot_workspace'&&window.CtpaNondotWorkspace)window.CtpaNondotWorkspace.bind(d,saveNondotRecord);
+  if(C.kind==='ctpa'&&p==='lab_services'&&window.CtpaLabServices)window.CtpaLabServices.bind(labServiceCall);
   if(isUtilityPage(p)&&!(C.kind==='ctpa'&&p==='integrations'&&window.CtpaIntegrations))bindUtilityPage(p,d,ctx);
   if(C.kind==='ctpa'&&['integrations','integration_connect','integration_workspace'].includes(p)&&window.CtpaIntegrations)window.CtpaIntegrations.bind(p,d,ctx);
   if(C.kind==='ctpa'&&p==='location_form'&&window.CtpaLocations)window.CtpaLocations.bindForm(d,ctx);
