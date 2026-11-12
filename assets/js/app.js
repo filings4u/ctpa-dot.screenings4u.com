@@ -772,7 +772,7 @@ async function render(ctx,prefetched){
   }
   $('#content').innerHTML=html||`<div class="panel"><div class="empty">No data available.</div></div>`;
   if(C.kind==='ctpa'&&p==='nondot_workspace'&&window.CtpaNondotWorkspace)window.CtpaNondotWorkspace.bind(d,saveNondotRecord);
-  if(C.kind==='ctpa'&&p==='lab_services'&&window.CtpaLabServices)window.CtpaLabServices.bind(labServiceCall);
+  if(C.kind==='ctpa'&&p==='lab_services'&&window.CtpaLabServices)window.CtpaLabServices.bind(labServiceCall,d);
   if(isUtilityPage(p)&&!(C.kind==='ctpa'&&p==='integrations'&&window.CtpaIntegrations))bindUtilityPage(p,d,ctx);
   if(C.kind==='ctpa'&&['integrations','integration_connect','integration_workspace'].includes(p)&&window.CtpaIntegrations)window.CtpaIntegrations.bind(p,d,ctx);
   if(C.kind==='ctpa'&&p==='location_form'&&window.CtpaLocations)window.CtpaLocations.bindForm(d,ctx);
