@@ -31,9 +31,12 @@ const sections=[
  {id:"billing",label:"Billing"},
  {id:"support",label:"Support"}
 ];
+const dedicatedPageSections=Object.freeze({"laboratory-overview":"overview","laboratory-accounts":"accounts","laboratory-orders":"orders","laboratory-tracking":"tracking","laboratory-results":"results","laboratory-delivery":"deliveries","laboratory-supplies":"supplies","laboratory-alerts":"alerts","laboratory-documents":"documents","laboratory-billing":"billing","laboratory-analytics":"analytics","laboratory-consortiums":"consortium","laboratory-services":"services","laboratory-benefits":"benefits","laboratory-clients":"clients"});
+const dedicatedSection=()=>dedicatedPageSections[location.pathname.split('/').pop()?.replace(/\.html$/,'')]||null;
+const initialSection=()=>dedicatedSection()||new URLSearchParams(location.search).get('lab')||'overview';
 const mainTabs=new Set(["overview","accounts","orders","tracking","supplies","documents","billing"]);
 const makeTab=x=>'<button class="btn ghost lab-section-tab" type="button" data-lab-tab="'+esc(x.id)+'">'+esc(x.label)+'</button>';
-const tabLinks=()=>'<nav class="lab-section-nav" aria-label="Lab Account sections">'+
+const tabLinks=()=>dedicatedSection()?'':'<nav class="lab-section-nav" aria-label="Lab Account sections">'+
  sections.filter(x=>mainTabs.has(x.id)).map(makeTab).join('')+
  '<details class="lab-more-menu"><summary>More Lab Account records</summary><div class="lab-more-grid">'+
  sections.filter(x=>!mainTabs.has(x.id)).map(makeTab).join('')+'</div></details></nav>';
@@ -139,7 +142,7 @@ function bind(call,data={}){
    });
   };
   buttons.forEach(button=>button.addEventListener('click',()=>choose(button.dataset.labTab)));
-  choose(new URLSearchParams(location.search).get('lab')||'overview');
+  choose(initialSection());
   call('overview').then(lab=>{
    if(!root.isConnected||!lab?.authorized)return;
    window.portalCtx.labAddonVerified=true;
@@ -758,7 +761,7 @@ function bind(call,data={}){
   }catch(error){message.textContent=error.message||'Unable to submit testing request.'}
   finally{button.disabled=false}
  });
- selectTab(new URLSearchParams(location.search).get('lab')||'overview');
+ selectTab(initialSection());
 }
 window.CtpaLabServices=Object.freeze({render,bind});
 })();
