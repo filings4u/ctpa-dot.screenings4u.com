@@ -1816,3 +1816,13 @@ body.loading::before{content:"Loading Workforce C/TPA…"}
 .lab-migration-hub #lab-order-form button:disabled{opacity:.55;cursor:wait}
 .lab-migration-hub #lab-order-message{min-height:23px;color:#23486b;line-height:1.5}
 @media(max-width:700px){.lab-migration-hub .lab-section-nav{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.lab-migration-hub .lab-section-tab{min-width:0;white-space:normal}.lab-migration-hub .lab-migration-grid{grid-template-columns:1fr}.lab-migration-hub #lab-order-form button{width:100%}}
+
+/* One expandable Lab Account group in the existing C/TPA sidebar. */
+.side .nav .lab-side-group,.mobile-nav-links .lab-side-group{display:block;border:1px solid #334a62;border-radius:9px;margin:6px 0;background:#102942;overflow:hidden}
+.side .nav .lab-side-group summary,.mobile-nav-links .lab-side-group summary{display:flex;align-items:center;justify-content:space-between;gap:12px;cursor:pointer;list-style:none;padding:12px 13px;color:#fff;font-size:.85rem;font-weight:800}
+.side .nav .lab-side-group summary::-webkit-details-marker,.mobile-nav-links .lab-side-group summary::-webkit-details-marker{display:none}
+.side .nav .lab-side-group summary:after,.mobile-nav-links .lab-side-group summary:after{content:"+";color:#fdc102;font-size:1.2rem}
+.side .nav .lab-side-group[open] summary:after,.mobile-nav-links .lab-side-group[open] summary:after{content:"−"}
+.side .nav .lab-side-group .lab-side-link,.mobile-nav-links .lab-side-group .lab-side-link{display:block;padding:9px 14px 9px 23px;text-decoration:none;color:#d4e1ee;font-size:.82rem;line-height:1.3;border-top:1px solid #304a66}
+.side .nav .lab-side-group .lab-side-link:hover,.side .nav .lab-side-group .lab-side-link.active,.mobile-nav-links .lab-side-group .lab-side-link.active{background:#253f59;color:#fdc102;font-weight:800}
+.side .nav .lab-side-group :is(summary,a):focus-visible,.mobile-nav-links .lab-side-group :is(summary,a):focus-visible{outline:2px solid #fdc102;outline-offset:-2px}
