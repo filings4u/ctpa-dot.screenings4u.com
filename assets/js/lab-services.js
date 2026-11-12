@@ -29,6 +29,12 @@ const sections=[
 const tabLinks=()=>'<nav class="lab-section-nav" aria-label="Lab Account sections">'+sections.map(x=>'<button class="btn ghost lab-section-tab" type="button" data-lab-tab="'+esc(x.id)+'">'+esc(x.label)+'</button>').join('')+'</nav>';
 const labForm=()=>'<section class="section" data-lab-panel="orders"><h2>Order a laboratory test</h2><p>Submit a request into Workforce Testing Management. Scheduling and donor-pass issuance follow staff review.</p><p id="lab-order-message" role="status" aria-live="polite"></p><form id="lab-order-form" class="panel"><div class="lab-migration-grid"><label>Test service <select name="service_id" required id="lab-order-service"><option value="">Loading available services…</option></select></label><label>First name <input name="first_name" maxlength="100" required></label><label>Last name <input name="last_name" maxlength="100" required></label><label>Donor email <input name="donor_email" type="email" required></label><label>Donor phone <input name="donor_phone" type="tel" maxlength="35"></label><label>Date of birth <input name="date_of_birth" type="date" required></label><label>State of residence <input name="state_of_residence" maxlength="2" pattern="[A-Za-z]{2}" placeholder="IL" required></label><label>Reason for testing <select name="reason_for_test" required><option value="">Choose reason</option><option value="PE">Pre-employment</option><option value="RN">Random</option><option value="PA">Post-accident</option><option value="RS">Reasonable suspicion</option><option value="RT">Return to duty</option><option value="FU">Follow-up</option><option value="NI">Other / not indicated</option></select></label><label id="lab-authority-wrap" hidden>DOT authority <select name="testing_authority"><option value="">Choose agency</option><option value="FMCSA">FMCSA</option><option value="FAA">FAA</option><option value="FRA">FRA</option><option value="FTA">FTA</option><option value="PHMSA">PHMSA</option><option value="USCG">USCG</option></select></label></div><label>Notes for Workforce Testing <textarea name="notes" maxlength="1000" rows="3"></textarea></label><div><button class="btn primary" type="submit" id="lab-order-submit">Submit testing request</button></div></form></section>';
 const supplyForm=()=>'<section class="section" data-lab-panel="supplies"><h2>Request testing supplies</h2><p>Choose physical supply items and provide the shipping destination. Workforce Testing Management handles fulfillment and tracking.</p><p id="lab-supply-status" role="status" aria-live="polite"></p><form id="lab-supply-form" class="panel"><div id="lab-supply-catalog">Open the Supplies tab to load available items.</div><div class="lab-migration-grid"><label>Recipient <input name="recipient" required maxlength="180"></label><label>Street address <input name="line1" required maxlength="180"></label><label>Address line 2 <input name="line2" maxlength="180"></label><label>City <input name="city" required maxlength="180"></label><label>State <input name="state" required minlength="2" maxlength="2" pattern="[A-Za-z]{2}"></label><label>ZIP code <input name="postal_code" required pattern="[0-9]{5}(-[0-9]{4})?"></label></div><label>Special instructions <textarea name="notes" maxlength="1000" rows="3"></textarea></label><button class="btn primary" type="submit" id="lab-supply-submit">Request supplies</button></form></section>';
+const specimenForm=(requests=[])=>{
+ const eligible=requests.filter(r=>r.collected_at&&["collected","specimen_collected","collected_awaiting_shipment"].includes(String(r.status||"").toLowerCase()));
+ return '<section class="section" data-lab-panel="tracking"><h2>Report collected specimens shipped</h2><p>Use this only after specimens have been collected and handed to the carrier. Workforce Testing verifies receipt and laboratory accession separately.</p>'+
+ (eligible.length?'<form class="panel lab-specimen-form" id="lab-specimen-form"><label>Collected case<select name="case_id" required><option value="">Choose a collected case</option>'+eligible.map(r=>'<option value="'+esc(r.id)+'">'+esc(r.case_number||r.id)+'</option>').join('')+'</select></label><label>Carrier<input name="carrier" required maxlength="100"></label><label>Tracking number<input name="tracking_number" required maxlength="180"></label><label>Tracking link (optional)<input name="tracking_url" type="url" maxlength="1000" placeholder="https://"></label><button class="btn primary" type="submit">Report specimen shipment</button><p id="lab-specimen-status" role="status" aria-live="polite"></p></form>':'<div class="panel">There are no collected laboratory cases ready for shipment reporting.</div>')+
+ '</section>';
+};
 const legacyRecordPanel=(section,label,description)=>
  '<section class="section" data-lab-panel="'+esc(section)+'"><h2>'+esc(label)+'</h2><p>'+esc(description)+'</p><div id="lab-records-'+esc(section)+'" class="lab-record-list" aria-live="polite">Loading existing Lab Account records…</div></section>';
 const scopedLink=(href,label,detail)=>'<a class="panel lab-feature-link" href="'+esc(href)+'"><strong>'+esc(label)+'</strong><small>'+esc(detail)+'</small></a>';
@@ -59,6 +65,7 @@ function render(d){
  '<section class="section" data-lab-panel="tracking"><h2>Lab Account testing requests</h2><p>Read-only request status for records linked to this C/TPA. Requests without verified company linkage stay in the original Lab Account portal until Workforce completes the account mapping.</p>'+
  (requests.length?requests.map(r=>'<div class="panel lab-migration-row"><div><strong>'+esc(r.case_number||"Testing request")+'</strong><small>'+esc(r.test_type||"Test type pending")+' · Submitted '+date(r.created_at)+'</small><small>Donor pass: '+esc(tag(r.donor_pass_status||"not_issued"))+(r.donor_pass_issued_at?' · Issued '+date(r.donor_pass_issued_at):'')+'</small></div><span class="badge">'+esc(tag(r.status))+'</span></div>').join(''):'<div class="panel">No testing requests are currently verified for this C/TPA. Existing orders remain available in the original Lab Account portal during migration.</div>')+'</section>'+
  labForm()+ 
+ specimenForm(requests)+
  legacyRecordPanel('clients','Lab client directory','Previously saved Lab Account contacts. Use the existing C/TPA Employers module for current company management; these legacy contact records are retained separately until reconciled.')+
  legacyRecordPanel('deliveries','Lab result delivery history','Previously requested result deliveries associated with your original Lab Account. Actual testing results remain in authorized Workforce Results workflows.')+
  legacyRecordPanel('alerts','Supply reorder alerts','Existing Lab Account supply alert records are preserved while laboratory supplies are consolidated.')+
@@ -68,7 +75,7 @@ function render(d){
  '<section class="section" data-lab-panel="support"><h2>Lab Account support</h2><p>Contact Workforce support for test registration, collection instructions, or laboratory-account issues.</p>'+scopedLink('/support.html','Contact Support','Existing C/TPA support workflow')+'</section>'+
  '<section class="notice" data-lab-panel="overview"><strong>One Workforce C/TPA portal</strong><p>This Lab Account section uses existing C/TPA modules for shared services and the current Workforce testing backend for lab requests. Laboratory registration, donor-pass issuance, result release and shipment fulfillment remain controlled by Workforce Testing Management.</p></section></div>';
 }
-function bind(call){
+function bind(call,data={}){
  const root=document.querySelector('.lab-migration-hub');if(!root)return;
  const buttons=[...root.querySelectorAll('[data-lab-tab]')];
  function selectTab(value){
@@ -101,6 +108,21 @@ function bind(call){
   const dot=String(item?.testing_scope||'').toLowerCase()==='dot';
   wrap.hidden=!dot;const authority=wrap.querySelector('select');authority.required=dot;
   if(!dot)authority.value='';
+ });
+ const specimenFormEl=root.querySelector('#lab-specimen-form');
+ if(specimenFormEl)specimenFormEl.addEventListener('submit',async event=>{
+  event.preventDefault();if(!specimenFormEl.reportValidity())return;
+  const action=specimenFormEl.querySelector('button[type="submit"]');
+  if(action.disabled)return;
+  const payload=Object.fromEntries(new FormData(specimenFormEl).entries());
+  action.disabled=true;const status=specimenFormEl.querySelector('#lab-specimen-status');
+  status.textContent='Reporting shipment to Workforce Testing…';
+  try{
+   const result=await call('report_specimen_shipped',payload);
+   status.textContent='Shipment reported for '+(result.shipment?.case_number||'the selected case')+'. Laboratory receipt has not yet been confirmed.';
+   specimenFormEl.reset();
+  }catch(error){status.textContent=error.message||'Unable to report this specimen shipment.'}
+  finally{action.disabled=false}
  });
  const legacyConfig={
   clients:{action:'legacy_clients',fields:[['Company','company_name'],['Contact','contact_name'],['Email','contact_email'],['Phone','phone'],['Program','program_type']]},
