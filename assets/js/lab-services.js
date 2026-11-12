@@ -63,7 +63,8 @@ function render(d){
  supplyForm()+
  '<section class="section" data-lab-panel="tracking"><h2>Issued laboratory donor passes</h2><p>Pass details appear only after issuance by Workforce Testing. Laboratory registration and collection appointments are not automatically created when a request is submitted.</p><div id="lab-issued-passes" aria-live="polite">Loading issued passes…</div><dialog id="lab-pass-modal" class="lab-document-dialog lab-pass-dialog"><div class="lab-document-dialog-bar"><h3 id="lab-pass-title">Issued donor pass</h3><button class="btn ghost" id="lab-pass-close" type="button">Close</button></div><div id="lab-pass-content" class="lab-pass-content"></div><div class="lab-pass-actions"><button class="btn primary" type="button" id="lab-pass-print">Print donor pass</button></div></dialog></section>'+
  '<section class="section" data-lab-panel="tracking"><h2>Lab Account testing requests</h2><p>Read-only request status for records linked to this C/TPA. Requests without verified company linkage stay in the original Lab Account portal until Workforce completes the account mapping.</p>'+
- (requests.length?requests.map(r=>'<div class="panel lab-migration-row"><div><strong>'+esc(r.case_number||"Testing request")+'</strong><small>'+esc(r.test_type||"Test type pending")+' · Submitted '+date(r.created_at)+'</small><small>Donor pass: '+esc(tag(r.donor_pass_status||"not_issued"))+(r.donor_pass_issued_at?' · Issued '+date(r.donor_pass_issued_at):'')+'</small></div><span class="badge">'+esc(tag(r.status))+'</span></div>').join(''):'<div class="panel">No testing requests are currently verified for this C/TPA. Existing orders remain available in the original Lab Account portal during migration.</div>')+'</section>'+
+ (requests.length?requests.map(r=>'<div class="panel lab-migration-row"><div><strong>'+esc(r.case_number||"Testing request")+'</strong><small>'+esc(r.test_type||"Test type pending")+' · Submitted '+date(r.created_at)+'</small><small>Donor pass: '+esc(tag(r.donor_pass_status||"not_issued"))+(r.donor_pass_issued_at?' · Issued '+date(r.donor_pass_issued_at):'')+'</small></div><div class="lab-request-actions"><span class="badge">'+esc(tag(r.status))+'</span>'+(r.can_edit?'<button class="btn ghost" type="button" data-lab-edit-order="'+esc(r.id)+'">Edit request</button>':'')+'</div></div>').join(''):'<div class="panel">No testing requests are currently verified for this C/TPA. Existing orders remain available in the original Lab Account portal during migration.</div>')+'</section>'+
+ '<dialog id="lab-order-edit-dialog" class="lab-document-dialog lab-edit-order-dialog"><div class="lab-document-dialog-bar"><h3>Edit laboratory testing request</h3><button type="button" class="btn ghost" id="lab-order-edit-close">Close</button></div><form id="lab-order-edit-form" class="panel"><p>Only requests awaiting scheduling can be edited. The test service and DOT authority cannot be changed here.</p><div class="lab-migration-grid"><label>First name<input name="first_name" required maxlength="100"></label><label>Last name<input name="last_name" required maxlength="100"></label><label>Donor email<input name="donor_email" type="email" required></label><label>Donor phone<input name="donor_phone" type="tel" maxlength="35"></label><label>Date of birth<input name="date_of_birth" type="date" required></label><label>State<input name="state_of_residence" pattern="[A-Za-z]{2}" maxlength="2" required></label><label>Reason for test<select name="reason_for_test" required><option value="PE">Pre-employment</option><option value="RN">Random</option><option value="PA">Post-accident</option><option value="RS">Reasonable suspicion</option><option value="RT">Return to duty</option><option value="FU">Follow-up</option><option value="NI">Other</option></select></label></div><label>Notes<textarea name="notes" rows="3" maxlength="1000"></textarea></label><p id="lab-edit-order-status" role="status" aria-live="polite"></p><button type="submit" class="btn primary">Save changes</button></form></dialog>'+
  labForm()+ 
  specimenForm(requests)+
  legacyRecordPanel('clients','Lab client directory','Previously saved Lab Account contacts. Use the existing C/TPA Employers module for current company management; these legacy contact records are retained separately until reconciled.')+
@@ -108,6 +109,42 @@ function bind(call,data={}){
   const dot=String(item?.testing_scope||'').toLowerCase()==='dot';
   wrap.hidden=!dot;const authority=wrap.querySelector('select');authority.required=dot;
   if(!dot)authority.value='';
+ });
+ const editDialog=root.querySelector('#lab-order-edit-dialog');
+ const editForm=root.querySelector('#lab-order-edit-form');
+ const editNote=root.querySelector('#lab-edit-order-status');
+ let editCaseId=null;
+ root.querySelectorAll('[data-lab-edit-order]').forEach(button=>button.addEventListener('click',async()=>{
+  if(button.disabled)return;
+  button.disabled=true;
+  try{
+   const d=await call('order_details',{case_id:button.dataset.labEditOrder});
+   if(d.order?.status!=='awaiting_schedule')throw Error('This request can no longer be edited.');
+   editCaseId=d.order.id;
+   const name=String(d.order.donor_name||'').trim().split(/\s+/);
+   const vals={first_name:name.shift()||'',last_name:name.join(' '),donor_email:d.order.donor_email||'',
+    donor_phone:d.order.donor_phone||'',date_of_birth:d.order.date_of_birth||'',
+    state_of_residence:d.order.state_of_residence||'',reason_for_test:d.order.test_reason||'',
+    notes:d.order.notes||''};
+   for(const [key,value] of Object.entries(vals)){
+    const field=editForm.elements.namedItem(key);if(field)field.value=value;
+   }
+   editNote.textContent='';editDialog.showModal();
+  }catch(e){button.insertAdjacentHTML('afterend','<span role="alert">'+esc(e.message||'Unable to load this order')+'</span>')}
+  finally{button.disabled=false}
+ }));
+ root.querySelector('#lab-order-edit-close').addEventListener('click',()=>editDialog.close());
+ editForm.addEventListener('submit',async event=>{
+  event.preventDefault();if(!editCaseId||!editForm.reportValidity())return;
+  const save=editForm.querySelector('button[type="submit"]');if(save.disabled)return;
+  save.disabled=true;editNote.textContent='Saving laboratory request changes…';
+  try{
+   const fields=Object.fromEntries(new FormData(editForm).entries());
+   await call('update_order',{case_id:editCaseId,...fields});
+   editNote.textContent='Changes saved.';
+   editDialog.close();editCaseId=null;
+  }catch(e){editNote.textContent=e.message||'Unable to save this request.'}
+  finally{save.disabled=false}
  });
  const specimenFormEl=root.querySelector('#lab-specimen-form');
  if(specimenFormEl)specimenFormEl.addEventListener('submit',async event=>{
