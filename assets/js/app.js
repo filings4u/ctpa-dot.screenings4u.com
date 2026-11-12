@@ -622,7 +622,7 @@ function wireManagementActions(p,d,ctx){
 
 const PAGE_CACHE_NAME='s4u-ctpa-page-data-v5';
 const PAGE_CACHE_MAX_AGE=60*60*1000;
-function cacheIdentity(p,search=location.search){const w=workspace()||{};const q=String(search||'');return `${String(w.user_id||'u')}|${String(w.ctpa_id||'c')}|${String(w.subscription_id||'s')}|${norm(p)}|${q}`}
+function cacheIdentity(p,search=location.search){const w=workspace()||{};const q=String(search||'');return `${String(w.user_id||'u')}|${String(w.ctpa_id||'c')}|${String(w.subscription_id||'s')}|${String(w.surface||'dot')}|${norm(p)}|${q}`}
 function cacheUrl(p,search=location.search){const id=cacheIdentity(p,search);let h=2166136261;for(let i=0;i<id.length;i++){h^=id.charCodeAt(i);h=Math.imul(h,16777619)}return `${location.origin}/__s4u_cache__/page/${(h>>>0).toString(36)}`}
 function isDynamicPage(p){return ['lab_accounts','schedule_demo','attend_demo','notifications','billing','employer_billing'].includes(norm(p))}
 async function readPageCache(p,search=location.search){try{if(isDynamicPage(p)||!('caches'in window))return null;const c=await caches.open(PAGE_CACHE_NAME),r=await c.match(cacheUrl(p,search));if(!r)return null;const x=await r.json();if(!x||Date.now()-Number(x.saved_at||0)>PAGE_CACHE_MAX_AGE)return null;return x.data}catch{return null}}
@@ -632,7 +632,7 @@ const PAGE_MEMORY=new Map();
 const PAGE_INFLIGHT=new Map();
 function memoryCacheKey(p,search=location.search){return cacheIdentity(p,search)}
 async function getCachedPageData(p,search=location.search){
-  if(isNonDotPage(p)||p==='lab_services'||isLaboratoryPage(p))return null;
+  if(isNonDotPage(p)||(p==='dashboard'&&workspace()?.surface==='nondot')||p==='lab_services'||isLaboratoryPage(p))return null;
   const key=memoryCacheKey(p,search),m=PAGE_MEMORY.get(key);
   if(m&&Date.now()-m.saved_at<PAGE_CACHE_MAX_AGE)return m.data;
   const d=await readPageCache(p,search);
@@ -640,7 +640,7 @@ async function getCachedPageData(p,search=location.search){
   return d;
 }
 async function setCachedPageData(p,data,search=location.search){
-  if(isNonDotPage(p)||p==='lab_services'||isLaboratoryPage(p))return;
+  if(isNonDotPage(p)||(p==='dashboard'&&workspace()?.surface==='nondot')||p==='lab_services'||isLaboratoryPage(p))return;
   const key=memoryCacheKey(p,search);PAGE_MEMORY.set(key,{saved_at:Date.now(),data});
   await writePageCache(p,data,search);
 }
