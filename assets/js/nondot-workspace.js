@@ -44,7 +44,8 @@ function drawData(section,data){
 function render(d){
  if(d?.ok!==true||d?.context!=='nondot'||d?.read_only!==true)return '<section class="panel"><h2>NON-DOT access unavailable</h2><p>This workspace requires an independently authorized NON-DOT subscription and feature entitlement.</p></section>';
  const section=sections.find(x=>x.id===d.section)||sections[1];
- const tabs='<nav class="nondot-module-nav" aria-label="NON-DOT modules">'+sections.map(x=>'<a href="/nondot-workspace.html?section='+x.id+'" class="'+(x.id===section.id?'active':'')+'"'+(x.id===section.id?' aria-current="page"':'')+'>'+esc(x.label)+'</a>').join('')+'</nav>';
+ const eligible=new Set(Array.isArray(d.available_sections)?d.available_sections:[]);
+ const tabs='<nav class="nondot-module-nav" aria-label="NON-DOT modules">'+sections.filter(x=>eligible.has(x.id)).map(x=>'<a href="/nondot-workspace.html?section='+x.id+'" class="'+(x.id===section.id?'active':'')+'"'+(x.id===section.id?' aria-current="page"':'')+'>'+esc(x.label)+'</a>').join('')+'</nav>';
  const body=drawData(section.id,d.data||{});
  return '<div class="nondot-workspace"><section class="panel"><div class="panel-head"><div><h2>NON-DOT Workforce</h2><p>Company-policy operations for your authorized C/TPA company. These records stay separate from DOT-regulated records.</p></div><span class="badge">Read-only migration view</span></div>'+tabs+'</section><section class="panel"><div class="panel-head"><div><h2>'+esc(section.label)+'</h2><p>'+esc(section.detail)+'</p></div></div>'+body+'</section><p class="nondot-privacy-note">This migration view does not create tests, run random selections, release results, or change employee records. Existing authorized NON-DOT tools remain available on the legacy portal until the replacement is tested.</p></div>';
 }
