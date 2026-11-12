@@ -1906,3 +1906,19 @@ body.loading::before{content:"Loading Workforce C/TPA…"}
 .lab-migration-hub .lab-invoice-line{display:flex;justify-content:space-between;gap:20px;border-top:1px solid #e4e7eb;padding:12px 0}
 .lab-migration-hub .lab-document-list+.lab-document-list{margin-top:16px}
 @media(max-width:700px){.lab-migration-hub .lab-invoice-summary,.lab-migration-hub .lab-intake-grid{grid-template-columns:1fr}}
+
+/* Consolidated Lab Account contact, inventory and service history workflows. */
+.lab-migration-hub .lab-admin-form{display:grid;gap:14px;margin:0 0 18px}
+.lab-migration-hub .lab-admin-form label{display:grid;gap:6px;font-size:.87rem;font-weight:700;color:#01122f}
+.lab-migration-hub .lab-admin-form input:not([type="checkbox"]),.lab-migration-hub .lab-admin-form textarea,.lab-migration-hub .lab-admin-form select{font:inherit;padding:11px 12px;width:100%;min-width:0;box-sizing:border-box;border-radius:8px;border:1px solid #bcc8d8;background:#fff;color:#01122f}
+.lab-migration-hub .lab-admin-form input[type="checkbox"]{width:22px;height:22px;accent-color:#01122f}
+.lab-migration-hub .lab-admin-form button,.lab-migration-hub .lab-record-actions button{padding:10px 16px;min-height:40px;border-radius:8px;border:1px solid #01122f;font:inherit;font-weight:700;color:#01122f;background:#fff}
+.lab-migration-hub .lab-admin-form button.primary{background:#01122f;color:#fff}
+.lab-migration-hub .lab-admin-form button:disabled,.lab-migration-hub .lab-record-actions button:disabled{opacity:.55;cursor:wait}
+.lab-migration-hub .lab-form-actions,.lab-migration-hub .lab-record-actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:12px}
+.lab-migration-hub .lab-form-actions button,.lab-migration-hub .lab-record-actions button{cursor:pointer}
+.lab-migration-hub .lab-original-roster{display:grid;gap:8px}
+.lab-migration-hub .lab-original-roster>.lab-document-row{padding:10px 0;border-bottom:1px solid #d4d3d4}
+.lab-migration-hub .lab-invoice-actions{margin-top:18px;display:flex;justify-content:flex-end}
+.lab-migration-hub .lab-invoice-actions button{background:#fdc102;color:#01122f;border:0;border-radius:8px;padding:12px 20px;font-weight:800;cursor:pointer}
+@media(max-width:700px){.lab-migration-hub .lab-form-actions button,.lab-migration-hub .lab-invoice-actions button{width:100%}}
