@@ -179,10 +179,12 @@ async function syncLabNavigation(ctx){
   const labTabs=[
    ["Overview","overview"],["Laboratory Accounts","accounts"],
    ["Lab Client Directory","clients"],["Create Testing Order","orders"],
-   ["Lab Orders & Donor Passes","tracking"],["Result Delivery","deliveries"],
-   ["Supplies & Shipping","supplies"],["Supply Alerts","alerts"],
-   ["Lab Documents & CCFs","documents"],["Billing & Order History","billing"],
-   ["Lab Support","support"]
+   ["Lab Orders & Donor Passes","tracking"],["Released Lab Results","results"],
+   ["Result Delivery","deliveries"],["Supplies & Shipping","supplies"],
+   ["Supply Alerts","alerts"],["Lab Documents & CCFs","documents"],
+   ["Billing & Order History","billing"],["Lab Analytics","analytics"],
+   ["Previous Consortiums","consortium"],["Lab Service Requests","services"],
+   ["Previous Benefits","benefits"],["Lab Support","support"]
   ];
   const reusableLabPages=[
    ["Employers & Client Directory","/employers.html","employers"],
