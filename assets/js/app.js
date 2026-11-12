@@ -178,9 +178,22 @@ async function syncLabNavigation(ctx){
   NAV=buildNavigation(ctx);
   const labTabs=[
    ["Overview","overview"],["Laboratory Accounts","accounts"],
-   ["Order a Test","orders"],["Testing & Donor Passes","tracking"],
-   ["Supplies & Shipping","supplies"],["Documents & CCFs","documents"],
-   ["Billing","billing"],["Support","support"]
+   ["Create Testing Order","orders"],["Lab Orders & Donor Passes","tracking"],
+   ["Supplies & Shipping","supplies"],["Lab Documents & CCFs","documents"],
+   ["Billing & Order History","billing"],["Lab Support","support"]
+  ];
+  const reusableLabPages=[
+   ["Employers & Client Directory","/employers.html","employers"],
+   ["Drivers & Donors","/people.html","people"],
+   ["Programs","/programs.html","programs"],
+   ["Consortium & Pools","/pools.html","pools"],
+   ["Random Selections","/selections.html","selections"],
+   ["Testing Orders","/testing.html","testing"],
+   ["Test Results","/results.html","results"],
+   ["Reporting & Analytics","/reports.html","reports"],
+   ["Compliance","/compliance.html","compliance"],
+   ["Documents","/documents.html","documents"],
+   ["Support","/support.html","support"]
   ];
   for(const nav of document.querySelectorAll(".side .nav,.mobile-nav-links")){
    const old=nav.querySelector('a[href="/lab-services.html"]');
@@ -200,6 +213,18 @@ async function syncLabNavigation(ctx){
     if(page()==="lab_services"&&(new URLSearchParams(location.search).get("lab")||"overview")===section){
      link.classList.add("active");link.setAttribute("aria-current","page");
     }
+    group.append(link);
+   }
+   const reuseHeader=document.createElement("span");
+   reuseHeader.className="lab-side-caption";
+   reuseHeader.textContent="Existing C/TPA tools";
+   group.append(reuseHeader);
+   for(const [name,href,route] of reusableLabPages){
+    if(!pageAccess(ctx,route).allowed)continue;
+    if(PAGE_FEATURES[route]&&!planHas(ctx,PAGE_FEATURES[route]))continue;
+    const link=document.createElement("a");
+    link.href=href;link.textContent=name;link.className="lab-side-link lab-side-reuse";
+    if(page()===route){link.classList.add("active");link.setAttribute("aria-current","page")}
     group.append(link);
    }
    const target=nav.querySelector('a[href="/testing.html"]');
