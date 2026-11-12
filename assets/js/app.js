@@ -51,10 +51,10 @@ function buildNavigation(ctx={}){
     ['pools','4. Pools','◉','consortium_pools'],['selections','5. Selections','↻','random_selections'],['testing','6. Testing','◆','testing_orders'],['results','7. Results','✓','results_summary'],
 ['compliance','Compliance','◇','compliance'],['new-entrant-audits','New Entrant Audits','☑',null],['documents','Documents','▤','documents'],['legal-documents','Signed Legal Documents','▤',null],['reports','Reports','▥','standard_reports'],['occupational-health','Occupational Health','✚','testing_orders'],['notifications','Employer Messages','✉','notifications','enterprise'],
     ['create-order','Create Order','＋',null],['price-list','Testing Price List','$',null],['order-services','Add Features','＋',null],['order-history','Order History','≡',null],['subscription','Subscription','◫',null],['billing','Workforce Billing','$','billing_tools'],['employer-billing','Employer Billing','$','client_invoicing'],
-    ['branding','Branding','◐','white_label'],['integrations','Integrations','↔','integrations'],['locations','Locations','⌖','locations'],['lab-accounts','Lab Accounts','⌬',null],['users-roles','Users & Roles','♙','team_users'],['audit-history','Audit & Log History','◷','audit_history'],['schedule-demo','Schedule Demo','◫',null],['attend-demo','Attend Demo','▶',null],['support','Support','? ',null]
+    ['branding','Branding','◐','white_label'],['integrations','Integrations','↔','integrations'],['locations','Locations','⌖','locations'],['lab-accounts','Lab Accounts','⌬',null],['lab-services','Lab Services','⚗',null],['users-roles','Users & Roles','♙','team_users'],['audit-history','Audit & Log History','◷','audit_history'],['schedule-demo','Schedule Demo','◫',null],['attend-demo','Attend Demo','▶',null],['support','Support','? ',null]
   ];
   const enterprise=String(ctx?.plan?.code||ctx?.subscription?.plan_code||'').toLowerCase()==='dot_ctpa_enterprise';
-  return items.filter(x=>(!x[3]||e[x[3]]===true)&&(!x[4]||enterprise)).map(x=>({id:x[0],label:x[1],icon:x[2],href:`/${x[0]}.html`}));
+  return items.filter(x=>(!x[3]||e[x[3]]===true)&&(!x[4]||enterprise)&&(x[0]!=='lab-services'||ctx.labAddonVerified===true)).map(x=>({id:x[0],label:x[1],icon:x[2],href:`/${x[0]}.html`}));
 }
 const cfgPage=id=>NAV.find(x=>norm(x.id)===norm(id))||{id,label:pretty(id),icon:'•',href:`/${id}.html`};
 
@@ -67,6 +67,35 @@ async function invoke(name,body={}){
   const endpoint=name==='ctpa-new-entrant-audits'?`${C.workforceUrl}/functions/v1/ctpa-new-entrant-audits`:`${C.workforceUrl}/functions/v1/ctpa-dot?forceFunctionRegion=ca-central-1`;
   const r=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${s.access_token}`,'apikey':C.workforceKey},body:JSON.stringify(payload)});const d=await r.json().catch(()=>({}));const em=typeof d.error==='string'?d.error:(d.error?.message||d.message||d.details||d.hint||'');if(!r.ok||d.error)throw Object.assign(new Error(em||`Request failed (${r.status}).`),{status:r.status,payload:d});return d;
 }
+async function labServiceCall(action="access"){
+ const session=await getSession(),id=workspace()?.ctpa_id;
+ if(!session?.access_token||!id)throw Error("Select an authorized C/TPA workspace");
+ const endpoint=C.workforceUrl+"/functions/v1/workforce-ctpa-lab-services";
+ const response=await fetch(endpoint,{method:"POST",cache:"no-store",headers:{"Content-Type":"application/json",Authorization:"Bearer "+session.access_token,apikey:C.workforceKey},body:JSON.stringify({action,ctpa_id:id})});
+ const data=await response.json().catch(()=>({}));
+ if(!response.ok||data.error||data.authorized===false)throw Object.assign(new Error(data.error||data.reason||"Lab Account add-on unavailable"),{status:response.status});
+ return data;
+}
+async function syncLabNavigation(ctx){
+ try{
+  const result=await labServiceCall("access");
+  if(result.authorized!==true)return;
+  ctx.labAddonVerified=true;
+  NAV=buildNavigation(ctx);
+  for(const nav of document.querySelectorAll(".side .nav,.mobile-nav-links")){
+   if(nav.querySelector('a[href="/lab-services.html"]'))continue;
+   const anchor=document.createElement("a");anchor.href="/lab-services.html";
+   anchor.innerHTML='<span class="ico">⚗</span><span>Lab Services</span>';
+   if(page()==="lab_services")anchor.classList.add("active");
+   const target=nav.querySelector('a[href="/lab-accounts.html"]');
+   if(target)target.insertAdjacentElement("afterend",anchor);else nav.append(anchor);
+  }
+ }catch(e){
+  // Missing or unverified add-on is expected: do not display a premium feature link.
+  if(e?.status!==403&&e?.status!==401)console.warn("Lab add-on status unavailable",e);
+ }
+}
+
 async function access(){if(window.S4UCTPAVerifiedContext)return window.S4UCTPAVerifiedContext;if(window.S4UCTPAAuthReady)return await window.S4UCTPAAuthReady;throw Object.assign(new Error('Authentication verification is unavailable.'),{status:500})}
 
 function shell(ctx){
@@ -250,6 +279,7 @@ function bindUtilityPage(p,d,ctx){
 }
 
 async function ctpaData(p){
+  if(p==='lab_services')return labServiceCall('overview');
   if(p==='employers'||p==='employer_form')return invoke('workforce-ctpa-employers',{action:'workspace'});
   if(p==='owner_operators')return invoke('workforce-ctpa-owner-operators',{action:'workspace'});
   if(p==='new_entrant_audits'){const id=new URLSearchParams(location.search).get('id')||'';return invoke('ctpa-new-entrant-audits',id?{action:'audit',audit_id:id}:{action:'workspace'});}
@@ -505,6 +535,7 @@ async function render(ctx,prefetched){
   else if(C.kind==='ctpa'&&p==='integration_connect'&&window.CtpaIntegrations){setSubtitle('Connect this integration using your business credentials or API access.');html=window.CtpaIntegrations.renderConnect(d,ctx);}
   else if(C.kind==='ctpa'&&p==='integration_workspace'&&window.CtpaIntegrations){setSubtitle('Manage, test, and use this connected integration.');html=window.CtpaIntegrations.renderWorkspace(d,ctx);}
   else if(C.kind==='ctpa'&&p==='location_form'&&window.CtpaLocations){setSubtitle('Add or edit a location for your C/TPA, an Employer, or an Owner-Operator.');html=window.CtpaLocations.renderForm(d,ctx);}
+  else if(C.kind==='ctpa'&&p==='lab_services'&&window.CtpaLabServices){setSubtitle('Your purchased laboratory account numbers, setup progress, and physical supply shipments.');html=window.CtpaLabServices.render(d,ctx);}
   else if(C.kind==='ctpa'&&p==='lab_accounts'&&window.CtpaLabAccounts){setSubtitle('View the laboratory accounts and account numbers configured for your C/TPA.');html=window.CtpaLabAccounts.render(d,ctx);}
   else if(C.kind==='ctpa'&&p==='schedule_demo'&&window.CtpaDemos){setSubtitle('Choose a date and time for a live Workforce platform demonstration.');html=window.CtpaDemos.renderSchedule(d,ctx);}
   else if(C.kind==='ctpa'&&p==='attend_demo'&&window.CtpaDemos){setSubtitle('View your confirmed demonstration and join it from your portal on the scheduled day.');html=window.CtpaDemos.renderAttend(d,ctx);}
@@ -700,6 +731,7 @@ async function init(){
     const p=page(),search=location.search,cached=await getCachedPageData(p,search);
     if(cached!==null){await render(ctx,cached);loadPageDataCached(p,search,{force:true}).then(d=>{if(page()===p&&location.search===search)render(ctx,d)}).catch(console.warn)}
     else {const d=await loadPageDataCached(p,search,{force:false});await render(ctx,d)}
+    void syncLabNavigation(ctx);
     startRealtime(ctx);
   }
   catch(e){if(e?.status===401||e?.message==='AUTH_REQUIRED'){W.clear();await clearPageCache();try{await sb.auth.signOut({scope:'local'})}catch{};location.replace('/login.html');return}if(e?.status===402)return;document.body.className='login-page';document.body.innerHTML=`<main class="login-card"><img class="login-logo" src="images/logo.png"><h1>Portal unavailable</h1><p>${esc(e.message||String(e))}</p><a class="btn primary" href="/workspace.html">Choose C/TPA Account</a></main>`}
