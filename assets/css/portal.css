@@ -1895,3 +1895,14 @@ body.loading::before{content:"Loading Workforce C/TPA…"}
 .lab-migration-hub .lab-request-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .lab-migration-hub .lab-request-actions .btn{white-space:nowrap}
 @media(max-width:700px){.lab-migration-hub #lab-order-edit-form button,.lab-migration-hub #lab-delivery-form button{width:100%}}
+
+/* C/TPA Lab Account purchase history, invoice details and historical intake viewer. */
+.lab-migration-hub .lab-invoice-dialog,.lab-migration-hub .lab-intake-dialog{height:auto;max-height:85vh}
+.lab-migration-hub .lab-invoice-content,.lab-migration-hub .lab-intake-body{padding:20px;overflow:auto;max-height:calc(85vh - 70px)}
+.lab-migration-hub .lab-invoice-summary,.lab-migration-hub .lab-intake-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:0 0 20px}
+.lab-migration-hub .lab-invoice-summary>div,.lab-migration-hub .lab-intake-grid>div{border-bottom:1px solid #d4d3d4;padding:10px 0;min-width:0}
+.lab-migration-hub .lab-invoice-summary dt,.lab-migration-hub .lab-intake-grid dt{font-size:.78rem;color:#52657e;text-transform:capitalize}
+.lab-migration-hub .lab-invoice-summary dd,.lab-migration-hub .lab-intake-grid dd{margin:5px 0 0;font-weight:700;color:#01122f;overflow-wrap:anywhere;white-space:pre-wrap}
+.lab-migration-hub .lab-invoice-line{display:flex;justify-content:space-between;gap:20px;border-top:1px solid #e4e7eb;padding:12px 0}
+.lab-migration-hub .lab-document-list+.lab-document-list{margin-top:16px}
+@media(max-width:700px){.lab-migration-hub .lab-invoice-summary,.lab-migration-hub .lab-intake-grid{grid-template-columns:1fr}}
