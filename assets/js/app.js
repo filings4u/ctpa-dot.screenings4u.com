@@ -77,7 +77,7 @@ const managerRole=ctx=>{
 function pageAccess(ctx,p){
  if(C.kind!=='ctpa')return {allowed:true};
  const key=norm(p);
- if(workspace()?.surface==='nondot'&&key!=='nondot_workspace')return {allowed:false,reason:'This workspace is restricted to your purchased NON-DOT C/TPA features.',feature:'nondot_access'};
+ if(workspace()?.surface==='nondot'&&!['nondot_workspace','support'].includes(key))return {allowed:false,reason:'Select the DOT workspace to use DOT features.',feature:'nondot_access'};
  const feature=PAGE_FEATURES[key];
  if(feature&&!planHas(ctx,feature))return {allowed:false,reason:'This feature is not included with your current C/TPA subscription.',feature};
  if(MANAGER_PAGES.has(key)&&!managerRole(ctx))return {allowed:false,reason:'Your C/TPA team role does not permit this administrative action.',feature};
@@ -99,7 +99,7 @@ function buildNavigation(ctx={}){
   ];
   for(const [id,meta] of Object.entries(LABORATORY_PAGES))items.push([id.replaceAll('_','-'),meta.label,'⚗',null]);
   const enterprise=String(ctx?.plan?.code||ctx?.subscription?.plan_code||'').toLowerCase()==='dot_ctpa_enterprise';
-  return items.filter(x=>(!x[3]||e[x[3]]===true)&&(!x[4]||enterprise)&&(x[0]!=='nondot-workspace'||ctx.nondotVerified===true)&&pageAccess(ctx,norm(x[0])).allowed).map(x=>({id:x[0],label:x[1],icon:x[2],href:`/${x[0]}.html`}));
+  return items.filter(x=>(!x[3]||e[x[3]]===true)&&(!x[4]||enterprise)&&(x[0]==='nondot-workspace'||pageAccess(ctx,norm(x[0])).allowed)).map(x=>({id:x[0],label:x[1],icon:x[2],href:`/${x[0]}.html`}));
 }
 const cfgPage=id=>NAV.find(x=>norm(x.id)===norm(id))||{id,label:pretty(id),icon:'•',href:`/${id}.html`};
 
