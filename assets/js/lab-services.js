@@ -15,7 +15,7 @@ const track=(carrier,number)=>{
 const card=(label,value)=>'<div class="metric"><small>'+esc(label)+'</small><strong>'+esc(value)+'</strong></div>';
 function render(d){
  if(d?.authorized!==true)return '<section class="panel"><h2>Lab Account access unavailable</h2><p>Your company must have an active purchased Lab Account add-on.</p></section>';
- const accounts=d.lab_accounts||[],intakes=d.setup_records||[],shipments=d.shipments||[];
+ const accounts=d.lab_accounts||[],intakes=d.setup_records||[],shipments=d.shipments||[],requests=d.testing_requests||[];
  return '<div class="lab-migration-hub">'+
  '<section class="section"><div class="panel-head"><div><h2>Laboratory Account</h2><p>Laboratory accounts and shipments belonging to this C/TPA organization. This view is read-only during the migration.</p></div></div>'+
  '<div class="metrics">'+card("Laboratory accounts",accounts.length)+card("Account setup records",intakes.length)+card("Supply shipments",shipments.length)+'</div></section>'+
@@ -25,6 +25,8 @@ function render(d){
  (intakes.length?intakes.map(i=>'<div class="panel lab-migration-row"><div><strong>'+esc(i.order_number||"Lab Account setup")+'</strong><small>Requested '+date(i.created_at)+'</small></div><span class="badge">'+esc(tag(i.account_status||i.status))+'</span></div>').join(''):'<div class="panel">No verified legacy purchase has been linked to this organization yet.</div>')+'</section>'+
  '<section class="section"><h2>Physical supply shipment tracking</h2>'+
  (shipments.length?shipments.map(s=>{const href=track(s.carrier,s.tracking_number);return '<div class="panel lab-migration-row"><div><strong>'+esc(s.items_description||"Laboratory supplies")+'</strong><small>'+esc(s.carrier||"Carrier pending")+' · '+esc(s.tracking_number||"Tracking pending")+'</small><small>Created '+date(s.created_at)+'</small></div><div><span class="badge">'+esc(tag(s.status))+'</span>'+(href?'<a class="btn ghost" target="_blank" rel="noopener noreferrer" href="'+esc(href)+'">Track package</a>':'')+'</div></div>'}).join(''):'<div class="panel">Shipment tracking appears when Workforce management assigns supplies to a verified Lab Account purchase.</div>')+'</section>'+
+ '<section class="section"><h2>Lab Account testing requests</h2><p>Read-only request status for records linked to this C/TPA. Requests without verified company linkage stay in the original Lab Account portal until Workforce completes the account mapping.</p>'+
+ (requests.length?requests.map(r=>'<div class="panel lab-migration-row"><div><strong>'+esc(r.case_number||"Testing request")+'</strong><small>'+esc(r.test_type||"Test type pending")+' · Submitted '+date(r.created_at)+'</small></div><span class="badge">'+esc(tag(r.status))+'</span></div>').join(''):'<div class="panel">No testing requests are currently verified for this C/TPA. Existing orders remain available in the original Lab Account portal during migration.</div>')+'</section>'+
  '<section class="notice"><strong>Migration in progress</strong><p>Original C/TPA testing, results, consortium, and billing features remain unchanged. Laboratory orders, donor passes, and customer documents will be added only after company entitlement and records mapping are verified.</p></section></div>';
 }
 window.CtpaLabServices=Object.freeze({render});
