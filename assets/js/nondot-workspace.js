@@ -88,6 +88,15 @@ function render(d){
  return '<div class="nondot-member-row"><span>'+esc([employee.first_name,employee.last_name].filter(Boolean).join(' '))+' · '+esc(pool.name||pool.pool_name||'Pool')+'</span><button type="button" class="btn ghost nondot-remove-member" data-pool-id="'+esc(pool.id)+'" data-employee-id="'+esc(employee.id)+'">Remove</button></div>';
  }).join('')+'</div>':'')+'</section>':'';
 
+ const editableOrders=section.id==='testing'?(d.data?.orders||[]).filter(o=>o?.id&&o.status==='created'):[];
+ const deadlineEdit=managers&&editableOrders.length?
+ '<section class="panel nondot-create"><div class="panel-head"><h2>Collection deadlines</h2><p>Change the collection deadline for an order that has not entered fulfillment.</p></div>'+
+ editableOrders.slice(0,100).map(o=>'<form class="nondot-order-deadline-form">'+
+ '<input type="hidden" name="order_id" value="'+esc(o.id)+'">'+
+ '<strong>'+esc(o.order_number||'Order')+'</strong>'+
+ '<label>Collection deadline (your local time)<input name="collection_deadline" type="datetime-local" required></label>'+
+ '<button class="btn primary" type="submit">Update deadline</button><p role="status" aria-live="polite"></p>'+
+ '</form>').join('')+'</section>':'';
  const canCreate=managers&&employers.length>0&&['people','programs','pools','testing'].includes(section.id);
  const programs=(d.data?.programs||[]).filter(p=>p?.id&&p?.employer_id);
  const employees=(d.data?.employees||[]).filter(e=>e?.id&&e?.employer_id);
@@ -97,7 +106,7 @@ function render(d){
  (section.id==='people'?'<label>First name<input name="first_name" required maxlength="120" autocomplete="off"></label><label>Last name<input name="last_name" required maxlength="120" autocomplete="off"></label><label>Employee number (optional)<input name="employee_number" maxlength="40" autocomplete="off"></label>' :section.id==='testing'?'<label>NON-DOT employee<select name="employee_id" required><option value="">Select an employee</option>'+employees.map(e=>'<option value="'+esc(e.id)+'" data-employer-id="'+esc(e.employer_id)+'">'+esc([e.first_name,e.last_name].filter(Boolean).join(' ')||'Employee')+'</option>').join('')+'</select></label><label>NON-DOT program<select name="program_id" required><option value="">Select a program</option>'+programs.map(p=>'<option value="'+esc(p.id)+'" data-employer-id="'+esc(p.employer_id)+'">'+esc(p.name||'Program')+'</option>').join('')+'</select></label><label>Testing type<select name="test_type" required><option value="drug">Drug test</option><option value="alcohol">Alcohol test</option></select></label>':section.id==='pools'?'<label>NON-DOT program<select name="program_id" required><option value="">Select a program</option>'+programs.map(p=>'<option value="'+esc(p.id)+'" data-employer-id="'+esc(p.employer_id)+'">'+esc(p.name||'Program')+'</option>').join('')+'</select></label><label>Pool name<input name="name" required maxlength="120" autocomplete="off"></label>':'<label>Program name<input name="name" required maxlength="120" autocomplete="off"></label>')+
  '<p class="nondot-privacy-note">Only NON-DOT records for the selected employer will be created. Your subscription and role are checked again when you submit.</p><button type="submit" class="btn primary">Save '+esc(section.id==='people'?'employee':section.id==='pools'?'draft pool':section.id==='testing'?'testing order':'program')+'</button><p id="nondot-create-status" aria-live="polite" role="status"></p></form></section>':'';
 
- return '<div class="nondot-workspace"><section class="panel"><div class="panel-head"><div><h2>NON-DOT Workforce</h2><p>Company-policy operations for your authorized C/TPA company. These records stay separate from DOT-regulated records.</p></div><span class="badge">'+(managers?'Authorized account manager':'Read-only migration view')+'</span></div>'+tabs+'</section><section class="panel"><div class="panel-head"><div><h2>'+esc(section.label)+'</h2><p>'+esc(section.detail)+'</p></div></div>'+body+'</section>'+form+editForms+poolEdit+poolMembersControl+'<p class="nondot-privacy-note">Authorized primary managers can create and rename NON-DOT employees and programs, create and rename draft pools, manage employer-pool memberships, and create testing orders. Random selections, result release and delivery, and other administrative changes remain in their original secured workflows.</p></div>';
+ return '<div class="nondot-workspace"><section class="panel"><div class="panel-head"><div><h2>NON-DOT Workforce</h2><p>Company-policy operations for your authorized C/TPA company. These records stay separate from DOT-regulated records.</p></div><span class="badge">'+(managers?'Authorized account manager':'Read-only migration view')+'</span></div>'+tabs+'</section><section class="panel"><div class="panel-head"><div><h2>'+esc(section.label)+'</h2><p>'+esc(section.detail)+'</p></div></div>'+body+'</section>'+form+editForms+poolEdit+poolMembersControl+deadlineEdit+'<p class="nondot-privacy-note">Authorized primary managers can create and rename NON-DOT employees and programs, create and rename draft pools, manage employer-pool memberships, and create testing orders. Random selections, result release and delivery, and other administrative changes remain in their original secured workflows.</p></div>';
 }
 function bind(data,submit){
  if(!submit||data?.can_manage!==true||data?.read_only!==false)return;
@@ -125,6 +134,25 @@ function bind(data,submit){
    button.disabled=true;status.textContent='Saving draft pool…';
    try{await submit({section:'pools',action:'update_pool',pool:{id,name}});location.reload();}
    catch(error){status.textContent=error?.message||'Unable to update pool';button.disabled=false;}
+  });
+ }
+ for(const form of document.querySelectorAll('.nondot-order-deadline-form')){
+  form.addEventListener('submit',async event=>{
+   event.preventDefault();
+   const button=form.querySelector('button[type="submit"]'),status=form.querySelector('[role="status"]');
+   if(button.disabled)return;
+   const raw=form.querySelector('[name="collection_deadline"]').value,deadline=new Date(raw);
+   const now=Date.now();
+   if(!raw||!Number.isFinite(deadline.getTime())||deadline.getTime()<=now||
+      deadline.getTime()>now+366*24*60*60*1000){
+    status.textContent='Choose a valid future deadline within 366 days.';return;
+   }
+   button.disabled=true;status.textContent='Updating collection deadline…';
+   try{
+    await submit({section:'testing',action:'update_test_deadline',
+      test:{id:form.querySelector('[name="order_id"]').value,collection_deadline:deadline.toISOString()}});
+    location.reload();
+   }catch(error){status.textContent=error?.message||'Unable to update deadline';button.disabled=false;}
   });
  }
  const memberForm=document.querySelector('#nondot-pool-member-form');
