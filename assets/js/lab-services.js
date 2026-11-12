@@ -19,6 +19,7 @@ const sections=[
  {id:"results",label:"Released lab results"},
  {id:"consortium",label:"Previous consortiums"},
  {id:"services",label:"Lab service requests"},
+ {id:"benefits",label:"Previous benefits"},
  {id:"accounts",label:"Laboratory accounts"},
  {id:"clients",label:"Lab client directory"},
  {id:"orders",label:"Order a test"},
@@ -84,6 +85,7 @@ function render(d){
 
  '<section class="section" data-lab-panel="results"><h2>Released laboratory results</h2><p>Only released laboratory case summaries belonging to your verified Lab Account are shown. Use the existing Workforce Results module for broader C/TPA reports and authorized result documents.</p><div id="lab-released-results" class="lab-document-list" aria-live="polite">Open this section to load released results.</div>'+scopedLink('/results.html','C/TPA Results','Existing Workforce testing results workflow')+'</section>'+
  '<section class="section" data-lab-panel="consortium"><h2>Previous Lab Account consortiums</h2><p>Original Lab Account program rosters remain visible without duplicating your existing C/TPA Programs and Pools.</p><div id="lab-original-consortiums" class="lab-document-list" aria-live="polite">Open this section to load previous consortiums.</div>'+scopedLink('/pools.html','C/TPA Pools','Manage your current consortium and pool programs')+'</section>'+
+ '<section class="section" data-lab-panel="benefits"><h2>Previous Lab Account benefits</h2><p>View your original random selection calendar, saved Clearinghouse preparation checklists and generated service documents. Use Workforce C/TPA programs, selections and compliance pages for current operations.</p><h3>Previous selection schedule</h3><div id="lab-previous-schedules" class="lab-document-list"></div><h3>Clearinghouse setup records</h3><div id="lab-previous-clearinghouse" class="lab-document-list"></div><h3>Generated documents</h3><div id="lab-generated-benefits" class="lab-document-list"></div>'+scopedLink('/selections.html','Current random selections','Existing C/TPA selection workflow')+scopedLink('/compliance.html','C/TPA compliance','Existing DOT and NON-DOT compliance tools')+'</section>'+
  '<section class="section" data-lab-panel="services"><h2>Laboratory service request history</h2><p>Track service requests already submitted through the original Lab Account portal. Completed service files are also available under Documents.</p><div id="lab-service-history" class="lab-document-list" aria-live="polite">Open this section to load existing service requests.</div>'+scopedLink('/order-services.html','Workforce Services','Existing C/TPA service ordering tools')+'</section>'+
  '<section class="section" data-lab-panel="analytics"><h2>Laboratory testing analytics</h2><p>Live measures for laboratory requests belonging to the selected C/TPA. General operational reporting is available in the existing C/TPA Reports module.</p><div id="lab-analytics" aria-live="polite">Open Analytics to load your laboratory metrics.</div></section>'+ '<section class="section" data-lab-panel="documents"><h2>Lab Account documents and collection forms</h2><p>View Workforce-published laboratory account documents. Existing C/TPA and testing documents remain available in their original Workforce modules.</p><div id="lab-published-documents" class="lab-document-list" aria-live="polite">Loading published documents…</div><h3>Intake and historical Lab Account files</h3><p>Original setup forms, uploaded intake attachments, completed service documents, and laboratory account files.</p><div id="lab-historical-documents" class="lab-document-list" aria-live="polite">Open Documents to load previous records.</div><dialog id="lab-intake-dialog" class="lab-document-dialog lab-intake-dialog"><div class="lab-document-dialog-bar"><h3 id="lab-intake-title">Lab Account intake</h3><button class="btn ghost" id="lab-intake-close" type="button">Close</button></div><div class="lab-intake-body" id="lab-intake-fields"></div></dialog><h3>Released chain-of-custody forms (CCFs)</h3><p>Only released CCFs belonging to your laboratory testing cases are available here.</p><div id="lab-ccf-archive" class="lab-document-list" aria-live="polite">Open Documents to load your CCFs.</div><dialog id="lab-document-preview" class="lab-document-dialog"><div class="lab-document-dialog-bar"><h3 id="lab-document-title">Document preview</h3><button class="btn ghost" type="button" id="lab-document-close">Close</button></div><iframe title="Lab Account document preview" id="lab-document-frame"></iframe></dialog>'+scopedLink('/documents.html','C/TPA Documents','Existing company documents workspace')+scopedLink('/testing-documents.html','Testing documents','Existing C/TPA testing documentation')+'</section>'+
  '<section class="section" data-lab-panel="billing"><h2>Laboratory purchases and invoices</h2><p>View invoices and purchases linked to the verified Lab Account purchase. Your existing C/TPA billing remains separate.</p><h3>Lab Account purchase</h3><div id="lab-purchase-history" class="lab-document-list" aria-live="polite">Loading purchase history…</div><h3>Lab Account invoices</h3><div id="lab-invoice-list" class="lab-document-list" aria-live="polite">Loading laboratory invoices…</div><dialog id="lab-invoice-detail" class="lab-document-dialog lab-invoice-dialog"><div class="lab-document-dialog-bar"><h3 id="lab-invoice-heading">Invoice details</h3><button type="button" class="btn ghost" id="lab-invoice-close">Close</button></div><div class="lab-invoice-content" id="lab-invoice-content"></div></dialog>'+scopedLink('/billing.html','Workforce Billing','Existing C/TPA billing and invoices')+scopedLink('/order-history.html','Order history','Existing C/TPA purchase records')+'</section>'+
@@ -108,6 +110,7 @@ function bind(call,data={}){
   if(selected==='results')loadLabReleasedResults();
   if(selected==='consortium')loadOriginalConsortiums();
   if(selected==='services')loadLabServiceHistory();
+  if(selected==='benefits')loadOriginalBenefits();
  }
  buttons.forEach(button=>button.addEventListener('click',()=>selectTab(button.dataset.labTab)));
  const form=root.querySelector('#lab-order-form'),select=root.querySelector('#lab-order-service'),message=root.querySelector('#lab-order-message');
@@ -327,6 +330,47 @@ function bind(call,data={}){
    finally{button.disabled=false}
   });
  }
+ const scheduleHost=root.querySelector('#lab-previous-schedules');
+ const clearinghouseHost=root.querySelector('#lab-previous-clearinghouse');
+ const generatedHost=root.querySelector('#lab-generated-benefits');
+ let benefitDocs=null,benefitsLoading=false;
+ async function loadOriginalBenefits(){
+  if(benefitDocs!==null||benefitsLoading)return;
+  benefitsLoading=true; scheduleHost.textContent='Loading previous Lab Account benefit records…';
+  try{
+   const data=await call('legacy_benefits');benefitDocs=data.documents||[];
+   const schedules=data.schedules||[],setups=data.setups||[];
+   scheduleHost.innerHTML=schedules.length?schedules.map(x=>
+    '<div class="panel lab-document-row"><div><strong>'+esc(tag(x.selection_type))+' selection</strong><small>'+date(x.scheduled_for)+' · '+esc(tag(x.status))+'</small></div></div>'
+   ).join(''):'<div class="panel">No prior selection calendar records.</div>';
+   clearinghouseHost.innerHTML=setups.length?setups.map(x=>
+    '<div class="panel lab-document-row"><div><strong>'+esc(x.company_name||'Clearinghouse setup')+'</strong><small>USDOT '+esc(x.dot_number||'—')+' · '+esc(tag(x.status))+'</small></div></div>'
+   ).join(''):'<div class="panel">No previous Clearinghouse setup checklists.</div>';
+   generatedHost.innerHTML=benefitDocs.length?benefitDocs.map(x=>
+    '<div class="panel lab-document-row"><div><strong>'+esc(x.title||'Generated Lab Account document')+'</strong><small>'+esc(tag(x.document_type))+' · '+date(x.created_at)+'</small></div><div class="lab-document-actions"><button type="button" class="btn ghost" data-lab-generated-view="'+esc(x.id)+'">View</button><button type="button" class="btn ghost" data-lab-generated-download="'+esc(x.id)+'">Download</button></div></div>'
+   ).join(''):'<div class="panel">No previous generated benefit documents.</div>';
+  }catch(e){const msg=e.message||'Unable to load benefit records.';scheduleHost.textContent=msg;clearinghouseHost.textContent=msg;generatedHost.textContent=msg}
+  finally{benefitsLoading=false}
+ }
+ generatedHost.addEventListener('click',async event=>{
+  const button=event.target.closest('[data-lab-generated-view],[data-lab-generated-download]');
+  if(!button||button.disabled)return;
+  const id=button.dataset.labGeneratedView||button.dataset.labGeneratedDownload;
+  if(!benefitDocs?.some(d=>d.id===id))return;
+  const download=Boolean(button.dataset.labGeneratedDownload);
+  button.disabled=true;
+  try{
+   const result=await call('generated_benefit_url',{document_id:id,download});
+   if(!/^https:\/\//i.test(result.url||''))throw Error('Secure document link unavailable.');
+   if(download)window.location.assign(result.url);
+   else{
+    root.querySelector('#lab-document-title').textContent=result.title||'Lab Account document';
+    root.querySelector('#lab-document-frame').src=result.url;
+    if(!docModal.open)docModal.showModal();
+   }
+  }catch(e){generatedHost.insertAdjacentHTML('afterbegin','<p class="lab-doc-error" role="alert">'+esc(e.message||'Unable to open document')+'</p>')}
+  finally{button.disabled=false}
+ });
  const resultsHost=root.querySelector('#lab-released-results');
  const consortiumHost=root.querySelector('#lab-original-consortiums');
  const serviceHistoryHost=root.querySelector('#lab-service-history');
