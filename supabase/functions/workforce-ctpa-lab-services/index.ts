@@ -15,7 +15,7 @@ Deno.serve(async(req:Request)=>{
   if(authError||!user?.id||!user.email_confirmed_at)return out({error:"Verified sign-in required"},401);
   const payload=await req.json().catch(()=>({}));
   const action=String(payload.action||"access"),ctpaId=String(payload.ctpa_id||""),subscriptionId=String(payload.subscription_id||"");
-  if(!["access","overview","catalog","create_order","supply_catalog","request_supplies","documents","document_url","issued_passes","legacy_clients","legacy_supply_alerts","legacy_deliveries","report_specimen_shipped","order_details","update_order"].includes(action)||!uuid(ctpaId)||!uuid(subscriptionId))return out({error:"Invalid C/TPA workspace and subscription"},400);
+  if(!["access","overview","catalog","create_order","supply_catalog","request_supplies","documents","document_url","issued_passes","legacy_clients","legacy_supply_alerts","legacy_deliveries","report_specimen_shipped","order_details","update_order","ccf_archive","ccf_url"].includes(action)||!uuid(ctpaId)||!uuid(subscriptionId))return out({error:"Invalid C/TPA workspace and subscription"},400);
   const db=createClient(url,secret,{auth:{persistSession:false,autoRefreshToken:false}});
   // Reuse the C/TPA's verified workspace boundary; organization membership alone is insufficient.
   const session=await db.rpc("ctpa_dot_session_context",{p_user_id:user.id,p_ctpa_id:ctpaId,p_subscription_id:subscriptionId});
@@ -38,6 +38,50 @@ Deno.serve(async(req:Request)=>{
   if(grant.error)throw grant.error;
   if(!grant.data)return out({authorized:false,reason:"Lab Account add-on not enabled for this company"},403);
   if(action==="access")return out({authorized:true,features:{lab_account:true},organization_id:c.data.organization_id});
+  if(action==="ccf_archive"||action==="ccf_url"){
+   // Archive only customer-visible CCFs for released cases owned by the
+   // requesting user and explicitly associated with this C/TPA company.
+   const readable=(d:any)=>/\b(ccf|chain.of.custody|custody)\b/i.test(
+      String(d.document_type||"")+" "+String(d.title||""))&&
+      ["customer","public","customer_portal","released"].includes(String(d.visibility||"").toLowerCase());
+   if(action==="ccf_archive"){
+    const cases=await db.from("testing_cases").select("id,case_number")
+     .eq("customer_user_id",user.id)
+     .contains("metadata",{source:"lab_account_portal",ctpa_id:ctpaId,organization_id:c.data.organization_id})
+     .not("released_at","is",null).order("created_at",{ascending:false}).limit(400);
+    if(cases.error)throw cases.error;
+    const ids=(cases.data||[]).map((r:any)=>r.id);
+    if(!ids.length)return out({authorized:true,documents:[]});
+    const docs=await db.from("testing_case_documents")
+     .select("id,testing_case_id,title,document_type,visibility,created_at")
+     .in("testing_case_id",ids).is("archived_at",null).limit(700);
+    if(docs.error)throw docs.error;
+    const names=new Map((cases.data||[]).map((r:any)=>[r.id,r.case_number]));
+    return out({authorized:true,documents:(docs.data||[]).filter(readable)
+     .map((d:any)=>({id:d.id,title:d.title,document_type:d.document_type,
+       case_number:names.get(d.testing_case_id)||"",created_at:d.created_at}))});
+   }
+   if(!uuid(payload.document_id))return out({error:"Valid CCF document required"},400);
+   const doc=await db.from("testing_case_documents")
+    .select("id,testing_case_id,title,document_type,visibility,storage_bucket,storage_path")
+    .eq("id",payload.document_id).is("archived_at",null).maybeSingle();
+   if(doc.error)throw doc.error;
+   if(!doc.data||!readable(doc.data))return out({error:"CCF not released for customer access"},403);
+   const owned=await db.from("testing_cases").select("id")
+    .eq("id",doc.data.testing_case_id).eq("customer_user_id",user.id)
+    .contains("metadata",{source:"lab_account_portal",ctpa_id:ctpaId,organization_id:c.data.organization_id})
+    .not("released_at","is",null).maybeSingle();
+   if(owned.error)throw owned.error;
+   if(!owned.data)return out({error:"CCF not available for this company and customer"},403);
+   if(!["testing-private-documents","testing-documents","compliance-documents"].includes(doc.data.storage_bucket)||
+      !doc.data.storage_path)return out({error:"CCF file unavailable"},404);
+   const safeTitle=String(doc.data.title||"Workforce-CCF.pdf").replace(/[^a-zA-Z0-9._ -]/g,"_").slice(0,160);
+   const signed=await db.storage.from(doc.data.storage_bucket).createSignedUrl(doc.data.storage_path,120,{
+    download:payload.download===true?safeTitle:undefined
+   });
+   if(signed.error||!signed.data?.signedUrl)throw signed.error||Error("CCF link unavailable");
+   return out({url:signed.data.signedUrl,title:doc.data.title,expires_in:120});
+  }
   if(action==="order_details"||action==="update_order"){
    // Donor PII and order editing are restricted to the individual who created
    // this Lab Account case. Company membership alone never reveals donor data.
