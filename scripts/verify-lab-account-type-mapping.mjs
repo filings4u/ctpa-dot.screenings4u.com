@@ -13,14 +13,16 @@ const section=code.slice(begin,end);
 for(const [label,valid] of [
  ['reads configured account type',section.includes('config.account_type')],
  ['supports DOT and NON-DOT',section.includes('"dot","non_dot","hair","oral"')],
- ['uses explicit account type for single-number records',section.includes('numbers[accountType]=String(x.account_code)')],
+ ['uses explicit account type for single-number records',section.includes('numbers[accountType]=single')],
  ['does not always populate DOT from account_code',!section.includes('dot:String(x.config?.account_numbers?.dot||x.account_code')],
  ['preserves existing per-type number assignments',section.includes('numbers[key]=String(configured[key]||"")')],
- ['limits untyped fallback to legacy records',section.includes('!accountType&&!allowed.some(key=>numbers[key])')],
- ['untyped account is not labeled DOT',section.includes('numbers.unclassified=String(x.account_code)')&&!section.includes('numbers.dot=String(x.account_code)')],
+ ['limits unknown-category accounts from being assigned',section.includes('!allowed.some(key=>numbers[key]===single)')],
+ ['untyped account is not labeled DOT',section.includes('numbers.unclassified=single')&&!section.includes('numbers.dot=single')],
+ ['conflicting typed numbers are flagged',section.includes('numbers[accountType]!==single)numbers.unclassified=single')],
+ ['unknown account types are not forced into DOT',section.includes('!allowed.some(key=>numbers[key]===single)')],
  ['unclassified numbers are visibly flagged',client.includes('Unclassified account · confirm with Workforce')],
  ['requires purchased Lab Account entitlement',code.includes('.eq("entitlement_code","lab_account").eq("status","active")')],
  ['limits records to selected C/TPA',code.includes('.eq("ctpa_id",ctpaId)')],
  ['does not create or alter customer records',!code.includes('.insert(')&&!code.includes('.update(')]
 ]){console.log(`${valid?'PASS':'FAIL'} ${label}`);assert.ok(valid,label)}
-console.log('11/11 C/TPA lab account source mapping checks passed');
+console.log('13/13 C/TPA lab account source mapping checks passed');
