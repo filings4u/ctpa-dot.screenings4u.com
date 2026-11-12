@@ -340,7 +340,7 @@ function bind(call,data={}){
    const response=await call('historical_documents');historicalDocs=response.documents||[];
    historicalHost.innerHTML=historicalDocs.length?historicalDocs.map(doc=>
     '<div class="panel lab-document-row"><div><strong>'+esc(doc.title||'Lab Account document')+'</strong><small>'+esc(tag(doc.source))+' · '+date(doc.created_at)+'</small><small>'+esc(doc.description||'')+'</small></div><div class="lab-document-actions">'+
-    (doc.source==='intake'?'<button class="btn ghost" type="button" data-lab-intake="'+esc(doc.id)+'">View intake</button>':
+    (doc.source==='intake'?'<button class="btn ghost" type="button" data-lab-intake="'+esc(doc.id)+'">View intake</button><button class="btn ghost" type="button" data-lab-intake-pdf="'+esc(doc.id)+'">Download PDF</button>':
     doc.downloadable?'<button class="btn ghost" type="button" data-lab-historical-view="'+esc(doc.id)+'">View</button><button class="btn ghost" type="button" data-lab-historical-download="'+esc(doc.id)+'">Download</button>':'')+
     '</div></div>'
    ).join(''):'<div class="panel">No historical Lab Account files were found for the verified purchaser.</div>';
@@ -348,13 +348,22 @@ function bind(call,data={}){
  }
  root.querySelector('#lab-intake-close').addEventListener('click',()=>intakeModal.close());
  historicalHost.addEventListener('click',async event=>{
-  const button=event.target.closest('[data-lab-intake],[data-lab-historical-view],[data-lab-historical-download]');
+  const button=event.target.closest('[data-lab-intake],[data-lab-intake-pdf],[data-lab-historical-view],[data-lab-historical-download]');
   if(!button||button.disabled)return;
-  const id=button.dataset.labIntake||button.dataset.labHistoricalView||button.dataset.labHistoricalDownload;
+  const id=button.dataset.labIntake||button.dataset.labIntakePdf||button.dataset.labHistoricalView||button.dataset.labHistoricalDownload;
   const doc=historicalDocs?.find(record=>record.id===id);if(!doc)return;
   button.disabled=true;
   try{
-   if(doc.source==='intake'){
+   if(doc.source==='intake'&&button.dataset.labIntakePdf){
+    const response=await call('lab_intake_pdf',{document_id:id});
+    if(!response.pdf_base64)throw Error('Intake PDF unavailable.');
+    const bytes=Uint8Array.from(atob(response.pdf_base64),c=>c.charCodeAt(0));
+    const blob=new Blob([bytes],{type:'application/pdf'});
+    const url=URL.createObjectURL(blob),link=document.createElement('a');
+    link.href=url;link.download=response.filename||'Workforce-Lab-Account-Intake.pdf';
+    document.body.append(link);link.click();link.remove();
+    URL.revokeObjectURL(url);
+   }else if(doc.source==='intake'){
     const response=await call('lab_intake_details',{document_id:id}),record=response.intake||{};
     root.querySelector('#lab-intake-title').textContent=record.title||'Lab Account intake';
     const safe=Object.entries(record.fields||{}).map(([key,value])=>
