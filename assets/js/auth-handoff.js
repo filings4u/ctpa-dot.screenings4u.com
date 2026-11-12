@@ -17,7 +17,9 @@ try{
   cache:'no-store'
  });
  const data=await response.json().catch(()=>({}));
- if(!response.ok||!data.token_hash||data.target_surface!=='dot'||data.target_portal!=='ctpa_dot')
+ const isDot=data.target_surface==='dot'&&data.target_portal==='ctpa_dot';
+ const isNondot=data.target_surface==='workforce'&&data.target_portal==='ctpa_workforce';
+ if(!response.ok||!data.token_hash||(!isDot&&!isNondot))
   throw Error(data.error||'This C/TPA portal transfer is not valid.');
  setStatus('Confirming your authorized Workforce session…');
  const sb=window.S4UGetSupabaseClient();
@@ -33,12 +35,13 @@ try{
  const sub=url.searchParams.get('subscription_id')||'';
  const membership=url.searchParams.get('membership_id')||'';
  const isUuid=value=>/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+ if(isNondot&&(!isUuid(ctpa)||!isUuid(sub)||!isUuid(membership)))throw Error('A verified NON-DOT subscription and membership are required.');
  if(ctpa&&sub&&isUuid(ctpa)&&isUuid(sub)){
   setStatus('Opening your assigned C/TPA workspace…');
-  const r=await fetch(C.workforceUrl+'/functions/v1/ctpa-dot/session?forceFunctionRegion=ca-central-1',{
+  const r=await fetch(C.workforceUrl+(isDot?'/functions/v1/ctpa-dot/session?forceFunctionRegion=ca-central-1':'/functions/v1/nondot-workforce-session-context'),{
    method:'POST',
    headers:{'Content-Type':'application/json',Authorization:'Bearer '+session.access_token,apikey:C.workforceKey},
-   body:JSON.stringify({ctpa_id:ctpa,subscription_id:sub}),
+   body:JSON.stringify(isDot?{ctpa_id:ctpa,subscription_id:sub}:{portal_code:'ctpa_workforce',ctpa_id:ctpa,subscription_id:sub}),
    cache:'no-store'
   });
   const d=await r.json().catch(()=>({}));
@@ -48,12 +51,14 @@ try{
    if(checkout.protocol==='https:'&&checkout.hostname.endsWith('.screenings4u.com')){location.replace(checkout.href);return}
    throw Error('Subscription renewal required. Return to Workforce for assistance.');
   }
-  if(!r.ok||!d.ok)throw Error(d.error||'This C/TPA subscription is not currently available.');
+  if(!r.ok||!d.ok||d.has_access===false)throw Error(d.error||'This C/TPA subscription is not currently available.');
   const actualCtpa=d.ctpa?.id,actualSub=d.subscription?.id;
+  if(isNondot&&(d.portal_code!=='ctpa_workforce'||d.membership?.id!==membership||!String(d.plan?.code||'').startsWith('workforce_ctpa_')))throw Error('NON-DOT C/TPA membership or plan mismatch.');
   if(String(actualCtpa)!==ctpa||String(actualSub)!==sub)throw Error('Your selected C/TPA subscription could not be verified.');
   const W=window.S4UCTPAWorkspace;
   if(!W)throw Error('C/TPA workspace configuration is unavailable.');
   const saved=W.set({
+   surface:isNondot?'nondot':'dot',
    user_id:session.user.id,
    ctpa_id:actualCtpa,
    subscription_id:actualSub,
@@ -64,14 +69,15 @@ try{
    organization_name:d.organization?.dba_name||d.organization?.legal_name||null
   });
   try{sessionStorage.setItem('s4u_ctpa_dot_verified_ctx_v2',JSON.stringify({
+   surface:saved.surface,
    saved_at:Date.now(),user_id:session.user.id,
    ctpa_id:saved.ctpa_id,subscription_id:saved.subscription_id,ctx:d
   }))}catch(_){}
-  location.replace('/dashboard.html');return;
+  location.replace(isNondot?'/nondot-workspace.html':'/dashboard.html');return;
  }
- // For accounts without a selected subscription, the EXISTING authenticated
- // organization chooser resolves the correct membership (no password prompt).
- location.replace('/workspace.html');
+ // An incomplete handoff must return to the single Workforce selector.
+ // Do not open a second organization chooser or guess which subscription to use.
+ location.replace(HOME);
 }catch(e){
  setStatus(e instanceof Error?e.message:'Unable to open your assigned portal.');
  const action=document.querySelector('.login-card a');

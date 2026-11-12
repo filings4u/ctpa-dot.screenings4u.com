@@ -56,6 +56,13 @@ const dotLinks={
  clearinghouse_tools:'/compliance.html',results_sensitive:'/results.html',branded_email:'/branding.html',
  collection_sites:'/testing.html',enrollment_documents:'/documents.html'
 };
+const nondotLinks={
+ employee_management:'/nondot-workspace.html?section=people',
+ programs:'/nondot-workspace.html?section=programs',
+ consortium_pools:'/nondot-workspace.html?section=pools',
+ testing_orders:'/nondot-workspace.html?section=testing',
+ results_summary:'/nondot-workspace.html?section=results'
+};
 if(!C?.workforceUrl||!C?.workforceKey||!window.S4UGetSupabaseClient){
  message('Portal configuration unavailable.',true);return;
 }
@@ -98,11 +105,12 @@ function paint(){
    const badge=el('span','wfc-badge',f.enabled?'Included':'Not included');
    top.append(badge);
    card.append(top,el('p','',f.description||'Feature of the Workforce C/TPA plan.'));
-   // Existing DOT routes are protected by their own verified server session.
-   // NON-DOT actions are not offered until migrated into this hostname.
-   if(active==='dot'&&f.enabled&&dotLinks[f.code]){
-    const action=el('a','wfc-link','Open tool');
-    action.href=dotLinks[f.code];
+   // DOT writes continue through the C/TPA backend. NON-DOT links open
+   // read-only, independently authorized modules until their write APIs are migrated.
+   const route=active==='dot'?dotLinks[f.code]:nondotLinks[f.code];
+   if(f.enabled&&route){
+    const action=el('a','wfc-link',active==='dot'?'Open tool':'View NON-DOT records');
+    action.href=route;
     card.append(action);
    }
    grid.append(card);
@@ -122,24 +130,39 @@ async function select(surface){
   const {data:{session}}=await sb.auth.getSession();
   if(!session)throw Error('Session expired. Please sign in through Workforce.');
   const workspace=window.S4UCTPAWorkspace?.read?.();
+  if(!workspace?.ctpa_id||!workspace?.subscription_id)throw Error('Select your authorized C/TPA subscription first.');
+  // The combined API validates the exact selected C/TPA subscription, company membership,
+  // and NON-DOT membership/revocation independently. Never infer access from tier names.
+  const combinedResponse=await fetch(C.workforceUrl+'/functions/v1/workforce-ctpa-combined-access',{
+   method:'POST',headers:{'Content-Type':'application/json',apikey:C.workforceKey,Authorization:'Bearer '+session.access_token},
+   body:JSON.stringify({ctpa_id:workspace.ctpa_id,subscription_id:workspace.subscription_id}),cache:'no-store'
+  });
+  const combined=await combinedResponse.json().catch(()=>({}));
+  if(requestId!==generation)return;
+  if(!combinedResponse.ok||combined.authorized!==true)throw Error(combined.error||combined.reason||'Unable to verify combined C/TPA access.');
+  const context=combined.operating_contexts?.[surface];
+  if(!context?.available){
+   accessible=false;
+   tier.textContent=combined.plan?.name||'C/TPA Subscription';
+   message('This operating context is not yet linked to an independently verified active subscription. Workforce management must complete the migration before it can be opened.',true);
+   paint();return;
+  }
+  const validCodes=new Set(Array.isArray(context.feature_codes)?context.feature_codes:[]);
   const response=await fetch(C.workforceUrl+'/functions/v1/workforce-ctpa-unified-entitlements',{
    method:'POST',headers:{'Content-Type':'application/json',apikey:C.workforceKey,Authorization:'Bearer '+session.access_token},
-   body:JSON.stringify({surface,organization_id:workspace?.organization_id||undefined}),cache:'no-store'
+   body:JSON.stringify({surface,organization_id:combined.ownership?.organization_id,ctpa_id:context.ctpa_id||undefined}),cache:'no-store'
   });
   const data=await response.json().catch(()=>({}));
   if(requestId!==generation)return;
-  if(!response.ok)throw Error(data.error||'Unable to verify your subscription.');
-  if(!data.available){
-   tier.textContent='No active access';
-   message(data.reason||'No active C/TPA subscription found.',true);
-   paint();return;
-  }
+  if(!response.ok||data.available!==true)throw Error(data.error||data.reason||'Could not load the operating context catalog.');
   accessible=true;
-  allFeatures=Array.isArray(data.features)?data.features:[];
-  tier.textContent=data.plan?.name||'C/TPA Subscription';
+  // The catalog provides labels only. Its enabled flags never override the actual
+  // verified surface grants returned from the combined access check.
+  allFeatures=(Array.isArray(data.features)?data.features:[]).map(f=>({...f,enabled:validCodes.has(f.code)}));
+  tier.textContent=combined.plan?.name||'C/TPA Subscription';
   available.textContent=String(allFeatures.filter(f=>f.enabled).length);
   unavailable.textContent=String(allFeatures.filter(f=>!f.enabled).length);
-  message('Access verified for your '+(active==='dot'?'DOT':'NON-DOT')+' programs.');
+  message('Verified '+(active==='dot'?'DOT':'NON-DOT')+' access for your selected C/TPA organization. Other operating contexts remain isolated.');
   paint();
  }catch(error){
   if(requestId!==generation)return;
