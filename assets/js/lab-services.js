@@ -53,7 +53,7 @@ function render(d){
  '<section class="section" data-lab-panel="tracking"><h2>Lab Account testing requests</h2><p>Read-only request status for records linked to this C/TPA. Requests without verified company linkage stay in the original Lab Account portal until Workforce completes the account mapping.</p>'+
  (requests.length?requests.map(r=>'<div class="panel lab-migration-row"><div><strong>'+esc(r.case_number||"Testing request")+'</strong><small>'+esc(r.test_type||"Test type pending")+' · Submitted '+date(r.created_at)+'</small><small>Donor pass: '+esc(tag(r.donor_pass_status||"not_issued"))+(r.donor_pass_issued_at?' · Issued '+date(r.donor_pass_issued_at):'')+'</small></div><span class="badge">'+esc(tag(r.status))+'</span></div>').join(''):'<div class="panel">No testing requests are currently verified for this C/TPA. Existing orders remain available in the original Lab Account portal during migration.</div>')+'</section>'+
  labForm()+ 
- '<section class="section" data-lab-panel="documents"><h2>Documents and collection forms</h2><p>Use your existing C/TPA Documents and Testing Documents modules for company records. Lab-specific CCF access remains case-scoped.</p>'+scopedLink('/documents.html','C/TPA Documents','Existing company documents workspace')+scopedLink('/testing-documents.html','Testing documents','Existing C/TPA testing documentation')+'</section>'+
+ '<section class="section" data-lab-panel="documents"><h2>Lab Account documents and collection forms</h2><p>View Workforce-published laboratory account documents. Existing C/TPA and testing documents remain available in their original Workforce modules.</p><div id="lab-published-documents" class="lab-document-list" aria-live="polite">Loading published documents…</div><dialog id="lab-document-preview" class="lab-document-dialog"><div class="lab-document-dialog-bar"><h3 id="lab-document-title">Document preview</h3><button class="btn ghost" type="button" id="lab-document-close">Close</button></div><iframe title="Lab Account document preview" id="lab-document-frame"></iframe></dialog>'+scopedLink('/documents.html','C/TPA Documents','Existing company documents workspace')+scopedLink('/testing-documents.html','Testing documents','Existing C/TPA testing documentation')+'</section>'+
  '<section class="section" data-lab-panel="billing"><h2>Account billing</h2><p>Workforce C/TPA already has billing and order history. Laboratory-specific charges must remain identifiable separately from unrelated subscriptions.</p>'+scopedLink('/billing.html','Workforce Billing','Existing C/TPA billing and invoices')+scopedLink('/order-history.html','Order history','Existing C/TPA purchase records')+'</section>'+
  '<section class="section" data-lab-panel="support"><h2>Lab Account support</h2><p>Contact Workforce support for test registration, collection instructions, or laboratory-account issues.</p>'+scopedLink('/support.html','Contact Support','Existing C/TPA support workflow')+'</section>'+
  '<section class="notice" data-lab-panel="overview"><strong>Lab Account migration</strong><p>Original C/TPA testing, results, consortium, and billing features remain unchanged. Laboratory orders, donor passes, and customer documents will be added only after company entitlement and records mapping are verified.</p></section></div>';
@@ -67,6 +67,7 @@ function bind(call){
   buttons.forEach(button=>{const on=button.dataset.labTab===selected;button.classList.toggle('active',on);button.setAttribute('aria-pressed',String(on));});
   if(selected==='orders')loadServices();
   if(selected==='supplies')loadSupplies();
+  if(selected==='documents')loadDocuments();
  }
  buttons.forEach(button=>button.addEventListener('click',()=>selectTab(button.dataset.labTab)));
  const form=root.querySelector('#lab-order-form'),select=root.querySelector('#lab-order-service'),message=root.querySelector('#lab-order-message');
@@ -88,6 +89,41 @@ function bind(call){
   const dot=String(item?.testing_scope||'').toLowerCase()==='dot';
   wrap.hidden=!dot;const authority=wrap.querySelector('select');authority.required=dot;
   if(!dot)authority.value='';
+ });
+ const documentsHost=root.querySelector('#lab-published-documents'),docModal=root.querySelector('#lab-document-preview');
+ let documentRecords=null;
+ async function loadDocuments(){
+  if(documentRecords!==null)return;
+  documentsHost.textContent='Loading published laboratory documents…';
+  try{
+   const result=await call('documents');documentRecords=result.documents||[];
+   documentsHost.innerHTML=documentRecords.length?documentRecords.map(doc=>
+    '<div class="panel lab-document-row"><div><strong>'+esc(doc.title||doc.original_filename||'Lab Account document')+'</strong><small>'+esc(doc.category||'Account document')+' · '+date(doc.created_at)+'</small><small>'+esc(doc.description||'')+'</small></div><div class="lab-document-actions"><button class="btn ghost" type="button" data-lab-doc-view="'+esc(doc.id)+'">View</button><button class="btn ghost" type="button" data-lab-doc-download="'+esc(doc.id)+'">Download</button></div></div>'
+   ).join(''):'<div class="panel">No published Lab Account documents are assigned to this signed-in customer.</div>';
+  }catch(error){documentsHost.textContent=error.message||'Unable to load laboratory documents.'}
+ }
+ root.querySelector('#lab-document-close').addEventListener('click',()=>{
+  docModal.close();root.querySelector('#lab-document-frame').removeAttribute('src');
+ });
+ docModal.addEventListener('close',()=>root.querySelector('#lab-document-frame').removeAttribute('src'));
+ documentsHost.addEventListener('click',async event=>{
+  const button=event.target.closest('[data-lab-doc-view],[data-lab-doc-download]');
+  if(!button||button.disabled)return;
+  const id=button.dataset.labDocView||button.dataset.labDocDownload;
+  if(!documentRecords?.some(x=>x.id===id))return;
+  const download=Boolean(button.dataset.labDocDownload);
+  button.disabled=true;
+  try{
+   const result=await call('document_url',{document_id:id,download});
+   if(!/^https:\/\//i.test(result.url||''))throw Error('Document link unavailable');
+   if(download)window.location.assign(result.url);
+   else{
+    root.querySelector('#lab-document-title').textContent=result.title||'Lab Account document';
+    root.querySelector('#lab-document-frame').src=result.url;
+    if(!docModal.open)docModal.showModal();
+   }
+  }catch(error){documentsHost.setAttribute('data-error',String(error.message||error))}
+  finally{button.disabled=false}
  });
  const supplyFormEl=root.querySelector('#lab-supply-form'),supplyCatalog=root.querySelector('#lab-supply-catalog'),
   supplyStatus=root.querySelector('#lab-supply-status');
