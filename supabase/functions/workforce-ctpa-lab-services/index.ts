@@ -341,7 +341,7 @@ Deno.serve(async(req:Request)=>{
   let testingRequests:any[]=[];
   if(grant.data.source_order_id&&grant.data.linked_customer_user_id&&intakeIds.length){
    const cases=await db.from("testing_cases")
-    .select("id,case_number,status,test_type,created_at,scheduled_at,collected_at,completed_at,metadata")
+    .select("id,case_number,status,test_type,created_by,customer_user_id,created_at,scheduled_at,collected_at,completed_at,metadata")
     .contains("metadata",{source:"lab_account_portal",ctpa_id:ctpaId,organization_id:c.data.organization_id})
     .order("created_at",{ascending:false}).limit(100);
    if(cases.error)throw cases.error;
@@ -360,6 +360,7 @@ Deno.serve(async(req:Request)=>{
    }
    testingRequests=(cases.data||[]).map((x:any)=>({
     id:x.id,case_number:x.case_number,status:x.status,test_type:x.test_type,
+    can_edit:x.status==="awaiting_schedule"&&x.customer_user_id===user.id,
     created_at:x.created_at,scheduled_at:x.scheduled_at,
     collected_at:x.collected_at,completed_at:x.completed_at,
     donor_pass_status:passByCase.get(x.id)?.status||"not_issued",
