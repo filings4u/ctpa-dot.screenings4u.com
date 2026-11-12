@@ -15,7 +15,7 @@ Deno.serve(async(req:Request)=>{
   if(authError||!user?.id||!user.email_confirmed_at)return out({error:"Verified sign-in required"},401);
   const payload=await req.json().catch(()=>({}));
   const action=String(payload.action||"access"),ctpaId=String(payload.ctpa_id||""),subscriptionId=String(payload.subscription_id||"");
-  if(!["access","overview","catalog","create_order","supply_catalog","request_supplies","documents","document_url","issued_passes","legacy_clients","legacy_supply_alerts","legacy_deliveries","report_specimen_shipped","order_details","update_order","ccf_archive","ccf_url"].includes(action)||!uuid(ctpaId)||!uuid(subscriptionId))return out({error:"Invalid C/TPA workspace and subscription"},400);
+  if(!["access","overview","catalog","create_order","supply_catalog","request_supplies","documents","document_url","issued_passes","legacy_clients","legacy_supply_alerts","legacy_deliveries","report_specimen_shipped","order_details","update_order","ccf_archive","ccf_url","released_cases","request_result_delivery"].includes(action)||!uuid(ctpaId)||!uuid(subscriptionId))return out({error:"Invalid C/TPA workspace and subscription"},400);
   const db=createClient(url,secret,{auth:{persistSession:false,autoRefreshToken:false}});
   // Reuse the C/TPA's verified workspace boundary; organization membership alone is insufficient.
   const session=await db.rpc("ctpa_dot_session_context",{p_user_id:user.id,p_ctpa_id:ctpaId,p_subscription_id:subscriptionId});
@@ -38,6 +38,44 @@ Deno.serve(async(req:Request)=>{
   if(grant.error)throw grant.error;
   if(!grant.data)return out({authorized:false,reason:"Lab Account add-on not enabled for this company"},403);
   if(action==="access")return out({authorized:true,features:{lab_account:true},organization_id:c.data.organization_id});
+  if(action==="released_cases"||action==="request_result_delivery"){
+   // The legacy Lab Account delivery request is a review queue, not an
+   // automatic transmission of confidential laboratory results.
+   if(action==="released_cases"){
+    const rows=await db.from("testing_cases").select("id,case_number,released_at,test_type")
+     .eq("customer_user_id",user.id)
+     .contains("metadata",{source:"lab_account_portal",ctpa_id:ctpaId,organization_id:c.data.organization_id})
+     .not("released_at","is",null).order("released_at",{ascending:false}).limit(200);
+    if(rows.error)throw rows.error;
+    return out({authorized:true,released_cases:rows.data||[]});
+   }
+   const caseId=String(payload.case_id||"");
+   const recipient=String(payload.recipient_email||"").trim().toLowerCase();
+   const recipientName=String(payload.recipient_name||"").trim();
+   if(!uuid(caseId)||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient)||
+      recipient.length>254||recipientName.length>150)
+    return out({error:"Select a released case and enter a valid recipient"},400);
+   const owned=await db.from("testing_cases").select("id")
+    .eq("id",caseId).eq("customer_user_id",user.id)
+    .contains("metadata",{source:"lab_account_portal",ctpa_id:ctpaId,organization_id:c.data.organization_id})
+    .not("released_at","is",null).maybeSingle();
+   if(owned.error)throw owned.error;
+   if(!owned.data)return out({error:"Only your released laboratory cases may be requested for delivery"},403);
+   const existing=await db.from("lab_portal_result_deliveries").select("id")
+    .eq("customer_user_id",user.id).eq("testing_case_id",caseId)
+    .eq("recipient_email",recipient).in("status",["pending_review","approved","delivered"])
+    .limit(1);
+   if(existing.error)throw existing.error;
+   if(existing.data?.length)return out({error:"A delivery request already exists for this recipient"},409);
+   const created=await db.from("lab_portal_result_deliveries").insert({
+    customer_user_id:user.id,testing_case_id:caseId,
+    recipient_email:recipient,recipient_name:recipientName,
+    status:"pending_review"
+   }).select("id,status,created_at").single();
+   if(created.error)throw created.error;
+   return out({ok:true,delivery:created.data,
+    status_message:"Result delivery request submitted for Workforce review"});
+  }
   if(action==="ccf_archive"||action==="ccf_url"){
    // Archive only customer-visible CCFs for released cases owned by the
    // requesting user and explicitly associated with this C/TPA company.
