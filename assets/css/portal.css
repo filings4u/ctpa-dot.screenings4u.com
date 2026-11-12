@@ -1785,3 +1785,14 @@ body.loading::before{content:"Loading Workforce C/TPA…"}
 .nondot-workspace .nondot-create button:disabled{opacity:.55;cursor:wait}
 .nondot-workspace #nondot-create-status{min-height:22px;font-size:.83rem;color:#385b7c}
 @media(max-width:680px){.nondot-workspace .nondot-create form{grid-template-columns:1fr}.nondot-workspace .nondot-create button{width:100%;justify-self:stretch}}
+
+
+/* Unified NON-DOT membership editing: C/TPA styling, mobile without sidebar overflow. */
+.nondot-workspace .nondot-edit{border:1px solid #dce5ef;border-radius:10px;margin-top:10px;overflow:hidden}
+.nondot-workspace .nondot-edit summary{cursor:pointer;padding:13px 16px;font-size:.86rem;font-weight:750;color:#01122F;background:#f7f9fd}
+.nondot-workspace .nondot-edit form{padding:15px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.nondot-workspace .nondot-edit [role="status"]{grid-column:1/-1;min-height:20px}
+.nondot-workspace .nondot-memberships{grid-column:1/-1;margin-top:15px}
+.nondot-workspace .nondot-member-row{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;border-bottom:1px solid #e4eaf2;padding:12px 0;font-size:.85rem}
+.nondot-workspace .nondot-member-row button{min-height:36px;background:#fff;color:#01122F;border:1px solid #cbd8e6}
+@media(max-width:680px){.nondot-workspace .nondot-edit form{grid-template-columns:1fr}.nondot-workspace .nondot-member-row{align-items:flex-start;flex-direction:column}}
