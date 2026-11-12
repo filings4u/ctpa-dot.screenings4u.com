@@ -176,13 +176,34 @@ async function syncLabNavigation(ctx){
   if(result.authorized!==true)return;
   ctx.labAddonVerified=true;
   NAV=buildNavigation(ctx);
+  const labTabs=[
+   ["Overview","overview"],["Laboratory Accounts","accounts"],
+   ["Order a Test","orders"],["Testing & Donor Passes","tracking"],
+   ["Supplies & Shipping","supplies"],["Documents & CCFs","documents"],
+   ["Billing","billing"],["Support","support"]
+  ];
   for(const nav of document.querySelectorAll(".side .nav,.mobile-nav-links")){
-   if(nav.querySelector('a[href="/lab-services.html"]'))continue;
-   const anchor=document.createElement("a");anchor.href="/lab-services.html";
-   anchor.innerHTML='<span class="ico">⚗</span><span>Lab Account</span>';
-   if(page()==="lab_services")anchor.classList.add("active");
+   const old=nav.querySelector('a[href="/lab-services.html"]');
+   if(old)old.remove();
+   if(nav.querySelector(".lab-side-group"))continue;
+   const group=document.createElement("details");
+   group.className="lab-side-group";
+   group.open=page()==="lab_services";
+   const label=document.createElement("summary");
+   label.textContent="Lab Account";
+   group.append(label);
+   for(const [name,section] of labTabs){
+    const link=document.createElement("a");
+    link.href="/lab-services.html?lab="+encodeURIComponent(section);
+    link.textContent=name;
+    link.className="lab-side-link";
+    if(page()==="lab_services"&&(new URLSearchParams(location.search).get("lab")||"overview")===section){
+     link.classList.add("active");link.setAttribute("aria-current","page");
+    }
+    group.append(link);
+   }
    const target=nav.querySelector('a[href="/testing.html"]');
-   if(target)target.insertAdjacentElement("afterend",anchor);else nav.append(anchor);
+   if(target)target.insertAdjacentElement("afterend",group);else nav.append(group);
   }
  }catch(e){
   // Missing or unverified add-on is expected: do not display a premium feature link.
