@@ -120,6 +120,18 @@ async function nondotWorkspaceAccess(){
  if(result.authorized!==true)throw Error("C/TPA access unavailable");
  return result.operating_contexts?.nondot?.available===true;
 }
+async function saveNondotRecord(payload){
+ const w=workspace(),session=await getSession();
+ if(w?.surface!=='nondot'||!w.ctpa_id||!w.subscription_id||!session?.access_token)throw Error("Select your authorized NON-DOT workspace through Workforce.");
+ if(!['save_employee','save_program'].includes(payload?.action))throw Error("Unsupported NON-DOT operation");
+ const response=await fetch(C.workforceUrl+"/functions/v1/workforce-ctpa-nondot-workspace",{
+  method:"POST",cache:"no-store",headers:{"Content-Type":"application/json",apikey:C.workforceKey,Authorization:"Bearer "+session.access_token},
+  body:JSON.stringify({...payload,ctpa_id:w.ctpa_id,subscription_id:w.subscription_id,operating_context:"nondot"})
+ });
+ const data=await response.json().catch(()=>({}));
+ if(!response.ok||data.ok!==true||data.saved!==true)throw Error(data.error||"Unable to save NON-DOT record");
+ return data;
+}
 async function nondotWorkspaceData(){
  const session=await getSession(),w=workspace(),section=new URLSearchParams(location.search).get("section")||"programs";
  const accepted=["people","programs","pools","testing","results"];
@@ -711,6 +723,7 @@ async function render(ctx,prefetched){
     wireManagementActions(p,d,ctx);
   }
   $('#content').innerHTML=html||`<div class="panel"><div class="empty">No data available.</div></div>`;
+  if(C.kind==='ctpa'&&p==='nondot_workspace'&&window.CtpaNondotWorkspace)window.CtpaNondotWorkspace.bind(d,saveNondotRecord);
   if(isUtilityPage(p)&&!(C.kind==='ctpa'&&p==='integrations'&&window.CtpaIntegrations))bindUtilityPage(p,d,ctx);
   if(C.kind==='ctpa'&&['integrations','integration_connect','integration_workspace'].includes(p)&&window.CtpaIntegrations)window.CtpaIntegrations.bind(p,d,ctx);
   if(C.kind==='ctpa'&&p==='location_form'&&window.CtpaLocations)window.CtpaLocations.bindForm(d,ctx);
