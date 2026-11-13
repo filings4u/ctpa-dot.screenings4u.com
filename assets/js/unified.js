@@ -154,7 +154,7 @@ function renderNav(){
    '<button type="button" class="nav-group-toggle" data-nav-group="'+esc(title)+'" aria-controls="nav-group-'+index+
    '" aria-expanded="'+String(expanded)+'"><span>'+esc(title)+'</span><span class="group-indicator" aria-hidden="true">'+(expanded?"−":"+")+'</span></button>'+
    '<div class="nav-group-links" id="nav-group-'+index+'"'+(expanded?"":' hidden')+'>'+
-   modules.filter(id=>!(state.context==="nondot"&&id==="owner_operators")).map(id=>'<button type="button" class="nav-item nav-child'+(state.page===id?" active":"")+
+   modules.filter(id=>!(state.context==="nondot"&&["owner_operators","audits"].includes(id))).map(id=>'<button type="button" class="nav-item nav-child'+(state.page===id?" active":"")+
     '" data-page="'+esc(id)+'"'+(state.page===id?' aria-current="page"':"")+
     '><span class="symbol" aria-hidden="true">'+navIcon(id)+'</span><span>'+esc(label(id))+'</span></button>').join("")+'</div></section>';
  }).join("");
@@ -189,7 +189,7 @@ function updateHeading(){
 }
 function switchPage(page,push=true){
  if(!CONFIG[page])page="dashboard";
- if(state.context==="nondot"&&page==="owner_operators")page="employers";
+ if(state.context==="nondot"&&["owner_operators","audits"].includes(page))page=page==="audits"?"dashboard":"employers";
  state.page=page;state.search="";state.statusFilter="";state.pageIndex=0;state.companyFilter=null;state.companyDraft=null;state.management=null;state.pendingManagement=null;const seq=++state.sequence;
  if(push)history.pushState(null,"","/unified.html?page="+encodeURIComponent(page));
  if(isCompactViewport())$("sidebar").classList.remove("open");updateSidebarToggle();renderNav();updateHeading();message("");
@@ -203,7 +203,7 @@ function switchPage(page,push=true){
 function changeContext(next){
  if(!["dot","nondot"].includes(next)||next===state.context)return;
  state.context=next;sessionStorage.setItem("workforce_unified_context",next);
- const nextPage=next==="nondot"&&state.page==="owner_operators"?"employers":state.page;
+ const nextPage=next==="nondot"&&["owner_operators","audits"].includes(state.page)?(state.page==="audits"?"dashboard":"employers"):state.page;
  history.replaceState(null,"","/unified.html?page="+encodeURIComponent(nextPage)+"&context="+next);
  switchPage(nextPage,false);
 }
