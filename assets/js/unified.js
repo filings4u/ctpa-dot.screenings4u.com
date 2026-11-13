@@ -74,7 +74,7 @@ const CONFIG={
  integrations:["Integrations","Maintain connection and integration records.","name|Integration name|text|required;provider|Provider|text;status|Status|select:inactive,active"],
  audit_history:["Audit History","Maintain operational audit entries.","name|Event title|text|required;resource|Resource|text;description|Description|textarea"],
 };
-const state={supabase:null,workspaces:[],tenantId:null,context:"dot",page:"dashboard",cache:new Map(),sequence:0,editing:null,search:"",font:16,loading:false};
+const state={supabase:null,workspaces:[],tenantId:null,context:"dot",page:"dashboard",cache:new Map(),sequence:0,editing:null,search:"",pageIndex:0,font:16,loading:false};
 const $=id=>document.getElementById(id);
 const esc=value=>String(value??"").replace(/[&<>"']/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
 const label=id=>CONFIG[id]?.[0]||id.replaceAll("_"," ").replace(/\b\w/g,x=>x.toUpperCase());
@@ -182,7 +182,7 @@ function updateHeading(){
 }
 function switchPage(page,push=true){
  if(!CONFIG[page])page="dashboard";
- state.page=page;state.search="";state.management=null;state.pendingManagement=null;const seq=++state.sequence;
+ state.page=page;state.search="";state.pageIndex=0;state.management=null;state.pendingManagement=null;const seq=++state.sequence;
  if(push)history.pushState(null,"","/unified.html?page="+encodeURIComponent(page));
  if(isCompactViewport())$("sidebar").classList.remove("open");updateSidebarToggle();renderNav();updateHeading();message("");
  if(page==="account"){void renderAccount();return}
@@ -360,19 +360,23 @@ function showRecords(records){
  if(state.page==="dashboard"){renderDashboard(records);return}
  const count=records.length,query=state.search.trim().toLowerCase();
  const visible=query?records.filter(r=>Object.values(r.data||{}).some(v=>String(v??"").toLowerCase().includes(query))):records;
+ const pageSize=30,maxPage=Math.max(0,Math.ceil(visible.length/pageSize)-1);
+ state.pageIndex=Math.min(Math.max(0,state.pageIndex||0),maxPage);
+ const displayed=visible.slice(state.pageIndex*pageSize,(state.pageIndex+1)*pageSize);
  const canWrite=["owner","admin","editor"].includes(activeWorkspace()?.role||"");
  $("newRecord")?.toggleAttribute("disabled",!canWrite);
  const columns=fields(state.page).filter(f=>f.type!=="file").slice(0,3);
- $("pageContent").innerHTML='<section class="panel"><div class="toolbar"><input id="recordSearch" type="search" aria-label="Search records" placeholder="Search records" value="'+esc(state.search)+'"><span class="search-meta">'+count+' records</span></div>'+
+ $("pageContent").innerHTML='<section class="panel"><div class="toolbar"><input id="recordSearch" type="search" aria-label="Search records" placeholder="Search records" value="'+esc(state.search)+'"><span class="search-meta">'+visible.length+' of '+count+' records</span></div>'+
   (visible.length?'<div class="table-scroll"><table class="data-table"><thead><tr><th>Record</th>'+
    columns.map(c=>'<th>'+esc(c.label)+'</th>').join("")+'<th>Updated</th><th>Actions</th></tr></thead><tbody>'+
-   visible.map(r=>'<tr><td class="record-name">'+esc(recordTitle(r))+'<br><small>'+esc(r.operating_context==="shared"?"Shared":r.operating_context==="dot"?"DOT":"NON-DOT")+'</small></td>'+
+   displayed.map(r=>'<tr><td class="record-name">'+esc(recordTitle(r))+'<br><small>'+esc(r.operating_context==="shared"?"Shared":r.operating_context==="dot"?"DOT":"NON-DOT")+'</small></td>'+
     columns.map(c=>'<td>'+esc(r.data?.[c.name]??"—")+'</td>').join("")+
     '<td>'+esc(new Date(r.updated_at).toLocaleDateString())+'</td><td><div class="row-actions">'+
     '<button type="button" data-view="'+esc(r.id)+'">View</button>'+
     (DOCUMENT_PAGES.has(state.page)&&r.data?.storage_path?'<button type="button" data-open-file="'+esc(r.id)+'">Download</button>':"")+
     (canWrite?'<button type="button" data-edit="'+esc(r.id)+'">Edit</button><button type="button" data-archive="'+esc(r.id)+'">Archive</button>':"")+
-    '</div></td></tr>').join("")+'</tbody></table></div>'
+    '</div></td></tr>').join("")+'</tbody></table></div>'+
+   (visible.length>pageSize?'<div class="table-pagination"><button type="button" data-page-step="-1"'+(state.pageIndex===0?' disabled':'')+'>Previous</button><span>Page '+(state.pageIndex+1)+' of '+(maxPage+1)+'</span><button type="button" data-page-step="1"'+(state.pageIndex===maxPage?' disabled':'')+'>Next</button></div>':"")
   :'<div class="empty"><p>'+esc(query?"No matching records.":"No records yet.")+'</p>'+(canWrite&&!query?'<button class="btn primary" type="button" data-create="1">Add record</button>':"")+'</div>')+'</section>';
 }
 function closeModal(){$("modal").hidden=true;document.body.classList.remove("modal-open");state.editing=null;$("recordForm").dataset.mode=""}
@@ -520,7 +524,7 @@ function bindEvents(){
  $("pageActions").addEventListener("click",e=>{if(e.target.closest("#newRecord"))openManagement("new");if(e.target.closest("#refreshPage"))void loadRecords(state.sequence,true);if(e.target.closest("#exportPage"))exportRecords()});
  $("pageContent").addEventListener("click",e=>{
   const target=e.target;
-  const view=target.closest("[data-view]"),edit=target.closest("[data-edit]"),archive=target.closest("[data-archive]"),create=target.closest("[data-create]"),goto=target.closest("[data-goto]"),retry=target.closest("#retryLoad"),openFile=target.closest("[data-open-file]");
+  const view=target.closest("[data-view]"),edit=target.closest("[data-edit]"),archive=target.closest("[data-archive]"),create=target.closest("[data-create]"),goto=target.closest("[data-goto]"),retry=target.closest("#retryLoad"),openFile=target.closest("[data-open-file]"),step=target.closest("[data-page-step]");
   if(openFile)void openDocumentFile(openFile.dataset.openFile);
   else if(view)openManagement("view",view.dataset.view);
   else if(edit)openManagement("edit",edit.dataset.edit);
@@ -528,6 +532,7 @@ function bindEvents(){
   else if(create)openManagement("new");
   else if(goto)switchPage(goto.dataset.goto);
   else if(retry)void loadRecords();
+  else if(step){state.pageIndex+=Number(step.dataset.pageStep);showRecords(state.cache.get(cacheKey())?.records||[])}
   else if(target.closest("#editProfile"))void editProfile();
   else if(target.closest("[data-back-list]"))leaveManagement();
   else if(target.closest("[data-manage-edit]"))openManagement("edit",target.closest("[data-manage-edit]").dataset.manageEdit);
@@ -535,7 +540,7 @@ function bindEvents(){
  $("pageContent").addEventListener("input",e=>{
   if(e.target.id!=="recordSearch")return;
   const position=e.target.selectionStart;
-  state.search=e.target.value;
+  state.search=e.target.value;state.pageIndex=0;
   showRecords(state.cache.get(cacheKey())?.records||[]);
   const input=$("recordSearch");input.focus();input.setSelectionRange(position,position);
  });
