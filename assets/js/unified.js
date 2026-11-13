@@ -2110,7 +2110,8 @@ async function renderAuditChecklistItems(record,canWrite){
     const current=entry.status||"missing";
     return '<article class="audit-checklist-item" data-audit-item="'+esc(x.code)+'">'+
      '<div class="audit-item-heading"><div><strong>'+esc(x.title)+'</strong>'+
-     '<small>'+esc(x.citation)+(x.conditional?" · If applicable":" · Required")+'</small></div>'+
+     '<small>'+esc(x.citation)+(x.conditional?" · If applicable":" · Required")+'</small>'+
+     (x.description?'<p class="audit-item-description">'+esc(x.description)+'</p>':"")+'</div>'+
      '<span class="mgmt-status '+statusClass(current)+'">'+esc(statusLabel(current))+'</span></div>'+
      '<div class="audit-item-details"><label>Status <select data-audit-status="'+esc(x.code)+'"'+(!canWrite?" disabled":"")+'>'+
      statusOpts.filter(v=>v!=="not_applicable"||x.conditional).map(v=>
