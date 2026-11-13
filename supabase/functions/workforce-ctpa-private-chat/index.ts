@@ -111,7 +111,7 @@ Deno.serve(async req=>{
    if(recipient.error)throw recipient.error;
    const last=await messages.select("body,created_at,sender_user_id").eq("thread_id",th.id).order("created_at",{ascending:false}).limit(1);
    if(last.error)throw last.error;
-   output.push({id:th.id,tenant_id:th.tenant_id,subject:th.subject,context:th.operating_context,name:partnerName(recipient.data),kind:th.recipient_kind,last_message:last.data?.[0]||null,last_message_at:th.last_message_at});
+   output.push({id:th.id,recipient_record_id:th.recipient_record_id,subject:th.subject,context:th.operating_context,name:partnerName(recipient.data),kind:th.recipient_kind,last_message:last.data?.[0]||null,last_message_at:th.last_message_at});
   }
   return send({ok:true,threads:output,user_id:user.id});
  }
