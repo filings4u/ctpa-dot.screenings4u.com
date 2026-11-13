@@ -511,7 +511,7 @@ async function hydrateCompanyRelations(){
     return '<div class="company-related-item"><div><strong>'+esc(name)+'</strong><small>'+esc(subtitle)+'</small></div>'+
     '<div class="company-related-actions">'+
     (kind==="people"?'<button type="button" data-company-person="'+esc(r.id)+'">Profile</button>':'')+
-    '' + (kind==="people"?"":'<button type="button" data-company-remove="'+esc(r.id)+'" data-related-kind="'+kind+'">Remove</button>') + ''+
+    (kind==="people"?"":'<button type="button" data-company-remove="'+esc(r.id)+'" data-related-kind="'+kind+'">Remove</button>')+
     '</div></div>';
    }).join(""):'<p class="company-related-empty">No '+(kind==="people"?"staff":"locations")+' linked yet.</p>';
   };
@@ -606,8 +606,7 @@ async function submitCompanyAction(){
   }else if(op.kind==="people"){
    const person=companyChildList("people",company).find(r=>r.id===op.id);
    if(!person)throw Error("The linked People record could not be found.");
-   await api("save",{tenant_id:state.tenantId,operating_context:state.context,
-    kind:"people",id:op.id,data:{company_id:company.id,employer:company.data.legal_name,relationship:"staff"}});
+   throw Error("People must remain connected to a company. Reassign the person from their profile, or archive the profile.");
   }else{
    await api("archive",{tenant_id:state.tenantId,operating_context:state.context,kind:op.kind,id:op.id});
   }
@@ -733,6 +732,8 @@ async function loadPersonCompanies(){
    if(match)selector.value=match.id;
   }
   selector.disabled=!options.length;
+  const submit=$("managementSave");
+  if(submit)submit.disabled=!options.length;
   if(holder)holder.textContent=options.length?"Company assignment is required. People are listed under their associated employer.":"Create an employer or owner-operator in this workspace before adding people.";
   const link=$("personCompanyProfile");
   if(link){link.hidden=!selector.value;link.dataset.companyId=selector.value}
@@ -743,6 +744,7 @@ async function loadPersonCompanies(){
  }catch(error){
   selector.innerHTML='<option value="">Companies unavailable</option>';
   selector.disabled=true;
+  const submit=$("managementSave");if(submit)submit.disabled=true;
   if(holder)holder.textContent="Could not load companies: "+error.message;
  }
 }
@@ -802,6 +804,11 @@ function renderPersonManagement(record,mode,canWrite){
   '<footer class="person-actions"><button class="btn secondary" type="button" data-back-list>Cancel</button>'+
   '<button class="btn primary" type="submit" id="managementSave">'+(isNew?"Create person":"Save changes")+'</button></footer></form></div>';
  $("managementForm").querySelector("input")?.focus({preventScroll:true});
+ const typeInput=$("managementForm")?.elements.namedItem("relationship");
+ if(typeInput&&!typeInput.value)typeInput.value="employee";
+ const statusInput=$("managementForm")?.elements.namedItem("status");
+ if(statusInput&&!statusInput.value)statusInput.value="active";
+ const submit=$("managementSave");if(submit)submit.disabled=true;
  void loadPersonCompanies();
 }
 
