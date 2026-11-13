@@ -14,19 +14,6 @@
 <script defer src="/assets/js/unified.js?v=20261112-unified1"></script>
 </head>
 <body>
-<div id="signin" class="signin" hidden>
- <div class="signin-card">
-  <img src="/images/logo2.png" alt="Workforce" class="signin-logo">
-  <h1>Workforce C/TPA</h1>
-  <p>Sign in to the unified Workforce portal.</p>
-  <form id="signinForm">
-   <label>Email address<input name="email" type="email" autocomplete="username" required></label>
-   <label>Password<input name="password" type="password" autocomplete="current-password" required></label>
-   <button class="btn primary" type="submit">Sign in</button>
-   <p class="message" id="signinMessage" role="alert"></p>
-  </form>
- </div>
-</div>
 <div id="workspaceSetup" class="signin" hidden>
  <div class="signin-card">
   <img src="/images/logo2.png" alt="Workforce" class="signin-logo">
@@ -53,7 +40,15 @@
  <div class="main-wrap">
   <header class="topbar">
    <div class="top-start"><button class="mobile-menu" id="menuToggle" type="button" aria-label="Toggle menu">☰</button><div><small>Workforce C/TPA</small><strong id="topTitle">Dashboard</strong></div></div>
-   <div class="top-actions"><span class="context-pill" id="contextPill">DOT</span><button type="button" id="fontDown" title="Reduce text size" aria-label="Reduce text size">A−</button><button type="button" id="fontReset" title="Reset text size">A</button><button type="button" id="fontUp" title="Increase text size" aria-label="Increase text size">A+</button><button class="btn secondary" type="button" id="signout">Sign out</button></div>
+   <div class="top-actions"><span class="context-pill" id="contextPill">DOT</span><button type="button" id="fontDown" title="Reduce text size" aria-label="Reduce text size">A−</button><button type="button" id="fontReset" title="Reset text size">A</button><button type="button" id="fontUp" title="Increase text size" aria-label="Increase text size">A+</button><div class="account-menu" id="accountMenu">
+      <button class="btn secondary account-trigger" type="button" id="accountTrigger" aria-expanded="false" aria-haspopup="true" aria-controls="accountDropdown"><span class="account-avatar" aria-hidden="true">●</span> Account <span class="account-chevron" aria-hidden="true">▾</span></button>
+      <div class="account-dropdown" id="accountDropdown" hidden role="menu" aria-label="Account menu">
+        <div class="account-menu-details"><strong id="accountDisplayName">Workforce C/TPA</strong><span id="accountEmail"></span></div>
+        <button type="button" role="menuitem" data-account-action="account">Account</button>
+        <a role="menuitem" href="https://workforceapps.screenings4u.com/selector.html">Switch Workspaces</a>
+        <button type="button" role="menuitem" data-account-action="signout">Sign Out</button>
+      </div>
+    </div></div>
   </header>
   <main class="content" id="main" tabindex="-1">
     <div class="page-top"><div><span class="eyebrow" id="contextEyebrow">DOT OPERATIONS</span><h1 id="pageTitle">Dashboard</h1><p id="pageSummary">Manage your C/TPA work in one system.</p></div><div class="page-actions" id="pageActions"></div></div>
