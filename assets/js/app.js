@@ -800,6 +800,7 @@ async function render(ctx,prefetched){
   }
   $('#content').innerHTML=html||`<div class="panel"><div class="empty">No data available.</div></div>`;
   if(C.kind==='ctpa'&&p==='enterprise_tools'&&window.CtpaEnterpriseTools)window.CtpaEnterpriseTools.bind(d);
+  if(C.kind==='ctpa'&&p==='lab_accounts'&&window.CtpaLabAccounts?.bind)window.CtpaLabAccounts.bind();
   if(C.kind==='ctpa'&&(p==='lab_services'||isLaboratoryPage(p))&&window.CtpaLabServices)window.CtpaLabServices.bind(labServiceCall,d);
   if(isUtilityPage(p)&&!(C.kind==='ctpa'&&p==='integrations'&&window.CtpaIntegrations))bindUtilityPage(p,d,ctx);
   if(C.kind==='ctpa'&&['integrations','integration_connect','integration_workspace'].includes(p)&&window.CtpaIntegrations)window.CtpaIntegrations.bind(p,d,ctx);
