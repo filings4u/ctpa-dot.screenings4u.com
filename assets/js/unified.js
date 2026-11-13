@@ -739,6 +739,27 @@ async function loadPersonCompanies(){
   if(holder)holder.textContent="Could not load companies: "+error.message;
  }
 }
+async function openPersonCompanyProfile(companyId){
+ if(!companyId)return;
+ try{
+  for(const kind of state.context==="dot"?["employers","owner_operators"]:["employers"]){
+   const key=cacheKey(kind),cached=state.cache.get(key);
+   let records=cached?.records||[];
+   if(!cached||!records.some(r=>r.id===companyId)){
+    const result=await api("list",{tenant_id:state.tenantId,operating_context:state.context,kind});
+    records=result.records||[];
+    state.cache.set(key,{records,time:Date.now()});
+   }
+   if(records.some(r=>r.id===companyId)){
+    switchPage(kind);
+    if(state.cache.get(cacheKey()))openManagement("view",companyId);
+    else state.pendingManagement={action:"view",id:companyId,section:kind};
+    return;
+   }
+  }
+  message("The linked company is not available in this workspace.",true);
+ }catch(error){message("Unable to open company: "+error.message,true)}
+}
 function renderPersonManagement(record,mode,canWrite){
  const view=mode==="view",data=record?.data||{},isNew=mode==="new";
  const name=[data.first_name,data.last_name].filter(Boolean).join(" ")||"New person";
@@ -1213,15 +1234,7 @@ function bindEvents(){
   if(target.closest("[data-company-person]")){void openCompanyPerson(target.closest("[data-company-person]").dataset.companyPerson);return}
   if(target.closest("[data-person-company]")){
    const companyId=target.closest("[data-person-company]").dataset.personCompany;
-   let kind=null,company=null;
-   for(const item of state.context==="dot"?["employers","owner_operators"]:["employers"]){
-    const found=(state.cache.get(cacheKey(item))?.records||[]).find(r=>r.id===companyId);
-    if(found){kind=item;company=found;break}
-   }
-   if(!kind||!company){message("Company profile is not available in this workspace.",true);return}
-   switchPage(kind);
-   if(state.cache.get(cacheKey()))openManagement("view",companyId);
-   else state.pendingManagement={action:"view",id:companyId,section:kind};
+   void openPersonCompanyProfile(companyId);
    return;
   }
   if(target.closest("[data-company-contact-profile]")){
