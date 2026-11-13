@@ -179,7 +179,7 @@ function updateHeading(){
  const title=label(state.page);
  $("topTitle").textContent=title;$("pageTitle").textContent=title;
  updateBreadcrumbs();
- if(state.page==="reports"){$("pageActions").innerHTML="";return}
+ if(["reports","lab_supplies"].includes(state.page)){$("pageActions").innerHTML=state.page==="lab_supplies"?'<button class="btn secondary" type="button" id="refreshPage">Refresh catalog</button>':"";return}
  $("pageActions").innerHTML=state.page==="results"?'<button class="btn secondary" type="button" id="refreshPage">Refresh</button>':state.page==="account"?"":state.page==="dashboard"||state.page==="lab_analytics"
   ?'<button class="btn secondary" type="button" id="refreshPage">Refresh</button>'
   :'<button class="btn secondary" type="button" id="refreshPage">Refresh</button><button class="btn secondary" type="button" id="exportPage">Export CSV</button><button class="btn primary" type="button" id="newRecord">'+(state.page==="selections"?"Run Selection":state.page==="testing_orders"?"Order a Test":state.page==="testing_documents"?"Upload Document":state.page==="occupational_health"?"Order Physical":state.page==="compliance"?"Add Compliance Record":state.page==="audits"?"Start New Entrant Audit":state.page==="return_to_duty"?"Create RTD Case":state.page==="policies"?"Create Policy":state.page==="documents"?"Upload Private Document":state.page==="lab_accounts"?"Request Lab Account":"Add "+esc(title))+'</button>';
@@ -198,6 +198,7 @@ function switchPage(page,push=true){
  if(page==="account"){void renderAccount();return}
  if(page==="lab_analytics"){void renderLabAnalytics();return}
  if(page==="reports"){reportBuilder();return}
+ if(page==="lab_supplies"){void openSupplyStore();return}
  const stored=state.cache.get(cacheKey());
  if(stored){showRecords(stored.records);if(Date.now()-stored.time>30000)void loadRecords(seq,true)}
  else {$("pageContent").innerHTML='<section class="panel"><div class="loading-line"><span class="spinner"></span>Loading authorized records…</div></section>';void loadRecords(seq,false)}
@@ -2969,6 +2970,112 @@ async function saveLabAccount(form){
  }catch(e){error.textContent=e.message;save.disabled=false}
 }
 
+
+const supplyStore={products:[],orders:[],companies:[],cart:new Map(),search:"",filter:"all",loading:false};
+const supplyMoney=n=>new Intl.NumberFormat("en-US",{style:"currency",currency:"USD"}).format(Number(n||0));
+function supplyCartItems(){
+ return supplyStore.products.filter(p=>p.available&&(supplyStore.cart.get(p.id)||0)>0).map(p=>({...p,quantity:supplyStore.cart.get(p.id)}));
+}
+function supplyStorePage(){
+ const query=supplyStore.search.toLowerCase();
+ const products=supplyStore.products.filter(p=>(supplyStore.filter==="all"||
+  (supplyStore.filter==="priced"&&p.available)||(supplyStore.filter==="not-priced"&&!p.available))&&
+  [p.name,p.description,p.sku].some(v=>String(v||"").toLowerCase().includes(query)));
+ const cards=products.map(p=>{
+  const quantity=supplyStore.cart.get(p.id)||0;
+  const unit=p.name.toLowerCase().includes("25ct")?"25 count":p.name.toLowerCase().includes("50ct")?"50 count":p.name.toLowerCase().includes("100ct")?"100 count":"Supply";
+  return '<article class="supply-product"><div class="supply-product-icon">'+navIcon("lab_supplies")+'</div>'+
+   '<div class="supply-product-body"><span class="supply-product-label">'+esc(unit)+'</span>'+
+   '<h3>'+esc(p.name)+'</h3><p>'+esc(p.description||"Collection and shipping supplies")+'</p>'+
+   '<small>SKU '+esc(p.slug||p.sku||"—")+'</small></div>'+
+   '<div class="supply-product-bottom"><div><strong>'+(p.available?supplyMoney(p.unit_price):"Pricing unavailable")+'</strong>'+
+   '<small>'+(p.available?"Per package":"Not available for checkout")+'</small></div>'+
+   (p.available?'<div class="supply-counter"><button type="button" aria-label="Remove one '+esc(p.name)+'" data-supply-decrease="'+esc(p.id)+'">−</button>'+
+    '<span>'+quantity+'</span><button type="button" aria-label="Add one '+esc(p.name)+'" data-supply-increase="'+esc(p.id)+'">+</button></div>':
+    '<span class="supply-unavailable">Unavailable</span>')+'</div></article>';
+ }).join("");
+ const cart=supplyCartItems(),count=cart.reduce((a,p)=>a+p.quantity,0);
+ const total=cart.reduce((a,p)=>a+p.quantity*Number(p.unit_price),0);
+ const companies=supplyStore.companies.map(c=>'<option value="'+esc(c.id)+'">'+esc(c.data?.legal_name||"Employer")+'</option>').join("");
+ $("pageContent").innerHTML='<div class="supply-store"><section class="results-intro"><span class="results-intro-icon">'+navIcon("lab_supplies")+'</span>'+
+ '<div><strong>Workforce Supply Store</strong><p>Purchase drug-testing collection kits and laboratory supplies for your C/TPA or your DOT and NON-DOT employers. Every order is paid upfront through secure checkout.</p></div></section>'+
+ '<div class="supply-store-layout"><div><div class="supply-catalog-toolbar"><div><h2>Shop collection supplies</h2><p>'+supplyStore.products.length+' products in Workforce catalog</p></div>'+
+ '<div class="supply-search"><input id="supplySearch" type="search" value="'+esc(supplyStore.search)+'" placeholder="Search supplies..." aria-label="Search laboratory supplies">'+
+ '<select id="supplyFilter" aria-label="Filter supplies"><option value="all"'+(supplyStore.filter==="all"?" selected":"")+'>All supplies</option>'+
+ '<option value="priced"'+(supplyStore.filter==="priced"?" selected":"")+'>Available to order</option>'+
+ '<option value="not-priced"'+(supplyStore.filter==="not-priced"?" selected":"")+'>Awaiting pricing</option></select></div></div>'+
+ '<div class="supply-product-grid">'+(cards||'<div class="supply-empty">No supplies match your search.</div>')+'</div>'+
+ '<section class="supply-history"><h2>Your recent supply orders</h2>'+
+ (supplyStore.orders.length?supplyStore.orders.map(o=>
+  '<div class="supply-order-row"><span><strong>'+esc(o.order_number)+'</strong><small>'+esc(new Date(o.created_at).toLocaleDateString())+'</small></span>'+
+  '<strong>'+supplyMoney(o.total)+'</strong><span class="mgmt-status '+(o.payment_status==="paid"?"active":"pending")+'">'+esc(o.payment_status==="paid"?"Paid":o.payment_status||"Unpaid")+'</span>'+
+  (o.payment_status!=="paid"?'<button type="button" class="btn secondary" data-supply-pay="'+esc(o.id)+'">Complete Payment</button>':
+   '<span class="supply-fulfilled">'+esc(o.status||"Processing")+'</span>')+'</div>').join(""):
+  '<p>No supplies purchased yet.</p>')+'</section></div>'+
+ '<aside class="supply-cart"><div class="supply-cart-head"><div><span class="supply-cart-kicker">YOUR ORDER</span><h2>Shopping cart</h2></div><strong>'+count+' items</strong></div>'+
+ '<div class="supply-cart-items">'+(cart.length?cart.map(p=>'<div class="supply-cart-item"><span><strong>'+esc(p.name)+'</strong><small>Qty '+p.quantity+' × '+supplyMoney(p.unit_price)+'</small></span>'+
+ '<strong>'+supplyMoney(p.quantity*p.unit_price)+'</strong></div>').join(""):'<p>Select supplies to add them to your cart.</p>')+'</div>'+
+ '<div class="supply-cart-total"><span>Subtotal</span><strong>'+supplyMoney(total)+'</strong></div>'+
+ '<p class="supply-cart-disclosure">C/TPA payment is required before fulfillment. Any shipping charges or applicable taxes must be confirmed at checkout; this is not an employer invoice.</p>'+
+ '<form id="supplyCheckoutForm"><h3>Where should we ship?</h3><label class="manage-field"><span>Recipient *</span><select name="company_id" id="supplyRecipient">'+
+ '<option value="">My C/TPA company</option>'+companies+'</select></label>'+
+ '<label class="manage-field"><span>Recipient name *</span><input name="ship_name" required maxlength="140"></label>'+
+ '<label class="manage-field"><span>Street address *</span><input name="address_line1" required maxlength="180"></label>'+
+ '<label class="manage-field"><span>Address line 2 (optional)</span><input name="address_line2" maxlength="120"></label>'+
+ '<div class="supply-two"><label class="manage-field"><span>City *</span><input name="city" required maxlength="100"></label>'+
+ '<label class="manage-field"><span>State *</span><input name="state" required maxlength="35" placeholder="IL"></label></div>'+
+ '<label class="manage-field"><span>ZIP code *</span><input name="postal_code" pattern="[0-9]{5}(-[0-9]{4})?" required maxlength="10"></label>'+
+ '<h3>Purchaser contact</h3><div class="supply-two"><label class="manage-field"><span>First name *</span><input name="first_name" required maxlength="80"></label>'+
+ '<label class="manage-field"><span>Last name *</span><input name="last_name" required maxlength="80"></label></div>'+
+ '<label class="manage-field"><span>Email *</span><input name="email" type="email" required maxlength="180"></label>'+
+ '<label class="manage-field"><span>Phone *</span><input name="phone" type="tel" required maxlength="35"></label>'+
+ '<label class="manage-field"><span>Special instructions (optional)</span><textarea name="notes" maxlength="1200" rows="2"></textarea></label>'+
+ '<p id="supplyError" class="manage-form-error" role="alert"></p><button class="btn primary supply-checkout-button" id="supplyCheckoutButton" type="submit"'+(!cart.length?' disabled':'')+
+ '>Continue to secure checkout · '+supplyMoney(total)+'</button></form>'+
+ '<p class="supply-secure-note">Payment is processed securely through Stripe. You may charge your employers separately at your own discretion.</p></aside></div></div>';
+ const form=$("supplyCheckoutForm");
+ if(supplyStore.lastForm){for(const [k,v] of Object.entries(supplyStore.lastForm)){const input=form.elements.namedItem(k);if(input)input.value=String(v||"")}}
+ form.addEventListener("input",()=>{supplyStore.lastForm=Object.fromEntries(new FormData(form).entries())});
+ form.addEventListener("change",()=>{supplyStore.lastForm=Object.fromEntries(new FormData(form).entries())});
+}
+async function openSupplyStore(){
+ const seq=state.sequence,ctx=state.context,tenant=state.tenantId;
+ if(supplyStore.loading)return;
+ supplyStore.loading=true;
+ $("pageContent").innerHTML='<section class="panel"><div class="loading-line"><span class="spinner"></span>Loading authorized supply catalog…</div></section>';
+ try{
+  const [catalog,...companies]=await Promise.all([
+   api("supplies_catalog",{tenant_id:tenant,operating_context:ctx}),
+   ...([ctx==="dot"?"employers":"employers",...(ctx==="dot"?["owner_operators"]:[])].map(kind=>
+     api("list",{tenant_id:tenant,operating_context:ctx,kind})))
+  ]);
+  if(seq!==state.sequence||ctx!==state.context||state.page!=="lab_supplies")return;
+  supplyStore.products=catalog.products||[];
+  supplyStore.orders=catalog.orders||[];
+  supplyStore.companies=companies.flatMap(x=>x.records||[]);
+  supplyStore.cart=new Map([...supplyStore.cart].filter(([id])=>supplyStore.products.some(p=>p.id===id&&p.available)));
+  supplyStorePage();
+ }catch(e){if(seq===state.sequence&&state.page==="lab_supplies")$("pageContent").innerHTML=
+  '<section class="panel"><h2>Supplies unavailable</h2><p>'+esc(e.message)+'</p><button type="button" class="btn secondary" data-supply-reload>Try again</button></section>'}
+ finally{supplyStore.loading=false}
+}
+async function submitSupplyCheckout(form){
+ const button=$("supplyCheckoutButton"),error=$("supplyError"),items=supplyCartItems();
+ if(!items.length||!form.reportValidity())return;
+ button.disabled=true;error.textContent="";
+ const values=Object.fromEntries(new FormData(form).entries());
+ const shipping={name:values.ship_name,address_line1:values.address_line1,address_line2:values.address_line2,
+  city:values.city,state:values.state,postal_code:values.postal_code};
+ const contact={first_name:values.first_name,last_name:values.last_name,email:values.email,phone:values.phone};
+ try{
+  const result=await api("supplies_create_order",{tenant_id:state.tenantId,operating_context:state.context,
+   items:items.map(p=>({service_id:p.id,quantity:p.quantity})),company_id:values.company_id||null,
+   shipping,contact,notes:values.notes||""});
+  if(!result.order?.id)throw Error("Unable to create verified checkout order");
+  location.assign("/global-checkout.html?mode=supplies&order_id="+encodeURIComponent(result.order.id)+"&tenant_id="+encodeURIComponent(state.tenantId)+"&context="+encodeURIComponent(state.context));
+ }catch(e){error.textContent=e.message;button.disabled=false}
+}
+
 function renderManagementPage(){
  const m=state.management;
  if(!m||m.section!==state.page)return;
@@ -3295,6 +3402,7 @@ function showRecords(records){
  if(state.page==="documents"){privateDocumentList(records);return}
  if(state.page==="lab_accounts"){labAccountList(records);return}
  if(state.page==="reports"){reportBuilder();return}
+ if(state.page==="lab_supplies"){supplyStorePage();return}
  if(state.page==="occupational_health"){physicalOrderList(records);return}
  const count=records.length,query=state.search.trim().toLowerCase();
  const statuses=[...new Set(records.map(r=>String(r.data?.status||"").trim()).filter(Boolean))].sort();
@@ -3512,6 +3620,14 @@ function bindEvents(){
  $("notice").addEventListener("click",e=>{if(e.target.closest(".notice-close"))message("")});
  $("pageContent").addEventListener("click",e=>{
   const target=e.target;
+  if(target.closest("[data-supply-reload]")){void openSupplyStore();return}
+  const adjust=target.closest("[data-supply-increase],[data-supply-decrease]");
+  if(adjust){const id=adjust.dataset.supplyIncrease||adjust.dataset.supplyDecrease;
+   const old=supplyStore.cart.get(id)||0,qty=Math.max(0,Math.min(100,old+(adjust.dataset.supplyIncrease?1:-1)));
+   if(qty)supplyStore.cart.set(id,qty);else supplyStore.cart.delete(id);
+   supplyStorePage();return}
+  const repay=target.closest("[data-supply-pay]");
+  if(repay){location.assign("/global-checkout.html?mode=supplies&order_id="+encodeURIComponent(repay.dataset.supplyPay)+"&tenant_id="+encodeURIComponent(state.tenantId)+"&context="+encodeURIComponent(state.context));return}
   const copy=target.closest("[data-lab-copy]");
   if(copy){const r=(state.cache.get(cacheKey())?.records||[]).find(x=>x.id===copy.dataset.labCopy);
    if(r?.data?.ready_for_orders&&r.data.issued_by_testing&&r.data.account_number)navigator.clipboard.writeText(r.data.account_number).then(()=>message("Account number copied."),()=>message("Copy failed.",true));
@@ -3702,7 +3818,7 @@ function bindEvents(){
  });
  $("recordFields").addEventListener("click",e=>{const b=e.target.closest("[data-modal-download]");if(b)void openDocumentFile(b.dataset.modalDownload)});
  $("recordForm").addEventListener("submit",saveRecord);
- $("pageContent").addEventListener("submit",e=>{if(e.target.id==="testingDocForm"){e.preventDefault();void submitTestingDocument(e.target);return}if(e.target.id==="drugOrderForm"){e.preventDefault();void submitDrugOrder(e.target);return}if(e.target.id==="physicalOrderForm"){e.preventDefault();void submitPhysicalOrder(e.target);return}if(e.target.id==="auditForm"){e.preventDefault();void saveAudit(e.target);return}if(e.target.id==="rtdCaseForm"){e.preventDefault();void saveRTDCase(e.target);return}if(e.target.id==="policyForm"){e.preventDefault();void savePolicy(e.target);return}if(e.target.id==="privateDocumentForm"){e.preventDefault();void submitPrivateDocument(e.target);return}if(e.target.id==="reportBuilderForm"){e.preventDefault();void runCompanyReport(e.target);return}if(e.target.id==="labAccountForm"){e.preventDefault();void saveLabAccount(e.target);return}if(e.target.id==="managementForm"){e.preventDefault();void submitManagement(e.target)}});
+ $("pageContent").addEventListener("submit",e=>{if(e.target.id==="testingDocForm"){e.preventDefault();void submitTestingDocument(e.target);return}if(e.target.id==="drugOrderForm"){e.preventDefault();void submitDrugOrder(e.target);return}if(e.target.id==="physicalOrderForm"){e.preventDefault();void submitPhysicalOrder(e.target);return}if(e.target.id==="auditForm"){e.preventDefault();void saveAudit(e.target);return}if(e.target.id==="rtdCaseForm"){e.preventDefault();void saveRTDCase(e.target);return}if(e.target.id==="policyForm"){e.preventDefault();void savePolicy(e.target);return}if(e.target.id==="privateDocumentForm"){e.preventDefault();void submitPrivateDocument(e.target);return}if(e.target.id==="reportBuilderForm"){e.preventDefault();void runCompanyReport(e.target);return}if(e.target.id==="labAccountForm"){e.preventDefault();void saveLabAccount(e.target);return}if(e.target.id==="supplyCheckoutForm"){e.preventDefault();void submitSupplyCheckout(e.target);return}if(e.target.id==="managementForm"){e.preventDefault();void submitManagement(e.target)}});
  for(const id of ["modalClose","cancelModal","modalDismiss"])$(id).addEventListener("click",closeModal);
  document.addEventListener("keydown",e=>{if(e.key==="Escape"){if(!$("modal").hidden)closeModal();$("accountDropdown").hidden=true;$("accountTrigger").setAttribute("aria-expanded","false")}});
  const setFont=n=>{state.font=Math.max(13,Math.min(21,n));document.documentElement.style.fontSize=state.font+"px";localStorage.setItem("workforce_unified_font",String(state.font))};
