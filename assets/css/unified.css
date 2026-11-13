@@ -1335,3 +1335,38 @@ body.modal-open{overflow:hidden}
 .track-card footer{justify-content:flex-start;flex-wrap:wrap;border-top:1px solid #e7edf4;background:#f9fbfd}.track-card footer small{margin-left:auto;color:#65748a}
 .track-empty{text-align:center;border:1px dashed #bfcddd;background:#fff;border-radius:14px;padding:65px 20px}.track-empty strong{font-size:19px}.track-empty p{color:#687b91}
 @media(max-width:800px){.track-root{padding:16px}.track-intro{align-items:flex-start;flex-direction:column}.track-summary{gap:8px}.track-summary>div{padding:14px}.track-summary strong{font-size:22px}.track-toolbar{flex-direction:column}.track-toolbar select{min-width:0}.track-details{grid-template-columns:repeat(2,minmax(0,1fr))}.track-card header{align-items:flex-start}.track-card footer small{margin-left:0;width:100%}}
+
+
+/* Laboratory Analytics — Workforce standalone reporting */
+.analytics-root{width:100%;max-width:1450px;margin:0 auto;padding:22px 26px 52px;color:#01122F}
+.analytics-hero{display:flex;justify-content:space-between;align-items:center;gap:22px;padding:27px 30px;border:1px solid #dce5f0;border-radius:15px;background:#fff;margin-bottom:20px}
+.analytics-hero>div{max-width:760px}.analytics-hero span{font-size:11px;font-weight:800;letter-spacing:.09em;color:#466486}
+.analytics-hero h2{font-size:26px;margin:7px 0 12px;color:#01122F}.analytics-hero p{margin:0;font-size:14px;line-height:1.65;color:#5c6f85}
+.analytics-period-label{display:grid;gap:8px;color:#45617e;font-size:12px;font-weight:800;white-space:nowrap}
+.analytics-period-label select{padding:11px 13px;border:1px solid #cbd8e6;background:#fff;border-radius:9px;color:#01122F;font:inherit;font-size:13px}
+.analytics-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:20px}
+.analytics-kpi{background:#fff;border:1px solid #dce5f0;border-radius:13px;padding:20px 21px;display:grid;gap:10px;min-height:132px;min-width:0}
+.analytics-kpi small{color:#536c89;font-size:12px;font-weight:700}.analytics-kpi strong{font-size:29px;line-height:1.15;color:#01122F;overflow-wrap:anywhere}
+.analytics-kpi span{font-size:11px;color:#687b90}
+.analytics-main-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:17px;margin-bottom:17px}
+.analytics-panel{background:#fff;border:1px solid #dce5f0;border-radius:14px;padding:24px;min-width:0}
+.analytics-panel-head{margin-bottom:22px}.analytics-panel-head h3{font-size:17px;color:#01122F;margin:0 0 6px}.analytics-panel-head p{font-size:12px;color:#6b7d92;margin:0;line-height:1.5}
+.analytics-chart{display:flex;gap:10px;align-items:end;min-height:224px;padding:8px 0 0}
+.analytics-bar-column{min-width:0;flex:1;display:flex;flex-direction:column;align-items:center;gap:9px}
+.analytics-bar-value{font-size:11px;font-weight:700;color:#345577;text-align:center;overflow-wrap:anywhere;max-width:100%}
+.analytics-bar-track{height:155px;width:100%;max-width:56px;border-radius:6px 6px 0 0;background:#f0f4f8;display:flex;align-items:end;overflow:hidden}
+.analytics-bar-fill{background:#01122F;width:100%;min-height:0;border-radius:5px 5px 0 0}
+.analytics-bar-column:nth-child(even) .analytics-bar-fill{background:#eeb600}
+.analytics-bar-column small{color:#708297;text-align:center;font-size:10px;white-space:nowrap}
+.analytics-carriers{display:grid;gap:24px;padding:10px 0}
+.analytics-carrier>div:first-child{display:flex;justify-content:space-between;gap:14px;margin-bottom:11px;font-size:13px}.analytics-carrier strong{color:#01122F}.analytics-carrier span{color:#60758d}
+.analytics-progress{height:11px;border-radius:9px;background:#e9eef5;overflow:hidden}.analytics-progress>div{height:100%;background:#FDC102;border-radius:9px}
+.analytics-table-wrap{overflow-x:auto}.analytics-table-wrap table{width:100%;border-collapse:collapse;text-align:left;white-space:nowrap}
+.analytics-table-wrap th{padding:13px 12px;font-size:11px;text-transform:uppercase;letter-spacing:.035em;color:#647995;background:#f6f8fb}
+.analytics-table-wrap td{padding:15px 12px;font-size:13px;border-bottom:1px solid #edf0f5;color:#3d526b}
+.analytics-table-wrap td strong{color:#01122F}.analytics-no-records{text-align:center;padding:36px!important;color:#6d7b8e!important}
+.analytics-state{background:#edf3f9;color:#274766;padding:5px 9px;border-radius:20px;text-transform:capitalize;font-size:12px}
+.analytics-footnote{margin:17px 0 0;color:#63738a;font-size:12px;line-height:1.55}
+.analytics-loading,.analytics-error{background:#fff;border:1px solid #dce5f0;padding:36px;border-radius:14px;margin:20px}
+@media(max-width:1080px){.analytics-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:760px){.analytics-root{padding:15px}.analytics-hero{align-items:stretch;flex-direction:column;padding:21px}.analytics-main-grid{grid-template-columns:1fr}.analytics-panel{padding:19px}.analytics-hero h2{font-size:23px}.analytics-kpis{gap:9px}.analytics-kpi{padding:16px;min-height:116px}.analytics-kpi strong{font-size:24px}}
