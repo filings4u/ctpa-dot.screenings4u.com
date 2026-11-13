@@ -68,7 +68,7 @@ const CONFIG={
  billing:["Employer Billing","Create and manage itemized invoices for your employers and owner-operators."],
  invoices:["Workforce Billing","View and pay invoices Workforce issues to your C/TPA."],
  settlements:["Settlements","View settlement statements for services you perform for Workforce."],
- subscriptions:["Subscriptions","View and manage subscription records.","name|Subscription name|text|required;plan|Plan|text;renewal_date|Renewal date|date;status|Status|select:active,cancelled"],
+ subscriptions:["Subscriptions","View your actual Workforce plans, billing and cancellation."],
  staff:["Staff Directory","Maintain staff directory records. Account invitations are separate from this directory.","name|Name|text|required;position|Position|text;email|Email|email;status|Status|select:active,inactive"],
  integrations:["Integrations","Maintain connection and integration records.","name|Integration name|text|required;provider|Provider|text;status|Status|select:inactive,active"],
  audit_history:["Audit History","Maintain operational audit entries.","name|Event title|text|required;resource|Resource|text;description|Description|textarea"],
@@ -180,7 +180,7 @@ function updateHeading(){
  const title=label(state.page);
  $("topTitle").textContent=title;$("pageTitle").textContent=title;
  updateBreadcrumbs();
- if(["reports","lab_supplies","lab_tracking","orders","price_list","services","billing","invoices","settlements"].includes(state.page)){$("pageActions").innerHTML=state.page==="lab_supplies"?'<button class="btn secondary" type="button" id="refreshPage">Refresh catalog</button>':state.page==="lab_tracking"?'<button class="btn secondary" type="button" id="refreshPage">Refresh tracking</button>':["orders","price_list","services","billing","invoices","settlements"].includes(state.page)?'<button class="btn secondary" type="button" id="refreshPage">Refresh</button><button class="btn secondary" type="button" id="exportPage">Export CSV</button>':"";return}
+ if(["reports","lab_supplies","lab_tracking","orders","price_list","services","billing","invoices","settlements","subscriptions"].includes(state.page)){$("pageActions").innerHTML=state.page==="lab_supplies"?'<button class="btn secondary" type="button" id="refreshPage">Refresh catalog</button>':state.page==="lab_tracking"?'<button class="btn secondary" type="button" id="refreshPage">Refresh tracking</button>':["orders","price_list","services","billing","invoices","settlements","subscriptions"].includes(state.page)?'<button class="btn secondary" type="button" id="refreshPage">Refresh</button><button class="btn secondary" type="button" id="exportPage">Export CSV</button>':"";return}
  $("pageActions").innerHTML=state.page==="results"?'<button class="btn secondary" type="button" id="refreshPage">Refresh</button>':state.page==="account"?"":state.page==="dashboard"||state.page==="lab_analytics"
   ?'<button class="btn secondary" type="button" id="refreshPage">Refresh</button>'
   :'<button class="btn secondary" type="button" id="refreshPage">Refresh</button><button class="btn secondary" type="button" id="exportPage">Export CSV</button><button class="btn primary" type="button" id="newRecord">'+(state.page==="selections"?"Run Selection":state.page==="testing_orders"?"Order a Test":state.page==="testing_documents"?"Upload Document":state.page==="occupational_health"?"Order Physical":state.page==="compliance"?"Add Compliance Record":state.page==="audits"?"Start New Entrant Audit":state.page==="return_to_duty"?"Create RTD Case":state.page==="policies"?"Create Policy":state.page==="documents"?"Upload Private Document":state.page==="lab_accounts"?"Request Lab Account":"Add "+esc(title))+'</button>';
@@ -206,6 +206,7 @@ function switchPage(page,push=true){
  if(page==="services"){void openProviderServices();return}
  if(page==="billing"){void openEmployerBilling();return}
  if(page==="invoices"||page==="settlements"){void openWorkforceFinance(page);return}
+ if(page==="subscriptions"){void openSubscriptionsPortal();return}
  const stored=state.cache.get(cacheKey());
  if(stored){showRecords(stored.records);if(Date.now()-stored.time>30000)void loadRecords(seq,true)}
  else {$("pageContent").innerHTML='<section class="panel"><div class="loading-line"><span class="spinner"></span>Loading authorized records…</div></section>';void loadRecords(seq,false)}
@@ -220,6 +221,7 @@ function openRatesPortal(){const tenantId=state.tenantId,context=state.context;i
 function openProviderServices(){const tenantId=state.tenantId,context=state.context;if(!window.WorkforceProviderServices){$("pageContent").textContent="Provider services unavailable. Refresh the page.";return}return window.WorkforceProviderServices.open({tenantId,context,supabase:state.supabase,active:()=>state.page==="services"&&state.tenantId===tenantId&&state.context===context})}
 function openEmployerBilling(){const tenantId=state.tenantId,context=state.context;if(!window.WorkforceEmployerInvoices){$("pageContent").textContent="Employer Billing module is unavailable. Refresh the page.";return}return window.WorkforceEmployerInvoices.open({tenantId,context,supabase:state.supabase,active:()=>state.page==="billing"&&state.tenantId===tenantId&&state.context===context})}
 function openWorkforceFinance(page){const tenantId=state.tenantId,context=state.context;if(!window.WorkforceFinance){$("pageContent").textContent="Workforce financial records are unavailable. Refresh the page.";return}return window.WorkforceFinance.open({tenantId,context,supabase:state.supabase,active:()=>state.page===page&&state.tenantId===tenantId&&state.context===context},page==="settlements"?"settlement":"bill")}
+function openSubscriptionsPortal(){const tenantId=state.tenantId,context=state.context;if(!window.WorkforceSubscriptions){$("pageContent").textContent="Subscription dashboard is unavailable. Refresh the page.";return}return window.WorkforceSubscriptions.open({tenantId,context,supabase:state.supabase,active:()=>state.page==="subscriptions"&&state.tenantId===tenantId&&state.context===context})}
 function changeContext(next){
  if(!["dot","nondot"].includes(next)||next===state.context)return;
  state.context=next;sessionStorage.setItem("workforce_unified_context",next);
@@ -3642,7 +3644,7 @@ function startApp(){
  if(desired==="lab_orders")history.replaceState(null,"","/unified.html?page=testing_orders"+(search.get("manage")==="new"?"&manage=new":""));
  if(desired==="lab_results"||desired==="lab_documents")history.replaceState(null,"","/unified.html?page="+(desired==="lab_results"?"results":"testing_documents"));
  switchPage(desired==="lab_results"?"results":desired==="lab_documents"?"testing_documents":desired==="lab_orders"?"testing_orders":desired==="enrollments"?"programs":desired==="clearinghouse"?"compliance":CONFIG[desired]?desired:"dashboard",false);
- const action=["lab_supplies","lab_tracking","orders","price_list","services","billing","invoices","settlements"].includes(desired)?null:["lab_orders","lab_results","lab_documents"].includes(desired)?(desired==="lab_orders"&&search.get("manage")==="new"?"new":null):search.get("manage"),id=["lab_orders","lab_results","lab_documents"].includes(desired)?null:search.get("record");
+ const action=["lab_supplies","lab_tracking","orders","price_list","services","billing","invoices","settlements","subscriptions"].includes(desired)?null:["lab_orders","lab_results","lab_documents"].includes(desired)?(desired==="lab_orders"&&search.get("manage")==="new"?"new":null):search.get("manage"),id=["lab_orders","lab_results","lab_documents"].includes(desired)?null:search.get("record");
  if(MANAGEMENT_ACTIONS.has(action)){
   const apply=()=>{if(state.page===(desired==="lab_orders"?"testing_orders":desired))openManagement(action,id,false)};
   const cached=state.cache.get(cacheKey());
@@ -3704,8 +3706,8 @@ function bindEvents(){
  $("pageActions").addEventListener("click",e=>{
   if(e.target.closest("[data-back-list]")){leaveManagement();return}
   if(e.target.closest("#newRecord")){openManagement("new");return}
-  if(e.target.closest("#refreshPage")){void (state.page==="lab_analytics"?renderLabAnalytics(true):state.page==="lab_supplies"?openSupplyStore():state.page==="lab_tracking"?openTracking():state.page==="orders"?openHistoryPortal():state.page==="price_list"?openRatesPortal():state.page==="services"?openProviderServices():state.page==="billing"?openEmployerBilling():["invoices","settlements"].includes(state.page)?openWorkforceFinance(state.page):loadRecords(state.sequence,true,true));return}
-  if(e.target.closest("#exportPage")){if(state.page==="orders"){window.WorkforceOrderHistory?.exportCsv();return}if(state.page==="price_list"){window.WorkforceRateSheet?.exportCsv();return}if(state.page==="services"){window.WorkforceProviderServices?.exportCsv();return}if(state.page==="billing"){window.WorkforceEmployerInvoices?.exportCsv();return}if(["invoices","settlements"].includes(state.page)){window.WorkforceFinance?.exportCsv();return}exportRecords();return}
+  if(e.target.closest("#refreshPage")){void (state.page==="lab_analytics"?renderLabAnalytics(true):state.page==="lab_supplies"?openSupplyStore():state.page==="lab_tracking"?openTracking():state.page==="orders"?openHistoryPortal():state.page==="price_list"?openRatesPortal():state.page==="services"?openProviderServices():state.page==="billing"?openEmployerBilling():["invoices","settlements"].includes(state.page)?openWorkforceFinance(state.page):state.page==="subscriptions"?openSubscriptionsPortal():loadRecords(state.sequence,true,true));return}
+  if(e.target.closest("#exportPage")){if(state.page==="orders"){window.WorkforceOrderHistory?.exportCsv();return}if(state.page==="price_list"){window.WorkforceRateSheet?.exportCsv();return}if(state.page==="services"){window.WorkforceProviderServices?.exportCsv();return}if(state.page==="billing"){window.WorkforceEmployerInvoices?.exportCsv();return}if(["invoices","settlements"].includes(state.page)){window.WorkforceFinance?.exportCsv();return}if(state.page==="subscriptions"){window.WorkforceSubscriptions?.exportCsv();return}exportRecords();return}
  });
  $("notice").addEventListener("click",e=>{if(e.target.closest(".notice-close"))message("")});
  $("pageContent").addEventListener("click",e=>{
