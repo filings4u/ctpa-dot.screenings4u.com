@@ -698,3 +698,20 @@ body.modal-open{overflow:hidden}
 .program-management .manage-field small{font-weight:500;font-size:.72rem;color:#6e8095}
 @media(max-width:950px){.program-management-grid{grid-template-columns:1fr}.program-primary{border-right:0}.program-related{border-top:1px solid #e5ecf3}}
 @media(max-width:600px){.program-head{padding:17px}.program-primary .management-section-header{padding:17px 17px 0}.program-primary .management-section .manage-form-grid{padding:15px 17px;grid-template-columns:1fr}.program-rule-guidance{margin:14px 17px}.program-actions{padding:14px 17px}}
+
+.program-enrollments{border-top:1px solid #e7edf3;padding:0}
+.program-enrollments-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:18px 23px;border-bottom:1px solid #e9eef3}
+.program-enrollments-heading h2{font-size:.91rem;font-weight:850;margin:0;color:#01122f}
+.program-enrollments-heading h2 span{font-size:.73rem;color:#637992;background:#edf3f8;border-radius:18px;padding:3px 8px;margin-left:5px}
+.program-enrollments-heading button{border:1px solid #ccd7e4;border-radius:7px;background:#fff;padding:8px 10px;color:#01122f;font-size:.73rem;font-weight:800}
+.program-enrollments-heading button:hover{background:#fff9e8;border-color:#fdc102}
+.program-enrollment-list{padding:8px 23px 14px}
+.program-enrollment-row{display:flex;align-items:center;gap:12px;justify-content:space-between;padding:10px 0;border-bottom:1px solid #edf1f4}
+.program-enrollment-row:last-child{border-bottom:0}
+.program-enrollment-row>span{display:grid;gap:4px;min-width:0}
+.program-enrollment-row strong{font-size:.8rem;color:#142d4d}
+.program-enrollment-row small{font-size:.7rem;color:#70849b}
+.program-enrollment-row button{background:#fff4f3;border:0;border-radius:7px;color:#9c3939;padding:7px 11px;font-size:.73rem;font-weight:750}
+.program-enrollment-empty{font-size:.78rem;color:#6a7f95;margin:6px 0 12px}
+.program-enrollment-select{width:100%;padding:11px 12px;min-height:43px;background:#fff;border:1px solid #ccd8e6;border-radius:8px;color:#01122f;font-size:.82rem}
+@media(max-width:600px){.program-enrollments-heading{padding:16px;flex-wrap:wrap}.program-enrollment-list{padding:8px 16px 14px}}
