@@ -1472,3 +1472,11 @@ body.modal-open{overflow:hidden}
 .eb-loading,.eb-error{border:1px solid #dce5ef;border-radius:12px;background:white;padding:34px;margin:22px}
 @media(max-width:1060px){.eb-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.eb-line{grid-template-columns:minmax(0,1fr) repeat(3,100px)}.eb-line .eb-remove{grid-column:span 4}}
 @media(max-width:730px){.eb-root{padding:14px}.eb-header{flex-direction:column;align-items:flex-start;padding:20px}.eb-toolbar{flex-direction:column}.eb-toolbar select{max-width:none}.eb-editor,.eb-detail{padding:16px}.eb-fields,.eb-bottom{grid-template-columns:1fr}.eb-fields .wide{grid-column:auto}.eb-line{grid-template-columns:repeat(2,minmax(0,1fr))}.eb-line label.wide{grid-column:span 2}.eb-line .eb-remove{grid-column:span 2}.eb-stats{gap:8px}.eb-stats article{padding:14px}.eb-stats strong{font-size:22px}}
+
+
+.eb-overlay{position:fixed;inset:0;z-index:40000;background:rgba(1,18,47,.65);display:grid;place-items:center;padding:20px}
+.eb-dialog{width:min(480px,100%);border-radius:15px;overflow:hidden;background:#fff;color:#01122F;box-shadow:0 25px 75px #01122F55}
+.eb-dialog-top{background:#01122F;color:#fff;padding:20px 24px;font-size:18px;border-bottom:4px solid #FDC102}
+.eb-dialog-body{padding:22px 24px}.eb-dialog-body p{margin:0 0 22px;line-height:1.6;color:#4b617b}
+.eb-dialog-body label{display:grid;gap:8px;margin-bottom:18px;font-weight:700}.eb-dialog-body input{padding:12px;border:1px solid #cbd8e6;border-radius:8px;width:100%;color:#01122F}
+.eb-dialog-buttons{display:flex;gap:10px;justify-content:flex-end}
