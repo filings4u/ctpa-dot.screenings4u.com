@@ -821,9 +821,21 @@ function scheduleLiveRender(){
   },120);
 }
 function startRealtime(ctx){
-  try{if(liveChannel){sb.removeChannel(liveChannel);liveChannel=null}const ctpaId=ctx?.ctpa?.id||ctx?.ctpa_id||ctx?.subscription?.ctpa_id;if(!ctpaId)return;
-    liveChannel=sb.channel('ctpa-live-'+ctpaId).on('postgres_changes',{event:'INSERT',schema:'public',table:'ctpa_activity_events',filter:'ctpa_id=eq.'+ctpaId},()=>scheduleLiveRender()).subscribe();
-  }catch(e){console.warn('Realtime unavailable',e)}
+ try{
+  if(liveChannel){sb.removeChannel(liveChannel);liveChannel=null}
+  const ctpaId=ctx?.ctpa?.id||ctx?.ctpa_id||ctx?.subscription?.ctpa_id;
+  if(!ctpaId)return;
+  const surface=workspace()?.surface==='nondot'?'nondot':'dot';
+  liveChannel=sb.channel('ctpa-'+surface+'-'+ctpaId);
+  if(surface==='nondot'){
+   // Scoped realtime feeds; background updates refresh only current module data.
+   liveChannel.on('postgres_changes',{event:'*',schema:'public',table:'workforce_employers',filter:'ctpa_id=eq.'+ctpaId},()=>scheduleLiveRender());
+   liveChannel.on('postgres_changes',{event:'*',schema:'public',table:'workforce_random_pools',filter:'ctpa_id=eq.'+ctpaId},()=>scheduleLiveRender());
+  }else{
+   liveChannel.on('postgres_changes',{event:'INSERT',schema:'public',table:'ctpa_activity_events',filter:'ctpa_id=eq.'+ctpaId},()=>scheduleLiveRender());
+  }
+  liveChannel.subscribe();
+ }catch(e){console.warn('Realtime unavailable',e)}
 }
 async function refreshCurrent({force=true}={}){
   if(!window.portalCtx)return;
@@ -954,8 +966,10 @@ async function init(){
     }
     window.portalCtx=ctx;
     if(workspace()?.surface==='nondot'){
-      try{ctx.nondotVerified=await nondotWorkspaceAccess();}
-      catch{ctx.nondotVerified=false;}
+      // session-security.js already authenticated this exact NON-DOT account.
+      // Do not send a second workspace-discovery request on every page open.
+      ctx.nondotVerified=ctx.portal_code==='ctpa_workforce'&&
+        ctx.ctpa?.id===workspace()?.ctpa_id&&ctx.subscription?.id===workspace()?.subscription_id;
     }
     shell(ctx);installFastNavigation();
     const p=page(),search=location.search,cached=await getCachedPageData(p,search);
