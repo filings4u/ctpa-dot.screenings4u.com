@@ -216,7 +216,6 @@ async function archiveRecord(id){
 }
 function startApp(){
  showView("application");
- $("tenantPicker").innerHTML=state.workspaces.map(w=>'<option value="'+esc(w.tenant_id)+'"'+(w.tenant_id===state.tenantId?" selected":"")+'>'+esc(w.name)+'</option>').join("");
  const desired=new URLSearchParams(location.search).get("page")||"dashboard";
  switchPage(CONFIG[desired]?desired:"dashboard",false);
 }
@@ -224,9 +223,7 @@ async function initializeWorkspaces(){
  const r=await api("bootstrap");
  state.workspaces=r.workspaces||[];
  if(!state.workspaces.length){showView("workspaceSetup");return}
- const stored=sessionStorage.getItem("workforce_unified_tenant");
- state.tenantId=state.workspaces.find(w=>w.tenant_id===stored)?.tenant_id||state.workspaces[0].tenant_id;
- sessionStorage.setItem("workforce_unified_tenant",state.tenantId);
+ state.tenantId=state.workspaces[0].tenant_id;
  startApp();
 }
 function bindEvents(){
@@ -243,10 +240,6 @@ function bindEvents(){
   e.preventDefault();const b=e.currentTarget.querySelector("button");b.disabled=true;
   try{const name=String(new FormData(e.currentTarget).get("name")||"").trim();await api("create_workspace",{name});await initializeWorkspaces()}
   catch(error){$("setupMessage").textContent=error.message}finally{b.disabled=false}
- });
- $("tenantPicker").addEventListener("change",e=>{
-  const id=e.target.value;if(!state.workspaces.some(w=>w.tenant_id===id))return;
-  state.tenantId=id;sessionStorage.setItem("workforce_unified_tenant",id);switchPage("dashboard");
  });
  $("sidebarNavigation").addEventListener("click",e=>{const b=e.target.closest("[data-page]");if(b)switchPage(b.dataset.page)});
  document.querySelectorAll("[data-context]").forEach(b=>b.addEventListener("click",()=>changeContext(b.dataset.context)));
