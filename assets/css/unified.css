@@ -927,3 +927,30 @@ body.modal-open{overflow:hidden}
 @media(max-width:920px){.official-result-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:650px){.results-intro,.results-row{padding:15px;gap:10px}.results-row-view{display:none}.official-result-status{margin:15px 16px 0;padding:13px}.official-result-section{padding:18px 16px}.official-result-grid{grid-template-columns:1fr 1fr;gap:17px}.official-result-file{flex-wrap:wrap}.official-result-file>div{min-width:calc(100% - 58px)}.official-result-file button{flex:1}}
 @media(max-width:450px){.official-result-grid{grid-template-columns:1fr}.results-row .mgmt-status{font-size:.64rem}}
+
+
+/* Occupational Health physical ordering and Testing Operations tracking */
+.physical-workspace{display:grid;gap:17px;min-width:0}
+.physical-order-intro{display:flex;align-items:center;gap:15px;background:#fff;border:1px solid #dce6ee;border-radius:13px;padding:22px 25px}
+.physical-order-intro h2{font-size:1.05rem;color:#01122f;margin:0 0 6px;font-weight:850}
+.physical-order-intro p,.physical-helper{font-size:.79rem;color:#61768e;line-height:1.5;margin:0}
+.physical-helper{padding:0 25px 18px}
+.physical-list-row{width:100%;display:flex;align-items:center;gap:15px;padding:17px 22px;border:0;border-top:1px solid #e5ebf2;background:white;text-align:left;cursor:pointer;color:#01122f}
+.physical-list-row:hover,.physical-list-row:focus-visible{background:#f6f9fd}
+.physical-list-primary{flex:1;min-width:0;display:grid;gap:5px}
+.physical-list-primary strong{font-size:.88rem;font-weight:850;overflow-wrap:anywhere}
+.physical-list-primary small{font-size:.76rem;color:#6b8096;overflow-wrap:anywhere}
+.physical-list-type{font-size:.8rem;font-weight:800;min-width:140px;color:#234d73}
+.physical-type-choice{display:flex;gap:13px;flex-wrap:wrap;padding:22px 25px 12px}
+.physical-type-choice label{display:flex;align-items:center;gap:10px;min-width:180px;border:1px solid #cbd9e9;border-radius:10px;padding:14px 18px;font-size:.85rem;font-weight:800;color:#01122f;background:#f8fafc}
+.physical-type-choice label:has(input:checked){background:#fff9e8;border-color:#fdc102}
+.physical-type-choice input{accent-color:#01122f;width:18px;height:18px;margin:0}
+.physical-type-choice input:disabled:not(:checked){opacity:.5}
+.physical-workspace .management-editor{background:white;border:1px solid #dce6ee;border-radius:13px;overflow:hidden}
+.physical-workspace .manage-form-grid{padding:0 25px 24px}
+.physical-workspace .management-section-header{padding:20px 25px}
+.physical-workspace .physical-notes{grid-column:1/-1}
+.physical-workspace .physical-notes textarea{min-height:110px}
+.physical-workspace .manage-form-error{padding:0 25px;color:#a1232b}
+@media(max-width:850px){.physical-list-type{display:none}}
+@media(max-width:650px){.physical-order-intro{padding:16px}.physical-list-row{padding:14px;gap:10px;flex-wrap:wrap}.physical-list-row .results-row-view{display:none}.physical-list-row .mgmt-status{margin-left:47px}.physical-type-choice{padding:15px 16px}.physical-type-choice label{flex:1;min-width:135px}.physical-workspace .manage-form-grid{padding:0 16px 20px}.physical-workspace .management-section-header{padding:16px}.physical-helper{padding:0 16px 14px}}
