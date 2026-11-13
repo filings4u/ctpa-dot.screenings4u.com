@@ -787,6 +787,46 @@ Deno.serve(async request=>{
      clean.order_reference=String(order.data.data?.name||"");
     }else clean.order_reference="";
    }
+   if(kind==="compliance"){
+    if(body.record_context==="shared")return respond({error:"Compliance records must belong to a DOT or NON-DOT company"},400);
+    if(!uuid(clean.company_id))return respond({error:"Select a company for this compliance record"},400);
+    const company=await collection.select("id,data").eq("tenant_id",tenantId)
+     .eq("id",clean.company_id).in("kind",context==="dot"?["employers","owner_operators"]:["employers"])
+     .eq("operating_context",context).is("archived_at",null).maybeSingle();
+    if(company.error)throw company.error;
+    if(!company.data)return respond({error:"Company does not belong to the selected workspace"},400);
+    const personId=text(clean.person_id,50);
+    if(personId){
+     if(!uuid(personId))return respond({error:"Invalid employee"},400);
+     const person=await collection.select("id,data").eq("tenant_id",tenantId)
+      .eq("id",personId).eq("kind","people").eq("operating_context",context)
+      .is("archived_at",null).maybeSingle();
+     if(person.error)throw person.error;
+     if(!person.data||person.data.data?.company_id!==clean.company_id)
+      return respond({error:"Employee must be associated with the selected company"},400);
+     clean.employee_name=[text(person.data.data?.first_name,100),text(person.data.data?.last_name,100)].filter(Boolean).join(" ");
+    }else{clean.person_id="";clean.employee_name=""}
+    if(!text(clean.name,200))return respond({error:"Enter a compliance record title"},400);
+    if(!["company","employee"].includes(String(clean.scope)))return respond({error:"Choose company or employee compliance"},400);
+    if(clean.scope==="employee"&&!personId)return respond({error:"Select an employee for an employee compliance record"},400);
+    if(!["review","finding","violation","corrective_action","audit","other"].includes(String(clean.category)))
+     return respond({error:"Choose a valid compliance category"},400);
+    if(!["compliant","non_compliant","needs_review","not_applicable","pending"].includes(String(clean.outcome)))
+     return respond({error:"Choose a compliance outcome"},400);
+    if(!["open","in_progress","resolved","closed"].includes(String(clean.status)))
+     return respond({error:"Choose a valid case status"},400);
+    if(!["low","normal","high","urgent"].includes(String(clean.priority)))
+     return respond({error:"Choose a valid priority"},400);
+    if(!text(clean.findings,6000))return respond({error:"Enter the compliance findings or results"},400);
+    for(const dateField of ["review_date","due_date"]){
+     if(clean[dateField]&&(!/^\d{4}-\d{2}-\d{2}$/.test(String(clean[dateField]))||
+       !Number.isFinite(Date.parse(String(clean[dateField])+"T12:00:00Z"))))
+      return respond({error:"Invalid "+dateField.replaceAll("_"," ")},400);
+    }
+    clean.employer=text(company.data.data?.legal_name,180);
+    clean.company_id=company.data.id;
+    allowedContext=context;
+   }
    if(kind==="people"){
     // A person exists only in the context of an authorized employer or owner-operator.
     // Company ownership is checked for BOTH create and edit, not merely in the UI.
