@@ -1604,3 +1604,10 @@ body.modal-open{overflow:hidden}
 .wf-notice-support form{display:grid;gap:18px}.wf-notice-support form label{display:grid;gap:9px;font-weight:700;font-size:12px;color:#375675}.wf-notice-support textarea{resize:vertical;width:100%}
 .wf-notice-submit{display:flex;align-items:center;justify-content:flex-end;gap:15px}.wf-notice-submit span{margin-right:auto;color:#486887;font-size:12px}
 @media(max-width:730px){.wf-notifications{padding:13px}.wf-notice-hero{flex-direction:column;align-items:flex-start;padding:19px}.wf-notice-toolbar{flex-direction:column}.wf-notice-stats{gap:9px}.wf-notice-stats article{padding:14px}.wf-notice-detail-foot,.wf-notice-support-heading{flex-direction:column;align-items:flex-start}.wf-notice-row{padding:14px;gap:10px}}
+
+/* Persistent private chat recipient selector */
+.private-chat-picker{display:grid;gap:9px;padding:16px;border-bottom:1px solid #e0e8f1;background:#fbfcfe}
+.private-chat-picker label{font-size:12px;font-weight:800;color:#294668}
+.private-chat-picker select{width:100%;padding:12px 11px;border:1px solid #cbd9e8;border-radius:9px;background:#fff;color:#01122F;font:inherit;min-width:0;max-width:100%}
+.private-chat-picker .btn{width:100%;justify-content:center}
+.private-chat-picker .btn:disabled{opacity:.5;cursor:not-allowed}
