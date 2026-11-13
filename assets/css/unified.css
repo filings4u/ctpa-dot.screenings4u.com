@@ -1043,3 +1043,5 @@ body.modal-open{overflow:hidden}
 .audit-loading{padding:22px 25px;color:#61768a;font-size:.82rem}
 @media(max-width:850px){.audit-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.audit-list-progress{display:none}.audit-checklist-head{flex-wrap:wrap}}
 @media(max-width:600px){.audit-list-row{gap:9px;padding:14px;flex-wrap:wrap}.audit-list-name{flex-basis:calc(100% - 60px)}.audit-list-row .results-row-view{display:none}.audit-summary-grid{grid-template-columns:1fr 1fr}.audit-summary-grid>div,.audit-checklist-head,.audit-checklist-item{padding:15px}.audit-item-details{grid-template-columns:1fr}.audit-checklist-group>h3{padding:15px}.audit-editor .management-section-header{padding:15px}.audit-editor .manage-form-grid{padding:0 15px 20px}}
+
+.audit-item-description{font-size:.76rem;color:#647d93;line-height:1.55;margin:4px 0 0;max-width:850px}
