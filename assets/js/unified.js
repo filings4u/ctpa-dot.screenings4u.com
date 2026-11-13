@@ -260,44 +260,88 @@ async function renderLabAnalytics(refresh=false){
    '<strong>'+String(counts.get(kind)||0)+'</strong><small>Manage records</small></button>').join("")+'</div></section>';
 }
 function renderDashboard(records){
- const counts=new Map();
- for(const r of records)counts.set(r.kind,(counts.get(r.kind)||0)+1);
- const dashboardCards=[["employers","Employers"],["people","People"],["programs","Programs"],["testing_orders","Testing Orders"]];
- const sections=[
-  ["People & Programs",["employers","owner_operators","people","programs","pools","selections"]],
-  ["Testing & Compliance",["testing_orders","results","documents","audits","reports"]],
-  ["Lab Account",["lab_accounts","lab_orders","lab_tracking","lab_results","lab_documents","lab_supplies","lab_analytics"]],
-  ["Services & Billing",["orders","billing","invoices","support"]]
- ];
- const recent=records.filter(r=>r.kind!=="audit_history")
-  .sort((a,b)=>Date.parse(b.updated_at||b.created_at||0)-Date.parse(a.updated_at||a.created_at||0)).slice(0,6);
  const context=state.context==="dot"?"DOT":"NON-DOT";
- const links=sections.map(([heading,items])=>'<div class="dash-link-group"><h3>'+esc(heading)+'</h3>'+
-  items.map(id=>'<button type="button" data-goto="'+esc(id)+'"><span class="dash-link-icon">'+navIcon(id)+'</span>'+
-   '<span>'+esc(label(id))+'</span>'+
-   ((counts.get(id)||0)?'<span class="dash-link-count">'+String(counts.get(id))+'</span>':"")+
-   '<span class="dash-chevron" aria-hidden="true">›</span></button>').join("")+'</div>').join("");
+ const company=activeWorkspace()?.name||"C/TPA";
+ const byKind=new Map(),statusPending=/pending|awaiting|in.progress|requested|draft|overdue|review|unassigned|needs.action|unscheduled|incomplete/i;
+ for(const r of records)byKind.set(r.kind,(byKind.get(r.kind)||0)+1);
+ const allowedKinds=new Set(["employers","owner_operators","people","programs","pools","selections","testing_orders","testing_documents","results","documents","audits","lab_accounts","lab_orders","lab_tracking","lab_results","lab_documents","lab_supplies","invoices","billing"]);
+ const recent=records.filter(r=>allowedKinds.has(r.kind)&&!r.archived_at)
+  .sort((x,y)=>new Date(y.updated_at||y.created_at||0)-new Date(x.updated_at||x.created_at||0)).slice(0,6);
+ const activeOrders=records.filter(r=>["testing_orders","lab_orders"].includes(r.kind));
+ const followUp=activeOrders.filter(r=>statusPending.test(String(r.data?.status||""))).length;
+ const outstanding=records.filter(r=>["invoices","billing"].includes(r.kind)&&/unpaid|open|overdue|past.due|pending/i.test(String(r.data?.status||""))).length;
+ const metrics=[
+  ["employers","Client employers","Registered organizations"],
+  ["people","Workforce","People on record"],
+  ["programs","Active programs","Program records"],
+  ["testing_orders","Testing orders","Order records"]
+ ];
+ const metricHtml=metrics.map(([id,title,sub])=>
+  '<button type="button" class="enterprise-kpi" data-goto="'+id+'">'+
+   '<span class="enterprise-kpi-top"><span>'+esc(title)+'</span><span class="enterprise-kpi-icon">'+navIcon(id)+'</span></span>'+
+   '<strong>'+String(byKind.get(id)||0)+'</strong>'+
+   '<span class="enterprise-kpi-bottom">'+esc(sub)+'<span aria-hidden="true">↗</span></span></button>').join("");
+ const actions=[
+  ["employers","Add employer","building"],
+  ["people","Add person","user"],
+  ["testing_orders","Create testing order","flask"],
+  ["documents","Add document","file"]
+ ];
+ const actionHtml=actions.map(([id,title])=>'<button type="button" class="enterprise-action" data-dashboard-create="'+id+'">'+
+  '<span class="enterprise-action-icon">'+navIcon(id)+'</span><span>'+esc(title)+'</span><span class="enterprise-action-arrow" aria-hidden="true">↗</span></button>').join("");
+ const now=new Date(),months=[];
+ for(let offset=5;offset>=0;offset--){
+  const d=new Date(now.getFullYear(),now.getMonth()-offset,1);
+  const y=d.getFullYear(),m=d.getMonth();
+  const total=records.filter(r=>{
+   if(!allowedKinds.has(r.kind))return false;
+   const value=new Date(r.created_at||r.updated_at||0);
+   return !Number.isNaN(value.getTime())&&value.getFullYear()===y&&value.getMonth()===m;
+  }).length;
+  months.push({label:d.toLocaleDateString(undefined,{month:"short"}),count:total});
+ }
+ const max=Math.max(1,...months.map(v=>v.count));
+ const plot=months.map(item=>
+  '<div class="enterprise-chart-col" title="'+esc(item.label)+': '+item.count+' records">'+
+  '<span class="enterprise-chart-amount">'+(item.count?item.count:"")+'</span>'+
+  '<span class="enterprise-chart-track"><span class="enterprise-chart-bar" style="height:'+Math.max(item.count?7:0,Math.round(item.count/max*100))+'%"></span></span>'+
+  '<span class="enterprise-chart-month">'+esc(item.label)+'</span></div>').join("");
+ const activity=recent.map(r=>{
+  const date=new Date(r.updated_at||r.created_at||0);
+  const formatted=Number.isNaN(date.getTime())?"":date.toLocaleDateString(undefined,{month:"short",day:"numeric"});
+  return '<button type="button" class="enterprise-activity-row" data-dashboard-record="'+esc(r.id)+'" data-dashboard-kind="'+esc(r.kind)+'">'+
+   '<span class="enterprise-activity-symbol">'+navIcon(r.kind)+'</span>'+
+   '<span class="enterprise-activity-info"><strong>'+esc(recordTitle(r))+'</strong><small>'+esc(label(r.kind))+'</small></span>'+
+   '<span class="enterprise-activity-date">'+esc(formatted)+'</span></button>';
+ }).join("");
+ const attention=[
+  {name:"Orders requiring follow-up",count:followUp,kind:"testing_orders",note:"Based on pending order statuses"},
+  {name:"Outstanding billing records",count:outstanding,kind:"invoices",note:"Based on open invoice statuses"}
+ ];
+ const attentionHtml=attention.map(v=>'<button type="button" class="enterprise-attention-row" data-goto="'+v.kind+'">'+
+  '<span class="enterprise-attention-dot '+(v.count?"has-items":"")+'"></span>'+
+  '<span class="enterprise-attention-info"><strong>'+v.name+'</strong><small>'+v.note+'</small></span>'+
+  '<span class="enterprise-attention-count">'+v.count+'</span></button>').join("");
  $("pageContent").innerHTML=
-  '<div class="dash-metrics">'+dashboardCards.map(([id,name])=>
-   '<button type="button" class="dash-metric" data-goto="'+id+'">'+
-   '<span class="dash-metric-label">'+esc(name)+'<span class="dash-metric-symbol">'+navIcon(id)+'</span></span>'+
-   '<strong>'+String(counts.get(id)||0)+'</strong>'+
-   '<span class="dash-metric-foot">Open management <span aria-hidden="true">›</span></span></button>').join("")+'</div>'+
-  '<div class="dash-columns">'+
-   '<section class="dash-panel"><div class="dash-section-title"><h2>Management</h2><span class="dash-context-label">'+context+'</span></div>'+
-   '<div class="dash-group-grid">'+links+'</div></section>'+
-   '<section class="dash-panel"><div class="dash-section-title"><h2>Recent activity</h2></div>'+
-   (recent.length?'<div class="dash-recent">'+recent.map(r=>
-    '<button type="button" class="dash-recent-row" data-goto="'+esc(r.kind)+'">'+
-    '<span class="dash-recent-icon">'+navIcon(r.kind)+'</span>'+
-    '<span class="dash-recent-info"><strong>'+esc(recordTitle(r))+'</strong><small>'+esc(label(r.kind))+'</small></span>'+
-    '<span class="dash-recent-date">'+esc(new Date(r.updated_at||r.created_at).toLocaleDateString())+'</span></button>').join("")+'</div>':
-    '<div class="dash-empty">No recent activity in this workspace.</div>')+
-   '<div class="dash-recent-footer"><button type="button" data-goto="audit_history">Audit History'+
-   ((counts.get("audit_history")||0)?' · '+String(counts.get("audit_history")):'')+
-   ' <span aria-hidden="true">›</span></button></div></section></div>';
+  '<div class="enterprise-dashboard">'+
+   '<div class="enterprise-overview-heading"><div><span class="enterprise-overline">'+esc(context)+' WORKSPACE</span>'+
+   '<h2>Operations overview</h2><p>'+esc(company)+'</p></div>'+
+   '<span class="enterprise-live-marker"><span></span>Account data</span></div>'+
+   '<div class="enterprise-kpi-grid">'+metricHtml+'</div>'+
+   '<div class="enterprise-dashboard-grid"><div class="enterprise-dashboard-main">'+
+    '<section class="enterprise-work-panel"><div class="enterprise-panel-heading"><div><span class="enterprise-panel-overline">WORKFORCE ACTIVITY</span><h3>Record activity</h3></div><span class="enterprise-panel-meta">Last six calendar months</span></div>'+
+    '<div class="enterprise-chart" role="img" aria-label="Record creation by month over the last six months">'+plot+'</div>'+
+    '<div class="enterprise-chart-caption">Based on available record creation dates. Historical records are included when dates are available.</div></section>'+
+    '<section class="enterprise-work-panel"><div class="enterprise-panel-heading"><div><span class="enterprise-panel-overline">GET THINGS DONE</span><h3>Quick actions</h3></div></div>'+
+    '<div class="enterprise-actions-grid">'+actionHtml+'</div></section>'+
+   '</div><div class="enterprise-dashboard-side">'+
+    '<section class="enterprise-work-panel"><div class="enterprise-panel-heading"><div><span class="enterprise-panel-overline">WORK QUEUE</span><h3>Needs attention</h3></div></div>'+
+    '<div class="enterprise-attention-list">'+attentionHtml+'</div></section>'+
+    '<section class="enterprise-work-panel enterprise-activity-panel"><div class="enterprise-panel-heading"><div><span class="enterprise-panel-overline">LATEST UPDATES</span><h3>Recent activity</h3></div>'+
+    '<button type="button" class="enterprise-text-link" data-goto="audit_history">Audit log ↗</button></div>'+
+    '<div class="enterprise-activity-list">'+(activity||'<p class="enterprise-empty">No recent activity for this workspace.</p>')+'</div></section>'+
+   '</div></div></div>';
 }
-
 const MANAGEMENT_ACTIONS=new Set(["new","view","edit"]);
 function managementUrl(action,id=null,section=state.page){
  const u=new URL("/unified.html",location.origin);
@@ -702,6 +746,25 @@ function bindEvents(){
  $("pageContent").addEventListener("click",e=>{
   const target=e.target;
   const view=target.closest("[data-view]"),edit=target.closest("[data-edit]"),archive=target.closest("[data-archive]"),create=target.closest("[data-create]"),goto=target.closest("[data-goto]"),retry=target.closest("#retryLoad"),openFile=target.closest("[data-open-file]"),previewFile=target.closest("[data-preview-file]"),step=target.closest("[data-page-step]");
+  const quick=target.closest("[data-dashboard-create]"),activity=target.closest("[data-dashboard-record]");
+  if(quick){
+   const destination=quick.dataset.dashboardCreate;
+   if(CONFIG[destination]){
+    switchPage(destination);
+    if(state.cache.get(cacheKey()))openManagement("new");
+    else state.pendingManagement={action:"new",id:null,section:destination};
+   }
+   return;
+  }
+  if(activity){
+   const destination=activity.dataset.dashboardKind,id=activity.dataset.dashboardRecord;
+   if(CONFIG[destination]&&id){
+    switchPage(destination);
+    if(state.cache.get(cacheKey()))openManagement("view",id);
+    else state.pendingManagement={action:"view",id,section:destination};
+   }
+   return;
+  }
   if(previewFile)void openDocumentFile(previewFile.dataset.previewFile,"preview");
   else if(openFile)void openDocumentFile(openFile.dataset.openFile);
   else if(view)openManagement("view",view.dataset.view);
