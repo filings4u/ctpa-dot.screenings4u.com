@@ -284,7 +284,10 @@ async function init(){
  state.supabase=window.supabase.createClient(BASE,KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,storageKey:"s4u_ctpa_dot_auth"}});
  state.font=Math.max(13,Math.min(21,Number(localStorage.getItem("workforce_unified_font")||16)));
  document.documentElement.style.fontSize=state.font+"px";
- state.context=sessionStorage.getItem("workforce_unified_context")==="nondot"?"nondot":"dot";
+ const requestedContext=new URLSearchParams(location.search).get("context");
+ state.context=requestedContext==="nondot"?"nondot":requestedContext==="dot"?"dot":
+  sessionStorage.getItem("workforce_unified_context")==="nondot"?"nondot":"dot";
+ sessionStorage.setItem("workforce_unified_context",state.context);
  bindEvents();
  try{
   const {data:{session}}=await state.supabase.auth.getSession();
