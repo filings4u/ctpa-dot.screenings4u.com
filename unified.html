@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<meta name="theme-color" content="#01122F">
+<link rel="icon" type="image/png" href="/images/fav.png">
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="preconnect" href="https://elpbnytpciqnbexiaebp.supabase.co" crossorigin>
+<title>Workforce C/TPA | Unified Portal</title>
+<link rel="stylesheet" href="/assets/css/unified.css?v=20261112-unified1">
+<script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script defer src="/assets/js/unified.js?v=20261112-unified1"></script>
+</head>
+<body>
+<div id="signin" class="signin" hidden>
+ <div class="signin-card">
+  <img src="/images/logo2.png" alt="Workforce" class="signin-logo">
+  <h1>Workforce C/TPA</h1>
+  <p>Sign in to the unified Workforce portal.</p>
+  <form id="signinForm">
+   <label>Email address<input name="email" type="email" autocomplete="username" required></label>
+   <label>Password<input name="password" type="password" autocomplete="current-password" required></label>
+   <button class="btn primary" type="submit">Sign in</button>
+   <p class="message" id="signinMessage" role="alert"></p>
+  </form>
+ </div>
+</div>
+<div id="workspaceSetup" class="signin" hidden>
+ <div class="signin-card">
+  <img src="/images/logo2.png" alt="Workforce" class="signin-logo">
+  <h1>Set up your organization</h1>
+  <p>Your new C/TPA system is independent of the previous portal. No old records have been imported.</p>
+  <form id="organizationForm">
+   <label>Organization legal name<input name="name" autocomplete="organization" maxlength="120" required></label>
+   <button class="btn primary" type="submit">Create organization</button>
+   <p class="message" id="setupMessage" role="alert"></p>
+  </form>
+ </div>
+</div>
+<div class="application" id="application" hidden>
+ <aside class="sidebar" id="sidebar">
+  <div class="brand"><img src="/images/logo2.png" alt="Workforce"></div>
+  <div class="workspace-label">Workforce C/TPA</div>
+  <div class="tenant-picker"><label for="tenantPicker">Organization</label><select id="tenantPicker"></select></div>
+  <div class="side-context" role="group" aria-label="Operating context">
+    <button type="button" class="context-option selected" data-context="dot">DOT</button>
+    <button type="button" class="context-option" data-context="nondot">NON-DOT</button>
+  </div>
+  <nav class="sidebar-navigation" id="sidebarNavigation" aria-label="Portal pages"></nav>
+  <div class="side-bottom"><span class="connection-indicator" aria-hidden="true"></span><span>Unified Workforce Portal</span></div>
+ </aside>
+ <div class="main-wrap">
+  <header class="topbar">
+   <div class="top-start"><button class="mobile-menu" id="menuToggle" type="button" aria-label="Toggle menu">☰</button><div><small>Workforce C/TPA</small><strong id="topTitle">Dashboard</strong></div></div>
+   <div class="top-actions"><span class="context-pill" id="contextPill">DOT</span><button type="button" id="fontDown" title="Reduce text size" aria-label="Reduce text size">A−</button><button type="button" id="fontReset" title="Reset text size">A</button><button type="button" id="fontUp" title="Increase text size" aria-label="Increase text size">A+</button><button class="btn secondary" type="button" id="signout">Sign out</button></div>
+  </header>
+  <main class="content" id="main" tabindex="-1">
+    <div class="page-top"><div><span class="eyebrow" id="contextEyebrow">DOT OPERATIONS</span><h1 id="pageTitle">Dashboard</h1><p id="pageSummary">Manage your C/TPA work in one system.</p></div><div class="page-actions" id="pageActions"></div></div>
+    <div class="notice" id="notice" role="status" aria-live="polite" hidden></div>
+    <div id="pageContent" aria-live="polite"></div>
+  </main>
+ </div>
+</div>
+<div id="modal" class="modal" hidden>
+ <div class="modal-underlay" id="modalDismiss"></div>
+ <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+  <div class="modal-heading"><h2 id="modalTitle">Record</h2><button type="button" id="modalClose" aria-label="Close dialog">×</button></div>
+  <form id="recordForm"><div id="recordFields"></div><p class="message" id="formMessage" role="alert"></p><div class="modal-actions"><button type="button" class="btn secondary" id="cancelModal">Cancel</button><button type="submit" class="btn primary" id="saveRecord">Save</button></div></form>
+ </div>
+</div>
+</body>
+</html>
