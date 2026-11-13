@@ -114,6 +114,27 @@ Deno.serve(async request=>{
    }
    return {program_id:programId,employee_count:personIds.size,locked:personIds.size>0};
   };
+  const poolMemberCount=async(poolId:string)=>{
+   const pool=await collection.select("id").eq("id",poolId).eq("tenant_id",tenantId)
+    .eq("kind","pools").eq("operating_context",context).is("archived_at",null).maybeSingle();
+   if(pool.error)throw pool.error;
+   if(!pool.data)return null;
+   const memberships=await collection.select("id,data").eq("tenant_id",tenantId)
+    .eq("kind","enrollments").eq("operating_context",context)
+    .eq("data->>membership_type","pool").eq("data->>pool_id",poolId)
+    .is("archived_at",null).limit(1000);
+   if(memberships.error)throw memberships.error;
+   const people=new Set((memberships.data||[]).filter((r:any)=>
+    uuid(r.data?.person_id)&&r.data?.status!=="inactive"&&r.data?.status!=="removed")
+    .map((r:any)=>r.data.person_id));
+   return {pool_id:poolId,employee_count:people.size,locked:people.size>0};
+  };
+  if(action==="pool_lock_status"){
+   if(!uuid(body.pool_id))return respond({error:"Invalid pool"},400);
+   const result=await poolMemberCount(body.pool_id);
+   if(!result)return respond({error:"Pool not found in this workspace"},404);
+   return respond({ok:true,...result});
+  }
   if(action==="program_lock_status"){
    if(!uuid(body.program_id))return respond({error:"Invalid program"},400);
    const result=await programEmployeeCount(body.program_id);
@@ -371,6 +392,12 @@ Deno.serve(async request=>{
     clean.employer=linked.data.data?.legal_name||"";
     clean.relationship=clean.relationship==="contact"?"contact":"staff";
    }
+   if(kind==="pools"&&uuid(body.id)){
+    const status=await poolMemberCount(body.id);
+    if(!status)return respond({error:"Pool not found in this workspace"},404);
+    if(status.locked)return respond({error:"Pool settings are locked while "+status.employee_count+
+     " employee(s) remain enrolled. Remove every employee from the pool before editing."},423);
+   }
    if(kind==="programs"&&uuid(body.id)){
     const status=await programEmployeeCount(body.id);
     if(!status)return respond({error:"Program not found in this workspace"},404);
@@ -518,6 +545,11 @@ Deno.serve(async request=>{
    if(body.kind==="owner_operators"&&context==="nondot")
     return respond({error:"Owner-Operators belong to the DOT workspace"},403);
    if(body.kind==="selections")return respond({error:"Selection audit records cannot be archived"},403);
+   if(body.kind==="pools"){
+    const status=await poolMemberCount(body.id);
+    if(!status)return respond({error:"Pool not found in this workspace"},404);
+    if(status.locked)return respond({error:"Cannot archive a pool with enrolled employees"},423);
+   }
    if(body.kind==="programs"){
     const status=await programEmployeeCount(body.id);
     if(!status)return respond({error:"Program not found in this workspace"},404);
