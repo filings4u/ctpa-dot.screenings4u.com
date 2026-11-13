@@ -787,3 +787,13 @@ body.modal-open{overflow:hidden}
 @media(max-width:1150px){.selection-event{grid-template-columns:35px minmax(180px,2fr) minmax(75px,.7fr) minmax(85px,.9fr) 90px;gap:12px}.selection-link{display:none}}
 @media(max-width:730px){.selection-event{grid-template-columns:34px minmax(0,1fr) auto;gap:11px;padding:15px}.selection-event>span:nth-child(3),.selection-event>span:nth-child(4){display:none!important}.selection-setup{padding:18px}.selection-detail .profile-fields{grid-template-columns:repeat(2,minmax(0,1fr))}.selection-stats>div{padding:14px}.selection-stats strong{font-size:1.35rem}}
 @media(max-width:460px){.selection-stats{gap:7px}.selection-stats>div{padding:10px}.selection-stats small{font-size:.65rem}.selection-stats strong{font-size:1.05rem}.selection-counts{grid-template-columns:1fr}.selection-detail .profile-fields{grid-template-columns:1fr}.selection-members{padding:16px}.selection-member{flex-wrap:wrap}.selection-member button{margin-left:auto}}
+
+/* Employee-dependent program configuration locks. */
+.program-lock-notice{display:flex;align-items:center;gap:12px;margin:19px 23px 5px;padding:14px 16px;border-radius:10px;background:#f5f8fc;border:1px solid #dce5ef;color:#173b5e;line-height:1.4;font-size:.82rem}
+.program-lock-notice:has(.program-lock-symbol){background:#fffaf0;border-color:#efdfa9}
+.program-lock-notice>span:last-child{display:grid;gap:4px;min-width:0}
+.program-lock-notice strong{font-size:.84rem;font-weight:850;color:#01122f}
+.program-lock-notice small{font-size:.74rem;color:#657b90;line-height:1.5}
+.program-lock-symbol{display:grid;place-items:center;flex:0 0 34px;width:34px;height:34px;border-radius:9px;background:#fff1c2;color:#745600;font-size:1.05rem;font-weight:850}
+#programEditButton:disabled{opacity:.6;cursor:wait}
+@media(max-width:600px){.program-lock-notice{margin:14px 16px 5px;padding:12px}}
