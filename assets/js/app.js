@@ -97,8 +97,6 @@ const managerRole=ctx=>{
 function pageAccess(ctx,p){
  if(C.kind!=='ctpa')return {allowed:true};
  const key=norm(p);
- if(workspace()?.surface==='nondot'&&key!=='dashboard'&&!isNonDotPage(key)&&!SHARED_WORKSPACE_PAGES.has(key))return {allowed:false,reason:'This is a DOT-only page. Select the DOT workspace to use DOT features.',feature:'nondot_access'};
- if(workspace()?.surface==='dot'&&isNonDotPage(key))return {allowed:false,reason:'Select the NON-DOT workspace to use NON-DOT features.',feature:'nondot_access'};
  const feature=PAGE_FEATURES[key];
  if(feature&&!planHas(ctx,feature))return {allowed:false,reason:'This feature is not included with your current C/TPA subscription.',feature};
  if(MANAGER_PAGES.has(key)&&!managerRole(ctx))return {allowed:false,reason:'Your C/TPA team role does not permit this administrative action.',feature};
@@ -113,18 +111,6 @@ function buildNavigation(ctx={}){
   {id:'dashboard',label:'DOT Workspace',icon:'⌂',href:'/dashboard.html',switchSurface:'dot'},
   {id:'nondot-workspace',label:'NON-DOT Workspace',icon:'⇄',href:'/dashboard.html',switchSurface:'nondot'}
  ];
- if(surface==='nondot'){
-  const sections=[
-   ['nondot-employers','Employers','▣'],
-   ['nondot-people','Employees','●'],
-   ['nondot-programs','Programs','◎'],
-   ['nondot-pools','Random Pools','◉'],
-   ['nondot-testing','Testing Orders','◆'],
-   ['nondot-results','Results','✓']
-  ];
-  return [...workspaces,...sections.map(([id,label,icon])=>({id,label,icon,href:'/'+id+'.html'})),
-   ...[['profile','Profile','●'],['account-settings','Account Settings','⚙'],['support','Support','?']].map(([id,label,icon])=>({id,label,icon,href:'/'+id+'.html'}))];
- }
  const e=ctx.entitlements||{};
  const items=[
   ['employers','Employers','▣','employer_management'],['people','People','●','employee_management'],
@@ -144,7 +130,7 @@ function buildNavigation(ctx={}){
   ['attend-demo','Attend Demo','▶',null],['profile','Profile','●',null],['account-settings','Account Settings','⚙',null],['support','Support','? ',null]
  ];
  for(const [id,meta] of Object.entries(LABORATORY_PAGES))items.push([id.replaceAll('_','-'),meta.label,'⚗',null]);
- return [...workspaces,...items.filter(x=>(!x[3]||e[x[3]]===true)&&pageAccess(ctx,norm(x[0])).allowed)
+ return [...workspaces,...items.filter(x=>!x[3]||e[x[3]]===true||workspace()?.surface==='nondot')
    .map(x=>({id:x[0],label:x[1],icon:x[2],href:'/'+x[0]+'.html'}))];
 }
 const cfgPage=id=>id==='dashboard'&&workspace()?.surface==='nondot'?{id,label:'NON-DOT Dashboard',icon:'⌂',href:'/dashboard.html'}:NAV.find(x=>norm(x.id)===norm(id))||{id,label:pretty(id),icon:'•',href:`/${id}.html`};
@@ -216,11 +202,8 @@ function syncLabNavigation(){return}
 async function access(){if(window.S4UCTPAVerifiedContext)return window.S4UCTPAVerifiedContext;if(window.S4UCTPAAuthReady)return await window.S4UCTPAAuthReady;throw Object.assign(new Error('Authentication verification is unavailable.'),{status:500})}
 
 function organizePortalNavigation(){
- const groups=workspace()?.surface==='nondot'?[
-  ['People & Programs',['nondot-employers','nondot-people','nondot-programs','nondot-pools']],
-  ['Testing & Results',['nondot-testing','nondot-results']],
-  ['Account & Support',['profile','account-settings','support']]
- ]:[
+ const groups=[
+
   ["People & Programs",["employers","people","programs","pools","selections","owner-operators","laboratory-clients","laboratory-consortiums"]],
   ["Testing & Laboratory Services",["testing","create-order","order-history","results","occupational-health","laboratory-overview","laboratory-accounts","laboratory-orders","laboratory-tracking","laboratory-results","laboratory-delivery","laboratory-supplies","laboratory-alerts","laboratory-analytics"]],
   ["Compliance & Documents",["compliance","new-entrant-audits","documents","legal-documents","reports","laboratory-documents","laboratory-benefits"]],
