@@ -855,7 +855,7 @@ const HTML_PREFETCH=new Map();
 async function fetchPageDocument(url){
   const u=new URL(url,location.href);u.hash='';const key=u.pathname+u.search;
   if(HTML_PREFETCH.has(key))return HTML_PREFETCH.get(key);
-  const task=fetch(u.href,{credentials:'same-origin',cache:'force-cache'}).then(r=>{if(!r.ok)throw new Error('Unable to load page.');return r.text()}).then(t=>new DOMParser().parseFromString(t,'text/html')).finally(()=>setTimeout(()=>HTML_PREFETCH.delete(key),30000));
+  const task=fetch(u.href,{credentials:'same-origin',cache:'force-cache'}).then(r=>{if(!r.ok)throw new Error('Unable to load page.');return r.text()}).then(t=>new DOMParser().parseFromString(t,'text/html')).catch(error=>{HTML_PREFETCH.delete(key);throw error});
   HTML_PREFETCH.set(key,task);return task;
 }
 async function prepareTarget(url){
