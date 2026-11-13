@@ -454,7 +454,7 @@ Deno.serve(async request=>{
    if(body.id&&!existing)return respond({error:"Policy not found"},404);
    const old=existing?.data||{};
    const changes=old.html!==html||old.version!==version||old.name!==name;
-   const logoUrl=text(input.logo_url,1100)||text(old.logo_url,1100);
+   const logoUrl=Object.prototype.hasOwnProperty.call(input,"logo_url")?text(input.logo_url,1100):text(old.logo_url,1100);
    const logoPrefix=(Deno.env.get("SUPABASE_URL")||"").replace(/\/$/,"")+"/storage/v1/object/public/ctpa-policy-logos/"+tenantId+"/";
    if(logoUrl&&!logoUrl.startsWith(logoPrefix))return respond({error:"Upload your logo using the policy editor"},400);
    const safe={
