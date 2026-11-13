@@ -183,7 +183,7 @@ function updateHeading(){
  const title=label(state.page);
  $("topTitle").textContent=title;$("pageTitle").textContent=title;
  updateBreadcrumbs();
- $("pageActions").innerHTML=state.page==="account"?"":state.page==="dashboard"||state.page==="lab_analytics"
+ $("pageActions").innerHTML=state.page==="results"?'<button class="btn secondary" type="button" id="refreshPage">Refresh</button>':state.page==="account"?"":state.page==="dashboard"||state.page==="lab_analytics"
   ?'<button class="btn secondary" type="button" id="refreshPage">Refresh</button>'
   :'<button class="btn secondary" type="button" id="refreshPage">Refresh</button><button class="btn secondary" type="button" id="exportPage">Export CSV</button><button class="btn primary" type="button" id="newRecord">'+(state.page==="selections"?"Run Selection":state.page==="testing_orders"?"Order a Test":state.page==="testing_documents"?"Upload Document":"Add "+esc(title))+'</button>';
 }
@@ -355,6 +355,8 @@ function openManagement(action,id=null,push=true){
  if(!MANAGEMENT_ACTIONS.has(action)||!CONFIG[state.page]||["dashboard","account"].includes(state.page))return;
  if(state.page==="selections"&&action==="edit")action="view";
  if(state.page==="testing_orders"&&action==="edit")action="view";
+ if(state.page==="results"&&action==="edit")action="view";
+ if(state.page==="results"&&action==="new"){message("Official results are issued by Testing Operations.",true);return;}
  if(state.page==="testing_orders"&&action==="new")drugOrderId=crypto.randomUUID();
  const records=state.cache.get(cacheKey())?.records||[];
  const record=id?records.find(r=>r.id===id):null;
@@ -1640,6 +1642,116 @@ async function submitTestingDocument(form){
   void loadRecords();
  }catch(e){$("testingDocError").textContent=e.message;btn.disabled=false}
 }
+
+function resultsManagementList(records){
+ const search=state.search.trim().toLowerCase(),filter=state.statusFilter;
+ const visible=records.filter(r=>(!search||[r.data?.name,r.data?.status,r.data?.notes].some(v=>String(v||"").toLowerCase().includes(search)))&&(!filter||r.data?.status===filter));
+ const rows=visible.map(r=>'<button class="results-row" type="button" data-view="'+esc(r.id)+'">'+
+  '<span class="results-row-icon">'+navIcon("results")+'</span><span class="results-row-name"><strong>'+
+  esc(r.data?.name||"Result report")+'</strong><small>'+esc(r.data?.reported_at?new Date(r.data.reported_at).toLocaleDateString():"Date not provided")+
+  '</small></span><span class="mgmt-status '+statusClass(r.data?.status)+'">'+esc(statusLabel(r.data?.status))+'</span>'+
+  '<span class="results-row-view">View result</span></button>').join("");
+ $("pageContent").innerHTML='<div class="results-workspace"><div class="results-intro">'+
+  '<span class="results-intro-icon">'+navIcon("results")+'</span><div><strong>Official testing results</strong>'+
+  '<p>Review finalized MRO reports received from Testing Operations, download authorized documents, and deliver them to the employer contact.</p></div></div>'+
+  '<section class="results-list"><div class="directory-toolbar"><div class="directory-search">'+
+  '<input id="recordSearch" type="search" value="'+esc(state.search)+'" placeholder="Search result references"></div>'+
+  '<select id="statusFilter"><option value="">All statuses</option><option value="final"'+(filter==="final"?" selected":"")+'>Final</option>'+
+  '<option value="pending"'+(filter==="pending"?" selected":"")+'>Pending</option></select>'+
+  '<span class="directory-total">'+visible.length+' results</span></div>'+
+  (rows||'<div class="directory-empty"><h2>No results available</h2><p>Official results will appear here after they are received from Testing Operations.</p></div>')+
+  '</section></div>';
+}
+async function populateOfficialResult(id){
+ const m=state.management,seq=state.sequence;
+ try{
+  const r=await api("result_details",{tenant_id:state.tenantId,operating_context:state.context,id});
+  if(state.page!=="results"||state.management!==m||seq!==state.sequence)return;
+  state.officialResult=r;
+  const box=$("officialResultBody");if(!box)return;
+  const row=(label,val)=>'<div class="official-result-field"><small>'+esc(label)+'</small><strong>'+esc(val||"Not provided")+'</strong></div>';
+  const ready=r.document_ready;
+  box.innerHTML='<div class="official-result-status '+(ready?"ready":"waiting")+'">'+
+   '<span>'+ (ready?"✓":"!")+'</span><div><strong>'+(ready?"Official MRO document ready":"Official MRO document pending")+'</strong>'+
+   '<small>'+(ready?"Verified finalized PDF available for authorized delivery.":"Testing Operations must attach the official finalized PDF before it can be downloaded or sent.")+'</small></div></div>'+
+   '<section class="official-result-section"><h2>Donor and employer</h2><div class="official-result-grid">'+
+   row("Donor",r.donor_name)+row("Date of birth",r.donor_birthdate)+
+   row("Employer",r.employer_name)+row("Designated employer email",r.recipient_email)+'</div></section>'+
+   '<section class="official-result-section"><h2>Official result</h2><div class="official-result-grid">'+
+   row("Result number",r.report_number)+row("Status",statusLabel(r.status))+
+   row("MRO verified result",statusLabel(r.verified_result))+row("Testing reason",statusLabel(r.test_reason))+
+   row("Specimen",statusLabel(r.specimen_type))+row("Laboratory",r.lab_name)+
+   row("MRO",r.mro_name)+row("Finalized",r.finalized_at?new Date(r.finalized_at).toLocaleString():"")+
+   '</div></section>'+
+   '<section class="official-result-section"><h2>Official MRO document</h2><div class="official-result-file">'+
+   '<span class="results-row-icon">'+navIcon("testing_documents")+'</span><div><strong>'+esc(r.document_name)+'</strong>'+
+   '<small>'+ (ready?"Official PDF · Confidential":"Official document not yet available")+'</small></div>'+
+   '<button class="btn secondary" type="button" data-result-document="preview"'+(ready?"":" disabled")+'>View</button>'+
+   '<button class="btn secondary" type="button" data-result-document="download"'+(ready?"":" disabled")+'>Download</button></div></section>'+
+   '<section class="official-result-section"><h2>Employer delivery</h2>'+
+   '<p class="official-result-description">Send the official MRO PDF directly to the designated employer contact. The report remains confidential; only authorized employer contact information is used.</p>'+
+   row("Delivery status",r.sent_at?"Sent "+new Date(r.sent_at).toLocaleString():statusLabel(r.delivery_status))+
+   '<div class="official-result-actions"><button class="btn primary" type="button" data-result-send'+
+   (ready&&r.recipient_email&&r.donor_name?"":" disabled")+'>'+ (r.sent_at?"Send again to employer":"Send to employer")+'</button></div></section>';
+ }catch(error){if(state.management===m&&$("officialResultBody"))
+  $("officialResultBody").innerHTML='<div class="official-result-status waiting"><strong>'+esc(error.message)+'</strong></div>';}
+}
+function renderOfficialResult(record){
+ state.officialResult=null;
+ $("pageActions").innerHTML='<button type="button" class="btn secondary" data-back-list>Back to Results</button>';
+ $("pageContent").innerHTML='<div class="results-workspace official-result-profile">'+
+  '<div class="program-head"><span class="program-head-icon">'+navIcon("results")+'</span><div>'+
+  '<strong>'+esc(record?.data?.name||"Official testing result")+'</strong>'+
+  '<small>Confidential MRO result delivery</small></div>'+recordStatus(record)+'</div>'+
+  '<div id="officialResultBody" class="official-result-body"><div class="loading-line"><span class="spinner"></span>Verifying official result and document…</div></div>'+
+  '<footer class="program-actions"><button class="btn secondary" type="button" data-back-list>Back to Results</button></footer></div>';
+ if(record)void populateOfficialResult(record.id);
+}
+async function officialResultFile(mode){
+ const id=state.management?.id,r=state.officialResult;
+ if(!id||!r?.document_ready)return;
+ try{
+  const link=await api("result_document_link",{tenant_id:state.tenantId,operating_context:state.context,id});
+  if(mode==="preview"){
+   $("modalTitle").textContent="Official MRO Document";
+   $("modalDescription").textContent=r.report_number;
+   $("recordFields").innerHTML='<div class="document-preview"><iframe src="'+esc(link.url)+'" title="Official MRO PDF" referrerpolicy="no-referrer"></iframe></div>';
+   $("recordForm").dataset.mode="view";$("saveRecord").hidden=true;
+   $("modal").hidden=false;document.body.classList.add("modal-open");
+  }else{
+   const response=await fetch(link.url,{cache:"no-store"});
+   if(!response.ok)throw Error("Unable to download the official document.");
+   const blob=await response.blob(),object=URL.createObjectURL(blob);
+   const a=document.createElement("a");a.href=object;a.download=link.filename||"Official MRO Result.pdf";
+   document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(object),30000);
+  }
+ }catch(error){message(error.message,true)}
+}
+function confirmOfficialResultSend(){
+ const r=state.officialResult;
+ if(!r?.document_ready||!r.recipient_email||!state.management?.id)return;
+ $("modalTitle").textContent="Send official result to employer";
+ $("modalDescription").textContent="Confirm the authorized employer contact before releasing confidential result information.";
+ $("recordFields").innerHTML='<div class="official-result-confirm"><p>Report: <strong>'+esc(r.report_number)+'</strong></p>'+
+  '<p>Employer: <strong>'+esc(r.employer_name)+'</strong></p>'+
+  '<p>Recipient: <strong>'+esc(r.recipient_email)+'</strong></p>'+
+  '<p>The finalized official PDF will be emailed to this employer contact. This action will be recorded in the result delivery history.</p></div>';
+ $("recordForm").dataset.mode="send-official-result";
+ $("saveRecord").hidden=false;$("saveRecord").disabled=false;
+ $("saveRecord").className="btn primary";$("saveRecord").textContent="Confirm and send result";
+ $("formMessage").textContent="";$("modal").hidden=false;document.body.classList.add("modal-open");
+}
+async function sendOfficialResult(){
+ const id=state.management?.id,r=state.officialResult,button=$("saveRecord");
+ if(!id||!r?.document_ready)return;
+ button.disabled=true;
+ try{
+  const res=await api("result_send_to_employer",{tenant_id:state.tenantId,
+   operating_context:state.context,id,confirm_recipient:r.recipient_email});
+  closeModal();message(res.warning||"Official result sent to the employer contact.");
+  if(state.management?.id===id)void populateOfficialResult(id);
+ }catch(error){$("formMessage").textContent=error.message;button.disabled=false}
+}
 function renderManagementPage(){
  const m=state.management;
  if(!m||m.section!==state.page)return;
@@ -1675,6 +1787,7 @@ function renderManagementPage(){
  if(state.page==="selections"){renderSelections(record);return;}
  if(state.page==="testing_orders"){renderDrugOrder(record);return;}
  if(state.page==="testing_documents"){renderTestingDocumentManagement(record,m.action);return;}
+ if(state.page==="results"){renderOfficialResult(record);return;}
  if(m.action==="view"){
   const d=record.data||{};
   const sections=isEmployer?[
@@ -1906,6 +2019,7 @@ function showRecords(records){
  if(state.page==="selections"){selectionList(records);return}
  if(state.page==="testing_orders"){renderDrugOrderList(records);return}
  if(state.page==="testing_documents"){testingDocumentsList(records);return}
+ if(state.page==="results"){resultsManagementList(records);return}
  const count=records.length,query=state.search.trim().toLowerCase();
  const statuses=[...new Set(records.map(r=>String(r.data?.status||"").trim()).filter(Boolean))].sort();
  const visible=records.filter(r=>(!query||Object.values(r.data||{}).some(v=>String(v??"").toLowerCase().includes(query)))&&
@@ -1965,11 +2079,13 @@ async function saveRecord(event){
  if(mode==="program-enroll-add"||mode==="program-enroll-remove"){await submitProgramEnrollment();return}
  if(mode==="pool-add-member"||mode==="pool-remove-member"){await savePoolMember();return}
  if(mode==="selection-run"){await runSelection();return}
+ if(mode==="send-official-result"){await sendOfficialResult();return}
  if(mode==="archive"){await performArchive();return}
  if(mode==="profile"){await saveProfile();return}
  if(mode==="view"){closeModal();return}
 }
 function archiveRecord(id){
+ if(state.page==="results"){message("Official results cannot be archived here.",true);return}
  if(state.page==="selections"){message("Locked selection records cannot be archived.",true);return}
  const record=state.cache.get(cacheKey())?.records.find(x=>x.id===id);
  if(!record){message("Record not found. Refresh the page.",true);return}
@@ -2133,6 +2249,8 @@ function bindEvents(){
    }
    return;
   }
+  if(target.closest("[data-result-document]")){void officialResultFile(target.closest("[data-result-document]").dataset.resultDocument);return}
+  if(target.closest("[data-result-send]")){confirmOfficialResultSend();return}
   if(target.closest("#selectionReview")){confirmSelection();return}
   if(target.closest("[data-selection-person]")){
    const id=target.closest("[data-selection-person]").dataset.selectionPerson;
