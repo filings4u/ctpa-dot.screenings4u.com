@@ -39,7 +39,7 @@ Deno.serve(async req=>{
  const partnerName=x=>x?.data?.legal_name||x?.data?.name||"Employer or owner-operator";
  const partnerEmail=x=>trim(x?.data?.contact_email||x?.data?.email||x?.data?.billing_email,240).toLowerCase();
  async function emailNotification(messageId:string,thread:any,fromCustomer:boolean){
-  const apiKey=Deno.env.get("RESEND_API_KEY"),sender=Deno.env.get("WORKFORCE_EMAIL_FROM")||"Workforce <notifications@screenings4u.com>";
+  const apiKey=Deno.env.get("RESEND_API_KEY"),sender=Deno.env.get("WORKFORCE_FROM_EMAIL")||Deno.env.get("SCREENINGS4U_FROM_EMAIL")||"Workforce <notifications@screenings4u.com>";
   const recipient=await db.from("workforce_unified_records").select("data,kind").eq("id",thread.recipient_record_id).eq("tenant_id",thread.tenant_id).maybeSingle();
   if(recipient.error)throw recipient.error;
   const recipients:{email:string,url:string}[]=[];
@@ -66,7 +66,7 @@ Deno.serve(async req=>{
    try{
     const result=await fetch("https://api.resend.com/emails",{method:"POST",headers:{"Authorization":"Bearer "+apiKey,"Content-Type":"application/json","Idempotency-Key":dedupe.slice(0,255)},body:JSON.stringify({
      from:sender,to:[target.email],subject:"Workforce | New Private Message",
-     html:'<div style="background:#01122F;padding:25px;color:#fff;font:bold 25px Arial">Workforce</div><div style="font:15px Arial;padding:26px"><h2>You have a new private message</h2><p>Sign in to your Workforce account to read and respond. The message contents are not included in this email.</p><a href="'+target.url+'" style="background:#FDC102;color:#01122F;padding:12px 22px;text-decoration:none;font-weight:bold;border-radius:8px">View Message</a></div>'
+     html:'<div style="background:#01122F;padding:22px"><img src="https://ctpa.screenings4u.com/images/logo2.png" alt="Workforce" width="175" style="max-width:100%"></div><div style="font:15px Arial;padding:26px"><h2>You have a new private message</h2><p>Sign in to your Workforce account to read and respond. The message contents are not included in this email.</p><a href="'+target.url+'" style="background:#FDC102;color:#01122F;padding:12px 22px;text-decoration:none;font-weight:bold;border-radius:8px">View Message</a></div>'
     })});
     const data=await result.json().catch(()=>({}));
     const updated=await db.from("workforce_mail_delivery_v2").update({status:result.ok?"sent":"failed",attempt_count:1,provider_message_id:data.id||null,last_error:result.ok?null:trim(data.message||"Email delivery rejected",350),updated_at:new Date().toISOString()}).eq("id",job.data.id);
