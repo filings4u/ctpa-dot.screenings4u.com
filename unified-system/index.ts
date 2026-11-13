@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import sanitizeHtml from "npm:sanitize-html@2.17.0";
 const allowedOrigin = "https://ctpa.screenings4u.com";
 const ALLOWED = new Set([
  "employers","owner_operators","people","programs","pools","selections",
@@ -275,6 +276,119 @@ Deno.serve(async request=>{
 
   // Native DOT return-to-duty case management. This deliberately does not call legacy
   // SAP/RTD functions or treat manually entered milestones as verified laboratory results.
+
+  // Native policy management: employer-bound, sanitized rich text, and audited email delivery.
+  const cleanPolicyHTML=(html:string)=>sanitizeHtml(html,{
+   allowedTags:["p","h1","h2","h3","h4","div","span","br","strong","b","em","i","u","s","ul","ol","li","blockquote","a","hr","table","thead","tbody","tr","th","td"],
+   allowedAttributes:{"a":["href","title"],"p":["style"],"div":["style"],"span":["style"],"h1":["style"],"h2":["style"],"h3":["style"]},
+   allowedSchemes:["https","http","mailto"],allowProtocolRelative:false,
+   allowedStyles:{"*":{"text-align":[/^(left|right|center|justify)$/],"color":[/^#[a-f0-9]{3,8}$/i,/^rgb\\(\\d{1,3},\\s*\\d{1,3},\\s*\\d{1,3}\\)$/]}}
+  });
+  const policyById=async(id:unknown)=>{
+   if(!uuid(id))return null;
+   const result=await collection.select("id,data,updated_at").eq("tenant_id",tenantId)
+    .eq("id",id).eq("kind","policies").eq("operating_context",context)
+    .is("archived_at",null).maybeSingle();
+   if(result.error)throw result.error;
+   return result.data||null;
+  };
+  const policyCompany=async(companyId:unknown)=>{
+   if(!uuid(companyId))return null;
+   const result=await collection.select("id,data").eq("tenant_id",tenantId).eq("id",companyId)
+    .in("kind",context==="dot"?["employers","owner_operators"]:["employers"])
+    .eq("operating_context",context).is("archived_at",null).maybeSingle();
+   if(result.error)throw result.error;
+   return result.data||null;
+  };
+  if(action==="policy_save"){
+   if(!canWrite)return respond({error:"Policy editing is not available to this role"},403);
+   const input=payload(body.data);
+   if(!input)return respond({error:"Policy details missing"},400);
+   const company=await policyCompany(input.company_id);
+   if(!company)return respond({error:"Select a valid employer or owner-operator in this workspace"},400);
+   const name=text(input.name,200),version=text(input.version,30)||"1.0",
+    category=text(input.category,60)||"other",
+    status=text(input.status,20)||"draft";
+   if(name.length<3)return respond({error:"Policy title must be at least three characters"},400);
+   if(!["drug_alcohol","safety","driver","workplace","privacy","training","other"].includes(category))
+    return respond({error:"Invalid policy category"},400);
+   if(!["draft","active","archived"].includes(status))return respond({error:"Invalid policy status"},400);
+   const effective=text(input.effective_date,10);
+   if(effective&&(!/^\\d{4}-\\d{2}-\\d{2}$/.test(effective)||!Number.isFinite(Date.parse(effective+"T12:00:00Z"))))
+    return respond({error:"Invalid effective date"},400);
+   const raw=typeof input.html==="string"?input.html:"";
+   if(raw.length>90000)return respond({error:"Policy content is too large"},413);
+   const html=cleanPolicyHTML(raw);
+   const plain=html.replace(/<[^>]*>/g," ").replace(/&nbsp;/g," ").trim();
+   if(plain.length<15)return respond({error:"Write the policy content before saving"},400);
+   const existing=body.id?await policyById(body.id):null;
+   if(body.id&&!existing)return respond({error:"Policy not found"},404);
+   const old=existing?.data||{};
+   const changes=old.html!==html||old.version!==version||old.name!==name;
+   const safe={
+    ...old,name,version,category,status,effective_date:effective,html,
+    company_id:company.id,company_name:text(company.data?.legal_name,180),
+    description:text(input.description,500),updated_editor_at:new Date().toISOString(),
+    policy_source:"workforce_unified_native",content_revision:(Number(old.content_revision)||0)+(changes?1:0),
+    sent_history:Array.isArray(old.sent_history)?old.sent_history:[]
+   };
+   delete safe._legacy_id;delete safe._legacy_table;
+   const update=existing?await collection.update({data:safe,updated_at:new Date().toISOString(),updated_by:user.id})
+      .eq("id",existing.id).eq("tenant_id",tenantId).eq("kind","policies").eq("operating_context",context)
+      .is("archived_at",null).select("id").single():
+    await collection.insert({tenant_id:tenantId,kind:"policies",operating_context:context,
+      data:safe,created_by:user.id,updated_by:user.id}).select("id").single();
+   if(update.error)throw update.error;
+   return respond({ok:true,id:update.data.id,revision:safe.content_revision});
+  }
+  if(action==="policy_delivery_details"||action==="policy_send"){
+   const policy=await policyById(body.id);
+   if(!policy)return respond({error:"Policy not found in this workspace"},404);
+   const data=policy.data||{};
+   const company=await policyCompany(data.company_id);
+   if(!company)return respond({error:"The associated company is unavailable"},404);
+   const email=text(company.data?.contact_email||company.data?.primary_contact_email,200).toLowerCase();
+   if(!email||!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email))
+    return respond({error:"Add a valid primary contact email to the associated employer before sending"},409);
+   const history=Array.isArray(data.sent_history)?data.sent_history:[];
+   if(action==="policy_delivery_details")
+    return respond({ok:true,recipient_email:email,company_name:text(company.data?.legal_name,180),
+     sent_history:history.slice(-12).map((h:any)=>({
+      sent_at:h.sent_at,recipient:h.recipient,version:h.version,revision:h.revision
+     }))});
+   if(!canWrite)return respond({error:"You are not authorized to send policies"},403);
+   if(data.status!=="active")return respond({error:"Set policy status to Active and save before sending"},409);
+   if(text(body.confirm_recipient,200).toLowerCase()!==email)
+    return respond({error:"Confirm the exact employer email address"},400);
+   if(!data.html||cleanPolicyHTML(String(data.html)).replace(/<[^>]*>/g," ").trim().length<15)
+    return respond({error:"Policy content is missing"},409);
+   const key=Deno.env.get("RESEND_API_KEY");
+   if(!key)return respond({error:"Email delivery has not been configured"},503);
+   const escaped=(v:string)=>v.replace(/[&<>"']/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]||ch));
+   const clean=cleanPolicyHTML(String(data.html));
+   const subject="Workforce | "+text(data.name,150)+" (v"+text(data.version,30)+")";
+   const emailHtml='<div style="max-width:780px;margin:0 auto;font-family:Arial,sans-serif;color:#01122f">'+
+    '<div style="background:#01122f;padding:22px;color:white;font-size:20px;font-weight:700">Workforce | Employer Policy</div>'+
+    '<div style="padding:24px"><p>A policy prepared for '+escaped(text(company.data?.legal_name,150))+
+    ' has been delivered by your C/TPA.</p><h2>'+escaped(text(data.name,200))+'</h2>'+
+    '<p><b>Version:</b> '+escaped(text(data.version,30))+
+    ' &nbsp; <b>Effective:</b> '+escaped(text(data.effective_date,10)||"Not specified")+'</p>'+
+    '<hr><article>'+clean+'</article><hr><p style="font-size:12px;color:#63758a">Please review this policy with your designated company representative. This message does not prove employee acknowledgment or adoption.</p></div></div>';
+   const sent=await fetch("https://api.resend.com/emails",{method:"POST",
+    headers:{"Authorization":"Bearer "+key,"Content-Type":"application/json"},
+    body:JSON.stringify({from:Deno.env.get("SCREENINGS4U_FROM_EMAIL")||"Workforce <notifications@screenings4u.com>",
+      to:[email],subject,html:emailHtml})});
+   const delivery=await sent.json().catch(()=>({}));
+   if(!sent.ok)return respond({error:"Email delivery failed: "+text(delivery.message,180)},502);
+   const event={recipient:email,sent_at:new Date().toISOString(),version:text(data.version,30),
+    revision:Number(data.content_revision)||1,provider_message_id:text(delivery.id,160),sent_by:user.id};
+   const update=await collection.update({data:{...data,sent_history:[...history.slice(-49),event],last_sent_at:event.sent_at},
+    updated_at:new Date().toISOString(),updated_by:user.id}).eq("id",policy.id).eq("tenant_id",tenantId)
+    .eq("kind","policies").eq("operating_context",context).is("archived_at",null).select("id").single();
+   if(update.error)return respond({ok:true,sent:true,recipient_email:email,warning:"Policy sent but sending history could not be stored."});
+   return respond({ok:true,sent:true,recipient_email:email,sent_at:event.sent_at});
+  }
+
   if(action==="rtd_save"){
    if(context!=="dot")return respond({error:"DOT return-to-duty cases are available in the DOT workspace"},403);
    if(!canWrite)return respond({error:"You cannot edit return-to-duty cases"},403);
@@ -943,6 +1057,7 @@ Deno.serve(async request=>{
    if(kind==="results")return respond({error:"Results are issued and finalized by Testing Operations and cannot be edited here"},403);
    if(kind==="audits")return respond({error:"Use the native New Entrant Audit workflow"},403);
    if(kind==="return_to_duty")return respond({error:"Use the secure native RTD workflow"},403);
+   if(kind==="policies")return respond({error:"Use the native policy editor"},403);
    const data=payload(body.data);
    if(!data||Object.keys(data).length>40||JSON.stringify(data).length>60000)
     return respond({error:"Invalid or oversized record"},400);
@@ -1210,6 +1325,7 @@ Deno.serve(async request=>{
    if(body.kind==="selections")return respond({error:"Selection audit records cannot be archived"},403);
    if(body.kind==="testing_orders")return respond({error:"Submitted testing orders must be managed by Testing Operations"},403);
    if(body.kind==="results")return respond({error:"Official result records cannot be archived by the C/TPA"},403);
+   if(body.kind==="policies")return respond({error:"Archive policies through their saved status, not by deleting the document"},403);
    if(body.kind==="audits")return respond({error:"Audit records must be retained for compliance history"},403);
    if(["employers","owner_operators"].includes(String(body.kind))){
     const people=await collection.select("id",{count:"exact",head:true})
