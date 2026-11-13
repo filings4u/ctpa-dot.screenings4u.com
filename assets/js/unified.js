@@ -185,7 +185,7 @@ function updateHeading(){
  updateBreadcrumbs();
  $("pageActions").innerHTML=state.page==="results"?'<button class="btn secondary" type="button" id="refreshPage">Refresh</button>':state.page==="account"?"":state.page==="dashboard"||state.page==="lab_analytics"
   ?'<button class="btn secondary" type="button" id="refreshPage">Refresh</button>'
-  :'<button class="btn secondary" type="button" id="refreshPage">Refresh</button><button class="btn secondary" type="button" id="exportPage">Export CSV</button><button class="btn primary" type="button" id="newRecord">'+(state.page==="selections"?"Run Selection":state.page==="testing_orders"?"Order a Test":state.page==="testing_documents"?"Upload Document":"Add "+esc(title))+'</button>';
+  :'<button class="btn secondary" type="button" id="refreshPage">Refresh</button><button class="btn secondary" type="button" id="exportPage">Export CSV</button><button class="btn primary" type="button" id="newRecord">'+(state.page==="selections"?"Run Selection":state.page==="testing_orders"?"Order a Test":state.page==="testing_documents"?"Upload Document":state.page==="occupational_health"?"Order Physical":"Add "+esc(title))+'</button>';
 }
 function switchPage(page,push=true){
  if(!CONFIG[page])page="dashboard";
@@ -1810,7 +1810,7 @@ function renderPhysicalOrder(record,mode){
   '<form id="physicalOrderForm" class="management-editor">'+
   '<section class="management-section"><header class="management-section-header"><h2>Physical examination</h2></header>'+
   '<div class="physical-type-choice"><label><input type="radio" name="physical_type" value="DOT"'+(initial==="DOT"?" checked":"")+'> DOT Physical</label>'+
-  '<label><input type="radio" name="physical_type" value="NON_DOT"'+(initial==="NON_DOT"?" checked":"")+'> NON-DOT Physical</label></div>'+
+  '<label><input type="radio" name="physical_type" value="NON_DOT"'+(initial==="NON_DOT"?" checked":" disabled")+'> NON-DOT Physical</label></div>'+
   '<p class="physical-helper">Physical type follows the current DOT or NON-DOT workspace. Switch the workspace to order the other type.</p>'+
   '<div class="manage-form-grid"><label class="manage-field"><span>Examination type *</span><select name="exam_type" required>'+
   examOptions.map(([v,t])=>'<option value="'+esc(v)+'">'+esc(t)+'</option>').join("")+'</select></label>'+
@@ -1878,7 +1878,7 @@ function renderManagementPage(){
   return;
  }
  const singular=singularLabel(state.page),isEmployer=["employers","owner_operators"].includes(state.page);
- const title=m.action==="new"?"Add "+singular:m.action==="edit"?"Edit "+singular:
+ const title=m.action==="new"?(state.page==="occupational_health"?"Order a Physical":"Add "+singular):m.action==="edit"?"Edit "+singular:
   isEmployer?recordTitle(record):"View "+singular;
  $("pageTitle").textContent=title;$("topTitle").textContent=title;
  updateBreadcrumbs(m.action);
