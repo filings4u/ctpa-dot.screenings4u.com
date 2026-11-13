@@ -819,3 +819,22 @@ body.modal-open{overflow:hidden}
 .drug-order-workspace .profile-section{padding:21px 26px;border-bottom:1px solid #e9edf3}
 .drug-order-workspace .profile-fields{grid-template-columns:repeat(3,minmax(0,1fr))}
 @media(max-width:720px){.drug-order-section{padding:18px 17px}.drug-order-grid{grid-template-columns:1fr;gap:14px}.drug-order-handoff{margin:15px 17px}.drug-order-workspace .program-actions{padding:14px 17px}.drug-order-workspace> .drug-order-hint{padding:0 17px 12px}.drug-order-workspace .profile-section{padding:18px 17px}.drug-order-workspace .profile-fields{grid-template-columns:1fr}}
+
+.drug-order-directory{display:grid;gap:17px;width:100%;min-width:0}
+.drug-order-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.drug-order-stats>div{display:grid;gap:9px;padding:22px 24px;border:1px solid #dce5ee;border-radius:12px;background:#fff}
+.drug-order-stats small{font-size:.74rem;font-weight:760;color:#6c8198}
+.drug-order-stats strong{font-size:1.8rem;color:#01122f;font-weight:850}
+.drug-order-list{border:1px solid #dce5ee;border-radius:12px;background:#fff;overflow:hidden}
+.drug-order-row{display:grid;grid-template-columns:38px minmax(210px,2.2fr) minmax(100px,.9fr) minmax(90px,.8fr) minmax(125px,1fr) 50px;align-items:center;gap:15px;width:100%;background:#fff;padding:17px 22px;border:0;border-top:1px solid #e7edf3;cursor:pointer;color:#102d4d;text-align:left}
+.drug-order-row:hover{background:#f8fafc}
+.drug-order-row:focus-visible{outline:2px solid #fdc102;outline-offset:-2px}
+.drug-order-row-icon{display:grid;place-items:center;width:37px;height:37px;border-radius:10px;background:#eef3f9;color:#214a74}
+.drug-order-row-title{display:grid;gap:5px;min-width:0}
+.drug-order-row-title strong{font-weight:850;font-size:.84rem}
+.drug-order-row-title small,.drug-order-row-test small,.drug-order-row-date small{font-size:.72rem;color:#73859a}
+.drug-order-row-test,.drug-order-row-date{display:grid;gap:5px}
+.drug-order-row-test strong,.drug-order-row-date strong{font-size:.8rem;font-weight:800;text-transform:capitalize}
+.drug-order-row-arrow{text-align:right;font-size:.76rem;color:#2c5478;font-weight:800}
+@media(max-width:1000px){.drug-order-row{grid-template-columns:35px minmax(155px,2fr) minmax(90px,1fr) minmax(95px,1fr);gap:11px}.drug-order-row-date,.drug-order-row-arrow{display:none}}
+@media(max-width:620px){.drug-order-stats{gap:8px}.drug-order-stats>div{padding:14px 10px}.drug-order-stats strong{font-size:1.35rem}.drug-order-row{padding:14px;grid-template-columns:35px minmax(0,1fr) auto}.drug-order-row-test{display:none}.drug-order-row-title small{overflow-wrap:anywhere}}
