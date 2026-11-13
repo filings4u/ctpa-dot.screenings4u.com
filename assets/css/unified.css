@@ -596,7 +596,7 @@ body.modal-open{overflow:hidden}
 #recordForm[data-mode="company-related-remove"] #recordFields{display:block}
 #recordForm[data-mode="company-related-add"] .modal-body,
 #recordForm[data-mode="company-related-remove"] .modal-body{padding:18px 23px 15px}
-#recordForm[data-mode="company-related-add"] .modal-panel{height:auto}
+.modal-panel:has(#recordForm[data-mode="company-related-add"]){height:auto}
 .modal-company-context{display:flex;align-items:center;gap:11px;padding:11px 13px;border:1px solid #e1e8f0;border-radius:10px;background:#f7f9fc;color:#01122f;max-width:100%}
 .modal-company-icon{display:grid;place-items:center;flex:0 0 34px;width:34px;height:34px;border-radius:9px;color:#164774;background:#e9f0f8;font-size:1.1rem}
 .modal-company-context>span:last-child{display:grid;gap:3px;min-width:0}
@@ -613,7 +613,7 @@ body.modal-open{overflow:hidden}
 .company-modal-field span b{color:#a36b00}
 #recordFields .company-modal-field input{min-width:0;width:100%;height:42px;min-height:42px;border-radius:8px;padding:9px 12px;font-size:.84rem;background:#fff;border:1px solid #cfdae7}
 #recordFields .company-modal-field input:focus{outline:2px solid #fdc102;outline-offset:1px;border-color:#c9ab2d}
-#recordForm[data-mode="company-related-remove"] .modal-panel{width:min(480px,100%)}
+.modal-panel:has(#recordForm[data-mode="company-related-remove"]){width:min(480px,100%)}
 #recordForm[data-mode="company-related-remove"] .modal-description{line-height:1.55}
 .company-remove-confirm{display:flex;gap:14px;align-items:flex-start;border:1px solid #efd3d1;background:#fff9f8;padding:16px;border-radius:11px}
 .company-remove-symbol{display:grid;place-items:center;flex:0 0 34px;width:34px;height:34px;border-radius:50%;background:#fce4e2;color:#a33b35;font-weight:900}
