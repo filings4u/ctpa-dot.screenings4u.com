@@ -349,6 +349,20 @@ Deno.serve(async request=>{
    // Employers and owner-operators are exclusively DOT or NON-DOT, never shared.
    // Shared records for other modules retain their existing behavior.
    const records=(result.data||[]).filter((r:any)=>!companyKind(r.kind)||r.operating_context===context);
+   // Reflect live Testing Portal processing status without duplicating its workflow state.
+   const testing=records.filter((r:any)=>r.kind==="testing_orders"&&uuid(r.data?.testing_case_id));
+   if(testing.length){
+    const cases=await db.from("testing_cases").select("id,status,scheduled_at,completed_at,case_number")
+     .in("id",[...new Set(testing.map((r:any)=>r.data.testing_case_id))]);
+    if(cases.error)throw cases.error;
+    const byId=new Map((cases.data||[]).map((r:any)=>[r.id,r]));
+    for(const row of testing){
+     const current:any=byId.get(row.data.testing_case_id);
+     if(current)row.data={...row.data,status:current.status,
+       name:current.case_number||row.data.name,
+       scheduled_at:current.scheduled_at||"",completed_at:current.completed_at||""};
+    }
+   }
    return respond({ok:true,tenant_id:tenantId,operating_context:context,records,limit:1000});
   }
   if(action==="lab_summary"){
