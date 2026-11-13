@@ -182,6 +182,7 @@ function updateHeading(){
  const title=label(state.page);
  $("topTitle").textContent=title;$("pageTitle").textContent=title;
  updateBreadcrumbs();
+ if(state.page==="reports"){$("pageActions").innerHTML="";return}
  $("pageActions").innerHTML=state.page==="results"?'<button class="btn secondary" type="button" id="refreshPage">Refresh</button>':state.page==="account"?"":state.page==="dashboard"||state.page==="lab_analytics"
   ?'<button class="btn secondary" type="button" id="refreshPage">Refresh</button>'
   :'<button class="btn secondary" type="button" id="refreshPage">Refresh</button><button class="btn secondary" type="button" id="exportPage">Export CSV</button><button class="btn primary" type="button" id="newRecord">'+(state.page==="selections"?"Run Selection":state.page==="testing_orders"?"Order a Test":state.page==="testing_documents"?"Upload Document":state.page==="occupational_health"?"Order Physical":state.page==="compliance"?"Add Compliance Record":state.page==="audits"?"Start New Entrant Audit":state.page==="return_to_duty"?"Create RTD Case":state.page==="policies"?"Create Policy":state.page==="documents"?"Upload Private Document":"Add "+esc(title))+'</button>';
@@ -196,6 +197,7 @@ function switchPage(page,push=true){
  if(isCompactViewport())$("sidebar").classList.remove("open");updateSidebarToggle();renderNav();updateHeading();message("");
  if(page==="account"){void renderAccount();return}
  if(page==="lab_analytics"){void renderLabAnalytics();return}
+ if(page==="reports"){reportBuilder();return}
  const stored=state.cache.get(cacheKey());
  if(stored){showRecords(stored.records);if(Date.now()-stored.time>30000)void loadRecords(seq,true)}
  else {$("pageContent").innerHTML='<section class="panel"><div class="loading-line"><span class="spinner"></span>Loading authorized records…</div></section>';void loadRecords(seq,false)}
@@ -2687,6 +2689,179 @@ async function deletePrivateDocument(){
  }catch(e){$("formMessage").textContent=e.message;btn.disabled=false}
 }
 
+
+const REPORT_TYPES=[
+ ["overview","Company overview"],["people","People and staff"],["programs","Testing programs"],
+ ["pools","Random pools"],["selections","Random selections"],["testing","Testing orders"],
+ ["results","Testing result status"],["compliance","Compliance cases"],["occupational","Occupational health"]
+];
+let generatedReport=null;
+function reportBuilder(){
+ generatedReport=null;
+ const types=REPORT_TYPES.map(([id,name])=>'<option value="'+id+'">'+esc(name)+'</option>').join("");
+ $("pageContent").innerHTML='<div class="report-workspace">'+
+ '<section class="results-intro"><span class="results-intro-icon">'+navIcon("reports")+'</span><div>'+
+ '<strong>Company report builder</strong><p>Select a DOT or NON-DOT employer, choose the information to include, and run a live report. Preview and download the same results as CSV or PDF.</p></div></section>'+
+ '<section class="report-generator"><div class="report-section-heading"><h2>Generate a report</h2><p>Reports contain records associated with the selected company in this workspace.</p></div>'+
+ '<form id="reportBuilderForm"><div class="report-filter-grid">'+
+ '<label class="manage-field"><span>Employer / Owner-Operator *</span><select id="reportCompany" required disabled><option value="">Loading employers…</option></select></label>'+
+ '<label class="manage-field"><span>Report type *</span><select id="reportType" required>'+types+'</select></label>'+
+ '<label class="manage-field"><span>Start date (optional)</span><input id="reportStart" type="date"></label>'+
+ '<label class="manage-field"><span>End date (optional)</span><input id="reportEnd" type="date"></label></div>'+
+ '<div class="report-filter-footer"><span id="reportError" class="manage-form-error" role="alert"></span>'+
+ '<button type="submit" id="runCompanyReport" class="btn primary" disabled>Run Report</button></div></form></section>'+
+ '<section class="report-output" id="reportOutput"><div class="report-empty">'+navIcon("reports")+
+ '<h2>Your report preview will appear here</h2><p>Select a company and report type to generate a report from current records.</p></div></section></div>';
+ void loadReportCompanies();
+}
+async function loadReportCompanies(){
+ const seq=state.sequence,context=state.context,tenant=state.tenantId;
+ const field=$("reportCompany");
+ if(!field)return;
+ try{
+  const kinds=context==="dot"?["employers","owner_operators"]:["employers"];
+  const result=await Promise.all(kinds.map(async kind=>{
+   const key=cacheKey(kind),cached=state.cache.get(key);
+   if(cached&&Date.now()-cached.time<30000)return cached.records||[];
+   const out=await api("list",{tenant_id:tenant,operating_context:context,kind});
+   state.cache.set(key,{records:out.records||[],time:Date.now()});
+   return out.records||[];
+  }));
+  if(state.sequence!==seq||state.page!=="reports"||state.context!==context||!$("reportCompany"))return;
+  const companies=result.flat();
+  field.innerHTML='<option value="">Choose employer or owner-operator</option>'+
+   companies.map(c=>'<option value="'+esc(c.id)+'">'+esc(c.data?.legal_name||"Company")+'</option>').join("");
+  field.disabled=!companies.length;
+  const run=$("runCompanyReport");
+  const sync=()=>{run.disabled=!field.value;generatedReport=null;};
+  field.addEventListener("change",sync);
+  if(!companies.length)$("reportError").textContent="Create an employer or owner-operator before running reports.";
+ }catch(e){if($("reportError"))$("reportError").textContent=e.message;}
+}
+async function runCompanyReport(form){
+ const button=$("runCompanyReport"),error=$("reportError");
+ if(!button||button.disabled||!form.reportValidity())return;
+ const company_id=$("reportCompany").value,report_type=$("reportType").value;
+ const start_date=$("reportStart").value,end_date=$("reportEnd").value;
+ if(start_date&&end_date&&start_date>end_date){error.textContent="Start date must be earlier than end date.";return}
+ const context=state.context,seq=state.sequence;
+ button.disabled=true;button.textContent="Generating…";error.textContent="";
+ generatedReport=null;
+ $("reportOutput").innerHTML='<div class="report-empty"><h2>Generating authorized company report…</h2></div>';
+ try{
+  const response=await api("reports_generate",{tenant_id:state.tenantId,operating_context:context,company_id,report_type,start_date,end_date});
+  if(seq!==state.sequence||context!==state.context||state.page!=="reports")return;
+  generatedReport=response.report;
+  displayGeneratedReport(response.report);
+ }catch(e){if($("reportError"))error.textContent=e.message;if($("reportOutput"))$("reportOutput").innerHTML='<div class="report-empty"><h2>Report unavailable</h2><p>Please review your selection and try again.</p></div>'}
+ finally{if($("runCompanyReport")){button.disabled=!$("reportCompany")?.value;button.textContent="Run Report"}}
+}
+function displayGeneratedReport(report){
+ const rows=report.rows||[],cols=report.columns||[];
+ const table=rows.length?'<div class="report-table-scroll"><table class="report-results-table"><thead><tr>'+
+ cols.map(c=>'<th scope="col">'+esc(c)+'</th>').join("")+'</tr></thead><tbody>'+
+ rows.map(r=>'<tr>'+r.map(v=>'<td>'+esc(v??"")+'</td>').join("")+'</tr>').join("")+
+ '</tbody></table></div>':'<div class="report-empty"><h2>No matching records</h2><p>There are no company-linked records for this report and date range.</p></div>';
+ $("reportOutput").innerHTML='<div class="report-result-head"><div><span class="report-eyebrow">GENERATED COMPANY REPORT</span>'+
+ '<h2>'+esc(report.name)+'</h2><p>'+esc(report.company_name)+' · '+esc(report.context==="dot"?"DOT":"NON-DOT")+
+ ' · '+esc(report.start_date||"All dates")+' to '+esc(report.end_date||"Present")+'</p></div>'+
+ '<div class="report-result-actions"><button type="button" class="btn secondary" data-report-csv>Download CSV</button>'+
+ '<button type="button" class="btn primary" data-report-pdf>Download PDF</button></div></div>'+
+ '<div class="report-metrics"><div><small>Records</small><strong>'+rows.length+'</strong></div>'+
+ '<div><small>Report type</small><strong>'+esc(report.name)+'</strong></div>'+
+ '<div><small>Generated</small><strong>'+esc(new Date(report.generated_at).toLocaleString())+'</strong></div></div>'+
+ table+'<p class="report-disclaimer">'+esc(report.note||"")+(report.limited?" · Export limited to 1,000 matching records.":"")+'</p>';
+}
+function downloadGeneratedFile(blob,name){
+ const url=URL.createObjectURL(blob),a=document.createElement("a");
+ a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();
+ setTimeout(()=>URL.revokeObjectURL(url),30000);
+}
+function reportFilename(report,ext){
+ const safe=s=>String(s||"report").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,60);
+ return "workforce-"+safe(report.company_name)+"-"+safe(report.report_type)+"-"+new Date().toISOString().slice(0,10)+"."+ext;
+}
+function downloadCompanyCSV(){
+ const report=generatedReport;if(!report)return;
+ const escapeCSV=value=>{
+  let s=String(value??"");
+  if(/^[\s]*[=+@\-\t\r]/.test(s))s="'"+s;
+  return '"'+s.replace(/"/g,'""')+'"';
+ };
+ const content=[report.columns,...report.rows].map(row=>row.map(escapeCSV).join(",")).join("\r\n");
+ downloadGeneratedFile(new Blob(["\ufeff",content],{type:"text/csv;charset=utf-8"}),reportFilename(report,"csv"));
+}
+function buildCompanyPDF(report){
+ const ascii=v=>String(v??"").normalize("NFKD").replace(/[\u0300-\u036f]/g,"").replace(/[^\x20-\x7e]/g,"?");
+ const escapePDF=v=>ascii(v).replace(/[\\()]/g,"\\function renderManagementPage(){");
+ const pageWidth=842,pageHeight=595,margin=34,lineHeight=13,streams=[];
+ const cols=report.columns||[],rows=report.rows||[];
+ const colWidth=(pageWidth-2*margin)/Math.max(1,cols.length);
+ let commands=[],y=0,pageCount=0;
+ function txt(value,x,y,size=9,bold=false){
+  commands.push("BT /"+(bold?"F2":"F1")+" "+size+" Tf 1 0 0 1 "+x.toFixed(1)+" "+y.toFixed(1)+" Tm ("+escapePDF(value)+") Tj ET");
+ }
+ function line(y,color="0.86 0.89 0.93"){
+  commands.push(color+" RG "+margin+" "+y+" m "+(pageWidth-margin)+" "+y+" l S");
+ }
+ function begin(){
+  commands=[];pageCount++;
+  commands.push("0.004 0.071 0.184 rg 0 "+(pageHeight-80)+" "+pageWidth+" 80 re f");
+  commands.push("0.992 0.757 0.008 rg 0 "+(pageHeight-85)+" "+pageWidth+" 5 re f");
+  commands.push("1 1 1 rg");
+  txt("WORKFORCE  |  COMPANY REPORT",margin,pageHeight-39,16,true);
+  txt(ascii(report.company_name).slice(0,82),margin,pageHeight-61,10);
+  commands.push("0.004 0.071 0.184 rg");
+  txt(ascii(report.name)+"  |  "+report.context.toUpperCase(),margin,pageHeight-108,12,true);
+  txt("Reporting period: "+(report.start_date||"All dates")+" to "+(report.end_date||"Present"),margin,pageHeight-128,8);
+  txt("Generated: "+new Date(report.generated_at).toLocaleString(),pageWidth-265,pageHeight-128,8);
+  y=pageHeight-157;
+  commands.push("0.91 0.94 0.97 rg "+margin+" "+(y-8)+" "+(pageWidth-margin*2)+" 19 re f");
+  commands.push("0.004 0.071 0.184 rg");
+  cols.forEach((name,i)=>txt(ascii(name).slice(0,Math.max(8,Math.floor(colWidth/5.1)-2)),margin+i*colWidth+5,y,8,true));
+  y-=29;
+ }
+ function finish(){
+  commands.push("0.36 0.45 0.57 rg");
+  txt("Workforce C/TPA  -  Report generated from currently linked records",margin,21,7);
+  txt("Page "+pageCount,pageWidth-78,21,7);
+  streams.push(commands.join("\n")+"\n");
+ }
+ begin();
+ if(!rows.length){txt("No matching records for this company and date range.",margin,y,10)}
+ for(const row of rows){
+  if(y<57){finish();begin()}
+  if(rows.indexOf(row)%2===0){commands.push("0.975 0.984 0.995 rg "+margin+" "+(y-8)+" "+(pageWidth-margin*2)+" "+lineHeight+" re f")}
+  commands.push("0.004 0.071 0.184 rg");
+  row.forEach((value,i)=>txt(ascii(value).slice(0,Math.max(8,Math.floor(colWidth/4.8)-2)),margin+i*colWidth+5,y,8));
+  y-=lineHeight;
+ }
+ finish();
+ const objs=[null],add=o=>{objs.push(o);return objs.length-1};
+ const catalog=add(""),pagesRoot=add("");
+ const regular=add("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>");
+ const bold=add("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>");
+ const refs=[];
+ for(const stream of streams){
+  const content=add("<< /Length "+stream.length+" >>\nstream\n"+stream+"endstream");
+  const page=add("<< /Type /Page /Parent "+pagesRoot+" 0 R /MediaBox [0 0 "+pageWidth+" "+pageHeight+"] /Resources << /Font << /F1 "+regular+" 0 R /F2 "+bold+" 0 R >> >> /Contents "+content+" 0 R >>");
+  refs.push(page+" 0 R");
+ }
+ objs[catalog]="<< /Type /Catalog /Pages "+pagesRoot+" 0 R >>";
+ objs[pagesRoot]="<< /Type /Pages /Kids ["+refs.join(" ")+"] /Count "+refs.length+" >>";
+ let doc="%PDF-1.4\n",offsets=[0];
+ for(let i=1;i<objs.length;i++){offsets.push(doc.length);doc+=i+" 0 obj\n"+objs[i]+"\nendobj\n"}
+ const start=doc.length;
+ doc+="xref\n0 "+objs.length+"\n0000000000 65535 f \n";
+ for(let i=1;i<offsets.length;i++)doc+=String(offsets[i]).padStart(10,"0")+" 00000 n \n";
+ doc+="trailer\n<< /Size "+objs.length+" /Root "+catalog+" 0 R >>\nstartxref\n"+start+"\n%%EOF";
+ return new Blob([doc],{type:"application/pdf"});
+}
+function downloadCompanyPDF(){
+ if(!generatedReport)return;
+ downloadGeneratedFile(buildCompanyPDF(generatedReport),reportFilename(generatedReport,"pdf"));
+}
+
 function renderManagementPage(){
  const m=state.management;
  if(!m||m.section!==state.page)return;
@@ -3010,6 +3185,7 @@ function showRecords(records){
  if(state.page==="return_to_duty"){rtdCasesList(records);return}
  if(state.page==="policies"){policyList(records);return}
  if(state.page==="documents"){privateDocumentList(records);return}
+ if(state.page==="reports"){reportBuilder();return}
  if(state.page==="occupational_health"){physicalOrderList(records);return}
  const count=records.length,query=state.search.trim().toLowerCase();
  const statuses=[...new Set(records.map(r=>String(r.data?.status||"").trim()).filter(Boolean))].sort();
@@ -3225,6 +3401,8 @@ function bindEvents(){
  $("notice").addEventListener("click",e=>{if(e.target.closest(".notice-close"))message("")});
  $("pageContent").addEventListener("click",e=>{
   const target=e.target;
+  if(target.closest("[data-report-csv]")){downloadCompanyCSV();return}
+  if(target.closest("[data-report-pdf]")){downloadCompanyPDF();return}
   const view=target.closest("[data-view]"),edit=target.closest("[data-edit]"),archive=target.closest("[data-archive]"),create=target.closest("[data-create]"),goto=target.closest("[data-goto]"),retry=target.closest("#retryLoad"),openFile=target.closest("[data-open-file]"),previewFile=target.closest("[data-preview-file]"),step=target.closest("[data-page-step]");
   const quick=target.closest("[data-dashboard-create]"),activity=target.closest("[data-dashboard-record]");
   if(quick){
@@ -3403,7 +3581,7 @@ function bindEvents(){
  });
  $("recordFields").addEventListener("click",e=>{const b=e.target.closest("[data-modal-download]");if(b)void openDocumentFile(b.dataset.modalDownload)});
  $("recordForm").addEventListener("submit",saveRecord);
- $("pageContent").addEventListener("submit",e=>{if(e.target.id==="testingDocForm"){e.preventDefault();void submitTestingDocument(e.target);return}if(e.target.id==="drugOrderForm"){e.preventDefault();void submitDrugOrder(e.target);return}if(e.target.id==="physicalOrderForm"){e.preventDefault();void submitPhysicalOrder(e.target);return}if(e.target.id==="auditForm"){e.preventDefault();void saveAudit(e.target);return}if(e.target.id==="rtdCaseForm"){e.preventDefault();void saveRTDCase(e.target);return}if(e.target.id==="policyForm"){e.preventDefault();void savePolicy(e.target);return}if(e.target.id==="privateDocumentForm"){e.preventDefault();void submitPrivateDocument(e.target);return}if(e.target.id==="managementForm"){e.preventDefault();void submitManagement(e.target)}});
+ $("pageContent").addEventListener("submit",e=>{if(e.target.id==="testingDocForm"){e.preventDefault();void submitTestingDocument(e.target);return}if(e.target.id==="drugOrderForm"){e.preventDefault();void submitDrugOrder(e.target);return}if(e.target.id==="physicalOrderForm"){e.preventDefault();void submitPhysicalOrder(e.target);return}if(e.target.id==="auditForm"){e.preventDefault();void saveAudit(e.target);return}if(e.target.id==="rtdCaseForm"){e.preventDefault();void saveRTDCase(e.target);return}if(e.target.id==="policyForm"){e.preventDefault();void savePolicy(e.target);return}if(e.target.id==="privateDocumentForm"){e.preventDefault();void submitPrivateDocument(e.target);return}if(e.target.id==="reportBuilderForm"){e.preventDefault();void runCompanyReport(e.target);return}if(e.target.id==="managementForm"){e.preventDefault();void submitManagement(e.target)}});
  for(const id of ["modalClose","cancelModal","modalDismiss"])$(id).addEventListener("click",closeModal);
  document.addEventListener("keydown",e=>{if(e.key==="Escape"){if(!$("modal").hidden)closeModal();$("accountDropdown").hidden=true;$("accountTrigger").setAttribute("aria-expanded","false")}});
  const setFont=n=>{state.font=Math.max(13,Math.min(21,n));document.documentElement.style.fontSize=state.font+"px";localStorage.setItem("workforce_unified_font",String(state.font))};
