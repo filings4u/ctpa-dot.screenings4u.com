@@ -1,0 +1,44 @@
+/* C/TPA Enterprise modules. Shares the unified portal navigation and chrome. */
+.ent-layout{max-width:1450px;margin:0 auto;display:grid;gap:16px;color:#01122f}
+.ent-hero{padding:23px 26px;background:#fff;border:1px solid #dae3ef;border-radius:15px}
+.ent-hero small{font-size:.68rem;color:#56749a;font-weight:800;letter-spacing:.09em}
+.ent-hero h2{font-size:1.5rem;margin:7px 0}
+.ent-hero p,.ent-card p{font-size:.83rem;color:#627591;line-height:1.55;margin:5px 0 14px}
+.ent-notice{font-size:.82rem;color:#184b79;min-height:0;margin:0}
+.ent-notice:empty{display:none}
+.ent-body{display:grid;gap:16px}
+.ent-columns{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(300px,.8fr);gap:16px;align-items:start}
+.ent-card{background:#fff;border:1px solid #dae3ef;border-radius:14px;padding:23px;min-width:0}
+.ent-card h3{margin:0 0 8px;font-size:1rem}
+.ent-form{display:grid;gap:14px}
+.ent-form label{display:grid;gap:6px;font-size:.78rem;font-weight:750}
+.ent-form input,.ent-form select,.ent-edit-table input,.ent-edit-table select{width:100%;min-height:40px;border:1px solid #cdd9e8;border-radius:8px;padding:9px;color:#01122f;background:#fff;font:inherit}
+.ent-form input[type=color]{height:48px;padding:5px}
+.ent-form input[type=checkbox]{min-height:auto;width:16px;height:16px;accent-color:#01122f}
+.ent-two{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.ent-checks{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:8px 0}
+.ent-checks label{display:flex;align-items:center;gap:8px}
+.ent-muted{color:#697b92;font-size:.77rem;line-height:1.55}
+.ent-preview{--brand-primary:#01122f;--brand-accent:#fdc102;border:1px solid #d6e0ec;border-radius:12px;overflow:hidden;margin:20px 0}
+.ent-preview-head{background:var(--brand-primary);color:#fff;padding:26px 18px;min-height:90px}
+.ent-preview-head strong{font-size:1.2rem}
+.ent-preview-body{padding:26px 18px}
+.ent-preview-body span{display:inline-block;background:var(--brand-accent);color:#01122f;font-weight:800;border-radius:8px;padding:12px 18px}
+.ent-card-header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+.ent-card-header h3{margin:0}
+.ent-card-header p{margin:3px 0}
+.ent-table-wrap{width:100%;overflow-x:auto}
+.ent-table{width:100%;border-collapse:collapse;text-align:left}
+.ent-table th{font-size:.69rem;color:#557193;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;background:#f5f8fc}
+.ent-table th,.ent-table td{padding:13px 12px;border-bottom:1px solid #e7edf3;vertical-align:middle}
+.ent-table td{font-size:.8rem}
+.ent-table td strong,.ent-table td small{display:block}
+.ent-table td small{font-size:.7rem;color:#6b7e94;margin-top:3px}
+.ent-table .btn{white-space:nowrap}
+.ent-edit-table{min-width:1500px}
+.ent-edit-table input{min-width:115px}
+.ent-edit-table select{min-width:155px}
+.ent-empty{padding:34px;text-align:center}
+.ent-empty strong{font-size:1rem}
+@media(max-width:1050px){.ent-columns{grid-template-columns:1fr}.ent-checks{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:640px){.ent-hero,.ent-card{padding:16px}.ent-card-header{align-items:flex-start;flex-direction:column}.ent-two,.ent-checks{grid-template-columns:1fr}}
