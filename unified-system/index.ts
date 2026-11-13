@@ -340,9 +340,11 @@ Deno.serve(async request=>{
     .eq("tenant_id",tenantId).eq("kind","results").in("operating_context",[context,"shared"])
     .is("archived_at",null).maybeSingle();
    if(unified.error)throw unified.error;
-   if(!unified.data||!uuid(unified.data.data?._legacy_id))return null;
+   // Live reports use the authoritative Testing Operations report ID until migrated.
+   const reportId=unified.data?.data?._legacy_id||recordId;
+   if(!uuid(reportId))return null;
    const report=await db.from("test_result_reports").select("*")
-    .eq("id",unified.data.data._legacy_id).maybeSingle();
+    .eq("id",reportId).maybeSingle();
    if(report.error)throw report.error;
    if(!report.data||!uuid(report.data.employer_id))return null;
    const employer=await collection.select("id,data").eq("tenant_id",tenantId)
@@ -377,7 +379,7 @@ Deno.serve(async request=>{
     .eq("test_result_report_id",report.data.id).eq("employer_id",report.data.employer_id)
     .order("created_at",{ascending:false}).limit(1);
    if(past.error)throw past.error;
-   return {unified:unified.data,report:report.data,employer:employer.data,employee:employee.data,
+   return {unified:unified.data||{id:report.data.id},report:report.data,employer:employer.data,employee:employee.data,
     document:official,delivery:past.data?.[0]||null};
   };
   if(action==="result_details"||action==="result_document_link"||action==="result_send_to_employer"){
@@ -457,6 +459,29 @@ Deno.serve(async request=>{
    // Employers and owner-operators are exclusively DOT or NON-DOT, never shared.
    // Shared records for other modules retain their existing behavior.
    const records=(result.data||[]).filter((r:any)=>!companyKind(r.kind)||r.operating_context===context);
+   if(kind==="results"){
+    const employers=await collection.select("id,data").eq("tenant_id",tenantId)
+     .eq("kind","employers").eq("operating_context",context).is("archived_at",null).limit(500);
+    if(employers.error)throw employers.error;
+    const legacy=(employers.data||[]).map((e:any)=>e.data?._legacy_id).filter(uuid);
+    if(legacy.length){
+     const reports=await db.from("test_result_reports").select(
+      "id,employer_id,report_number,report_status,regulatory_mode,verified_result,finalized_at,created_at,updated_at,testing_order_id"
+     ).in("employer_id",legacy).eq("regulatory_mode",context==="dot"?"DOT":"NON-DOT")
+      .order("created_at",{ascending:false}).limit(250);
+     if(reports.error)throw reports.error;
+     const seen=new Set(records.map((r:any)=>r.data?._legacy_id||r.id));
+     for(const report of reports.data||[]){
+      if(seen.has(report.id))continue;
+      records.push({id:report.id,kind:"results",tenant_id:tenantId,operating_context:context,
+       created_at:report.created_at,updated_at:report.updated_at,
+       data:{name:report.report_number||"Official result",status:report.report_status,
+        reported_at:report.finalized_at||report.created_at,
+        order_reference:report.testing_order_id||"",_legacy_id:report.id,
+        _legacy_table:"test_result_reports"}});
+     }
+    }
+   }
    // Reflect live Testing Portal processing status without duplicating its workflow state.
    const testing=records.filter((r:any)=>r.kind==="testing_orders"&&uuid(r.data?.testing_case_id));
    if(testing.length){
