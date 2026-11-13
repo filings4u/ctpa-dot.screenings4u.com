@@ -3256,11 +3256,12 @@ function bindEvents(){
   if(target.closest("#policyInsertLink")){
    const input=$("policyLinkUrl"),url=input?.value?.trim()||"";
    if(!/^https?:\/\/[^\s]+$/i.test(url)){message("Enter a valid http:// or https:// URL.",true);return}
-   $("policyRichEditor")?.focus();
-   document.execCommand("createLink",false,url);
+   applyPolicyFormatting("createLink",url);
    input.value="";return;
   }
   if(target.closest("#policyRemoveFormat")){applyPolicyFormatting("removeFormat");return}
+  if(target.closest("#policyUnlink")){applyPolicyFormatting("unlink");return}
+  if(target.closest("#policyRemoveLogo")){const input=$("policyLogoUrl"),preview=$("policyLogoPreview");if(input)input.value="";if(preview)preview.innerHTML="<span>No logo uploaded</span>";return}
   const auditSave=target.closest("[data-audit-item-save]"),auditDownload=target.closest("[data-audit-download]");
   if(auditSave){void saveAuditItem(auditSave.dataset.auditItemSave,auditSave);return}
   if(auditDownload){void downloadAuditEvidence(auditDownload);return}
@@ -3376,8 +3377,12 @@ function bindEvents(){
   else if(target.closest("[data-manage-edit]"))openManagement("edit",target.closest("[data-manage-edit]").dataset.manageEdit);
  });
  $("pageContent").addEventListener("change",e=>{
-  if(e.target.id==="policyHeading"){const editor=$("policyRichEditor");if(editor){editor.focus();document.execCommand("formatBlock",false,e.target.value)}return}
- if(e.target.id==="policyTextColor"){const editor=$("policyRichEditor");if(editor){editor.focus();document.execCommand("foreColor",false,e.target.value)}return}
+  if(e.target.id==="policyHeading"){applyPolicyFormatting("formatBlock",e.target.value);return}
+ if(e.target.id==="policyFont"){applyPolicyFormatting("fontName",e.target.value);return}
+ if(e.target.id==="policyFontSize"){applyPolicyFormatting("fontSize",e.target.value);return}
+ if(e.target.id==="policyTextColor"){applyPolicyFormatting("foreColor",e.target.value);return}
+ if(e.target.id==="policyHighlight"){applyPolicyFormatting("hiliteColor",e.target.value);return}
+ if(e.target.id==="policyLogoFile"){void uploadPolicyLogo(e.target.files?.[0]);return}
  if(e.target.matches("[data-audit-upload]")){void uploadAuditEvidence(e.target);return}
  if(e.target.id==="selectionPool"){void selectionPreviewPool();return}
   if(e.target.name==="physical_type"&&e.target.closest("#physicalOrderForm")){const next=e.target.value==="DOT"?"dot":"nondot";if(next!==state.context){changeContext(next);openManagement("new");}return}
