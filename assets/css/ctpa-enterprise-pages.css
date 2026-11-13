@@ -42,3 +42,5 @@
 .ent-empty strong{font-size:1rem}
 @media(max-width:1050px){.ent-columns{grid-template-columns:1fr}.ent-checks{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:640px){.ent-hero,.ent-card{padding:16px}.ent-card-header{align-items:flex-start;flex-direction:column}.ent-two,.ent-checks{grid-template-columns:1fr}}
+
+.ent-logo-preview{max-width:170px;max-height:70px;width:auto;height:auto;object-fit:contain;display:block;margin:0 0 12px}
