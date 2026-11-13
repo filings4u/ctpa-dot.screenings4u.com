@@ -888,7 +888,7 @@ function refreshWorkspaceNavigation(ctx){
  const links=NAV.map(x=>`<a href="${esc(x.href||('/'+x.id+'.html'))}" ${x.switchSurface?`data-workspace="${esc(x.switchSurface)}" `:''}><span class="ico">${esc(x.icon||'•')}</span><span>${esc(x.label||pretty(x.id))}</span></a>`).join('');
  const sidebar=document.querySelector('.side .nav'),mobile=document.querySelector('.mobile-nav-links');
  if(sidebar){sidebar.innerHTML='<div class="nav-title">'+esc(surface)+'</div>'+links;organizePortalNavigation()}
- if(mobile)mobile.innerHTML=links;
+ if(mobile){mobile.innerHTML=links;organizePortalNavigation()}
 }
 function updatePortalChrome(){
  const active=page();
@@ -922,14 +922,14 @@ async function navigatePortal(url,{replace=false,pop=false}={}){
 }
 async function switchOperatingWorkspace(desired){
  if(!['dot','nondot'].includes(desired))throw Error('Unknown workspace');
- if(desired===workspace()?.surface){await navigatePortal('/dashboard.html');return}
+ if(desired===workspace()?.surface)return;
  const session=await getSession();
  if(!session?.access_token)throw Error('Sign in required');
  const headers={'Content-Type':'application/json',apikey:C.workforceKey,Authorization:'Bearer '+session.access_token};
  const response=await fetch(C.workforceUrl+'/functions/v1/workforce-ctpa-unified-workspaces',{method:'POST',cache:'no-store',headers,body:'{}'});
  const result=await response.json().catch(()=>({}));
  if(!response.ok)throw Error(result.error||'Unable to verify combined C/TPA access');
- const current=workspace(),rows=Array.isArray(result.workspaces)?result.workspaces:[];
+ const current=workspace(),currentPage=location.pathname+location.search,rows=Array.isArray(result.workspaces)?result.workspaces:[];
  const parent=rows.find(x=>x.ctpa_id===current?.ctpa_id&&x.subscription_id===current?.subscription_id);
  const orgId=current?.organization_id||parent?.organization_id;
  const target=rows.find(x=>x.operating_context===desired&&x.organization_id===orgId);
@@ -951,13 +951,14 @@ async function switchOperatingWorkspace(desired){
  window.S4UCTPAVerifiedContext=window.portalCtx;
  refreshWorkspaceNavigation(window.portalCtx);
  startRealtime(window.portalCtx);
- await navigatePortal('/dashboard.html');
+ try{await navigatePortal(currentPage,{replace:true})}
+ catch(error){W.set(current);window.portalCtx=await access();refreshWorkspaceNavigation(window.portalCtx);startRealtime(window.portalCtx);throw error}
 }
 function installFastNavigation(){
   document.addEventListener('submit',async e=>{const form=e.target;if(form?.id!=='workforce-profile-form')return;e.preventDefault();const status=document.getElementById('workforce-profile-status'),button=form.querySelector('button[type="submit"]');if(button)button.disabled=true;try{const data=new FormData(form);const first_name=String(data.get('first_name')||'').trim(),last_name=String(data.get('last_name')||'').trim();const {error}=await sb.auth.updateUser({data:{first_name,last_name}});if(error)throw error;if(status)status.textContent='Profile saved.';}catch(err){if(status)status.textContent=err.message||'Unable to save profile.';}finally{if(button)button.disabled=false;}},true);
   document.addEventListener('click',e=>{const a=e.target.closest?.('a[data-workspace]');if(!a||!a.dataset.workspace)return;
   const desired=a.dataset.workspace;
-  if(desired===workspace()?.surface){e.preventDefault();navigatePortal('/dashboard.html').catch(showNavigationError);return;}
+  if(desired===workspace()?.surface){e.preventDefault();return;}
   e.preventDefault();e.stopImmediatePropagation();
   switchOperatingWorkspace(desired).catch(err=>{console.warn('Unable to change workspace',err);showNavigationError(err);});
  },true);
