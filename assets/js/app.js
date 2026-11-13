@@ -98,7 +98,8 @@ function pageAccess(ctx,p){
  if(C.kind!=='ctpa')return {allowed:true};
  const key=norm(p);
  const feature=PAGE_FEATURES[key];
- if(feature&&!planHas(ctx,feature))return {allowed:false,reason:'This feature is not included with your current C/TPA subscription.',feature};
+ // The combined subscription exposes the same page navigation in both contexts.
+ // The selected operation's backend enforces its individual record permissions.
  if(MANAGER_PAGES.has(key)&&!managerRole(ctx))return {allowed:false,reason:'Your C/TPA team role does not permit this administrative action.',feature};
  // Lab Account navigation is part of the C/TPA workspace. Protected lab
  // records and mutations remain exclusively authorized in the backend.
@@ -108,8 +109,8 @@ function pageAccess(ctx,p){
 function buildNavigation(ctx={}){
  const surface=workspace()?.surface==='nondot'?'nondot':'dot';
  const workspaces=[
-  {id:'dashboard',label:'DOT Workspace',icon:'⌂',href:'/dashboard.html',switchSurface:'dot'},
-  {id:'nondot-workspace',label:'NON-DOT Workspace',icon:'⇄',href:'/dashboard.html',switchSurface:'nondot'}
+  {id:'dashboard',label:'DOT',icon:'⌂',href:'/dashboard.html',switchSurface:'dot'},
+  {id:'nondot-workspace',label:'NON-DOT',icon:'⇄',href:'/dashboard.html',switchSurface:'nondot'}
  ];
  const e=ctx.entitlements||{};
  const items=[
@@ -133,7 +134,7 @@ function buildNavigation(ctx={}){
  return [...workspaces,...items.filter(x=>true)
    .map(x=>({id:x[0],label:x[1],icon:x[2],href:'/'+x[0]+'.html'}))];
 }
-const cfgPage=id=>id==='dashboard'&&workspace()?.surface==='nondot'?{id,label:'NON-DOT Dashboard',icon:'⌂',href:'/dashboard.html'}:NAV.find(x=>norm(x.id)===norm(id))||{id,label:pretty(id),icon:'•',href:`/${id}.html`};
+const cfgPage=id=>id==='dashboard'?{id,label:'Dashboard',icon:'⌂',href:'/dashboard.html'}:NAV.find(x=>norm(x.id)===norm(id))||{id,label:pretty(id),icon:'•',href:`/${id}.html`};
 
 async function getSession(){const {data:{session},error}=await sb.auth.getSession();if(error)throw error;return session}
 function ctpaPayload(body={}){const w=workspace();return C.kind==='ctpa'?{ctpa_id:w?.ctpa_id,subscription_id:w?.subscription_id,membership_id:w?.membership_id,...body}:body}
@@ -227,13 +228,13 @@ function organizePortalNavigation(){
 function shell(ctx){
   const current=page();
   NAV=buildNavigation(ctx);
-  const surfaceName=workspace()?.surface==='nondot'?'NON-DOT':'DOT';
-  const planLabel=surfaceName+' Workspace';
+  const surfaceName='Workforce C/TPA';
+  const planLabel='Workforce C/TPA';
   const links=NAV.map(x=>`<a href="${esc(x.href||('/'+x.id+'.html'))}" ${x.switchSurface?`data-workspace="${esc(x.switchSurface)}" `:''}class="${(current===norm(x.id)||(norm(x.id)==='nondot_workspace'&&current==='nondot_workspace')||(norm(x.id)==='people'&&current==='people_company')||(norm(x.id)==='pools'&&(current==='pool_detail'||current==='pool_form'))||(norm(x.id)==='locations'&&current==='location_form')||(norm(x.id)==='users_roles'&&['staff_form','staff_view','staff_invite','staff_delete'].includes(current)))?'active':''}"><span class="ico">${esc(x.icon||'•')}</span><span>${esc(x.label||pretty(x.id))}</span></a>`).join('');
   document.title=`${cfgPage(current).label} | ${planLabel}`;
   if(current!=='support')supportCtxWrite({page_url:location.href,page_title:document.title,page_id:current,captured_at:new Date().toISOString()});
   document.body.className='';
-  document.body.innerHTML=`<div class="app"><aside class="side" id="side"><div class="brand"><img src="images/logo2.png" alt="Workforce"></div><nav class="nav"><div class="nav-title">${esc(planLabel)}</div>${links}</nav><div class="side-foot"><div style="font-size:0.5625rem;color:#9fb3c7">Portal</div><div style="font-size:0.6875rem;font-weight:800;color:#fff;margin-top:3px">Workforce C/TPA</div></div></aside><main class="main"><header class="top"><div class="top-left"><button class="menu" id="menu" type="button" aria-label="Open navigation" aria-expanded="false" aria-controls="mobileNav"><span class="menu-bars" aria-hidden="true"><span></span><span></span><span></span></span></button><div class="top-context"><span class="top-eyebrow">${esc(planLabel)}</span><span class="crumb">${esc(cfgPage(current).label)}</span></div></div><div class="top-right"><div class="top-utility-group top-time-group"><div class="portal-clock" aria-label="Current date and time"><span id="portalClockDate" class="portal-clock-date"></span><strong id="portalClockTime" class="portal-clock-time"></strong></div></div><div class="top-utility-group top-accessibility-group"><span class="top-utility-label">Text size</span><div class="font-sizer" role="group" aria-label="Page font size"><button type="button" id="fontDown" aria-label="Decrease font size" title="Decrease font size">A−</button><button type="button" class="font-reset" id="fontSizeValue" aria-label="Reset font size to default" title="Reset font size">${portalFontSize===FONT_DEFAULT?'Default':portalFontSize}</button><button type="button" id="fontUp" aria-label="Increase font size" title="Increase font size">A+</button></div></div><div class="top-utility-group top-action-group"><span class="pill">${esc(C.kind==='self'?'Self Service':'Management')}</span>${C.agency?`<span class="pill">${esc(C.agency)}</span>`:''}<button class="top-support${current==='support'?' active':''}" id="supportShortcut" type="button"${current==='support'?' aria-current="page"':''}>Support</button><button class="signout" id="logout">Sign out</button></div></div></header><section class="mobile-nav" id="mobileNav" aria-hidden="true" aria-label="Portal navigation"><div class="mobile-nav-inner"><div class="mobile-nav-head"><div><span>Portal navigation</span><strong>${esc(planLabel)}</strong></div><span class="mobile-nav-current">${esc(cfgPage(current).label)}</span></div><nav class="mobile-nav-links">${links}</nav><div class="mobile-nav-foot"><span>${esc(C.domain)}</span><small>Select a page to close this menu.</small></div></div></section><div class="content"><div id="error"></div><section class="hero"><span class="hero-kicker">${esc(planLabel)}</span><h1>${esc(cfgPage(current).label)}</h1><p id="subtitle">Your ${surfaceName} Workforce C/TPA workspace.</p><div class="hero-actions" id="actions"></div></section><section class="section" id="content"></section></div></main></div>`;
+  document.body.innerHTML=`<div class="app"><aside class="side" id="side"><div class="brand"><img src="images/logo2.png" alt="Workforce"></div><nav class="nav"><div class="nav-title">${esc(planLabel)}</div>${links}</nav><div class="side-foot"><div style="font-size:0.5625rem;color:#9fb3c7">Portal</div><div style="font-size:0.6875rem;font-weight:800;color:#fff;margin-top:3px">Workforce C/TPA</div></div></aside><main class="main"><header class="top"><div class="top-left"><button class="menu" id="menu" type="button" aria-label="Open navigation" aria-expanded="false" aria-controls="mobileNav"><span class="menu-bars" aria-hidden="true"><span></span><span></span><span></span></span></button><div class="top-context"><span class="top-eyebrow">${esc(planLabel)}</span><span class="crumb">${esc(cfgPage(current).label)}</span></div></div><div class="top-right"><div class="top-utility-group top-time-group"><div class="portal-clock" aria-label="Current date and time"><span id="portalClockDate" class="portal-clock-date"></span><strong id="portalClockTime" class="portal-clock-time"></strong></div></div><div class="top-utility-group top-accessibility-group"><span class="top-utility-label">Text size</span><div class="font-sizer" role="group" aria-label="Page font size"><button type="button" id="fontDown" aria-label="Decrease font size" title="Decrease font size">A−</button><button type="button" class="font-reset" id="fontSizeValue" aria-label="Reset font size to default" title="Reset font size">${portalFontSize===FONT_DEFAULT?'Default':portalFontSize}</button><button type="button" id="fontUp" aria-label="Increase font size" title="Increase font size">A+</button></div></div><div class="top-utility-group top-action-group"><span class="pill">${esc(C.kind==='self'?'Self Service':'Management')}</span>${C.agency?`<span class="pill">${esc(C.agency)}</span>`:''}<button class="top-support${current==='support'?' active':''}" id="supportShortcut" type="button"${current==='support'?' aria-current="page"':''}>Support</button><button class="signout" id="logout">Sign out</button></div></div></header><section class="mobile-nav" id="mobileNav" aria-hidden="true" aria-label="Portal navigation"><div class="mobile-nav-inner"><div class="mobile-nav-head"><div><span>Portal navigation</span><strong>${esc(planLabel)}</strong></div><span class="mobile-nav-current">${esc(cfgPage(current).label)}</span></div><nav class="mobile-nav-links">${links}</nav><div class="mobile-nav-foot"><span>${esc(C.domain)}</span><small>Select a page to close this menu.</small></div></div></section><div class="content"><div id="error"></div><section class="hero"><span class="hero-kicker">${esc(planLabel)}</span><h1>${esc(cfgPage(current).label)}</h1><p id="subtitle">Manage Workforce C/TPA operations.</p><div class="hero-actions" id="actions"></div></section><section class="section" id="content"></section></div></main></div>`;
   organizePortalNavigation();
   for(const a of document.querySelectorAll('.nav a[data-workspace],.mobile-nav-links a[data-workspace]'))a.classList.toggle('active',a.dataset.workspace===workspace()?.surface);
   requestAnimationFrame(()=>{const nav=document.querySelector('.side .nav'),active=nav?.querySelector('a.active');if(nav&&active){const top=active.offsetTop-nav.clientHeight/2+active.clientHeight/2;nav.scrollTop=Math.max(0,top)}});
@@ -471,15 +472,7 @@ function dashboard(ctx,d){
       subscription:{status:'active',plans:{name:workspace()?.combined_plan_name||'C/TPA Plan'}},
       entitlements:{results_summary:true}};
   }
-  const route=path=>nondot?({
-    '/employers.html':'/nondot-employers.html',
-    '/testing.html':'/nondot-testing.html',
-    '/results.html':'/nondot-results.html',
-    '/selections.html':'/nondot-pools.html',
-    '/compliance.html':'/nondot-programs.html',
-    '/employer-billing.html':'/account-settings.html',
-    '/notifications.html':'/support.html'
-  }[path]||path):path;
+  const route=path=>path;
 
   if(C.kind==='self'){
     const m=[['Testing',(d.testing_orders||[]).length,'My testing orders'],['Results',(d.results||d.result_reports||[]).length,'My available results'],['Documents',(d.documents||[]).length,'My documents'],['Training',(d.training||[]).length,'My training records']];
@@ -780,7 +773,7 @@ async function render(ctx,prefetched){
     wireManagementActions(p,d,ctx);
   }
   $('#content').innerHTML=html||`<div class="panel"><div class="empty">No data available.</div></div>`;
-  if(C.kind==='ctpa'&&isNonDotPage(p)&&window.CtpaNondotWorkspace)window.CtpaNondotWorkspace.bind(d,saveNondotRecord);
+  if(C.kind==='ctpa'&&workspace()?.surface==='nondot'&&NONDOT_PAGES[norm(p)]&&p!=='dashboard'&&window.CtpaNondotWorkspace)window.CtpaNondotWorkspace.bind(d,saveNondotRecord);
   if(C.kind==='ctpa'&&(p==='lab_services'||isLaboratoryPage(p))&&window.CtpaLabServices)window.CtpaLabServices.bind(labServiceCall,d);
   if(isUtilityPage(p)&&!(C.kind==='ctpa'&&p==='integrations'&&window.CtpaIntegrations))bindUtilityPage(p,d,ctx);
   if(C.kind==='ctpa'&&['integrations','integration_connect','integration_workspace'].includes(p)&&window.CtpaIntegrations)window.CtpaIntegrations.bind(p,d,ctx);
@@ -893,15 +886,15 @@ function showNavigationError(error){
 }
 function refreshWorkspaceNavigation(ctx){
  NAV=buildNavigation(ctx);
- const surface=workspace()?.surface==='nondot'?'NON-DOT':'DOT';
+ const surface='Workforce C/TPA';
  const links=NAV.map(x=>`<a href="${esc(x.href||('/'+x.id+'.html'))}" ${x.switchSurface?`data-workspace="${esc(x.switchSurface)}" `:''}><span class="ico">${esc(x.icon||'•')}</span><span>${esc(x.label||pretty(x.id))}</span></a>`).join('');
  const sidebar=document.querySelector('.side .nav'),mobile=document.querySelector('.mobile-nav-links');
- if(sidebar){sidebar.innerHTML='<div class="nav-title">'+esc(surface+' Workspace')+'</div>'+links;organizePortalNavigation()}
+ if(sidebar){sidebar.innerHTML='<div class="nav-title">'+esc(surface)+'</div>'+links;organizePortalNavigation()}
  if(mobile)mobile.innerHTML=links;
 }
 function updatePortalChrome(){
- const active=page(),name=workspace()?.surface==='nondot'?'NON-DOT':'DOT';
- const label=name+' Workspace',title=cfgPage(active).label;
+ const active=page();
+ const label='Workforce C/TPA',title=cfgPage(active).label;
  document.title=title+' | '+label;
  const slots=[['.top-eyebrow',label],['.crumb',title],['.hero-kicker',label],['.hero h1',title],['.mobile-nav-head strong',label],['.mobile-nav-current',title],['.side .nav-title',label]];
  for(const [sel,val] of slots){const el=document.querySelector(sel);if(el)el.textContent=val}
