@@ -185,7 +185,7 @@ function updateHeading(){
  updateBreadcrumbs();
  $("pageActions").innerHTML=state.page==="account"?"":state.page==="dashboard"||state.page==="lab_analytics"
   ?'<button class="btn secondary" type="button" id="refreshPage">Refresh</button>'
-  :'<button class="btn secondary" type="button" id="refreshPage">Refresh</button><button class="btn secondary" type="button" id="exportPage">Export CSV</button><button class="btn primary" type="button" id="newRecord">'+(state.page==="selections"?"Run Selection":"Add "+esc(title))+'</button>';
+  :'<button class="btn secondary" type="button" id="refreshPage">Refresh</button><button class="btn secondary" type="button" id="exportPage">Export CSV</button><button class="btn primary" type="button" id="newRecord">'+(state.page==="selections"?"Run Selection":state.page==="testing_orders"?"Order a Test":"Add "+esc(title))+'</button>';
 }
 function switchPage(page,push=true){
  if(!CONFIG[page])page="dashboard";
@@ -1413,6 +1413,34 @@ function refreshDrugDonors(){
  person.disabled=!companyId;
  $("drugDonorHint").textContent=companyId?(choices.length?choices.length+" available donor(s)":"No active people are linked to this company. Add the donor on the People page."):"Select a company first.";
 }
+function renderDrugOrderList(records){
+ const query=state.search.trim().toLowerCase(),status=state.statusFilter;
+ const visible=records.filter(r=>(!query||[r.data?.name,r.data?.employer,r.data?.employee,r.data?.test_type].some(v=>String(v||"").toLowerCase().includes(query)))&&
+  (!status||r.data?.status===status));
+ const statuses=[...new Set(records.map(r=>String(r.data?.status||"")).filter(Boolean))].sort();
+ const items=visible.map(r=>{
+  const d=r.data||{},when=r.created_at?new Date(r.created_at).toLocaleDateString():"";
+  return '<button type="button" class="drug-order-row" data-view="'+esc(r.id)+'">'+
+   '<span class="drug-order-row-icon">'+navIcon("testing_orders")+'</span>'+
+   '<span class="drug-order-row-title"><strong>'+esc(d.name||"Testing order")+'</strong>'+
+   '<small>'+esc(d.employer||"Company")+" · "+esc(d.employee||"Donor")+'</small></span>'+
+   '<span class="drug-order-row-test"><small>Test</small><strong>'+esc(String(d.test_type||"").replaceAll("_"," "))+'</strong></span>'+
+   '<span class="drug-order-row-date"><small>Submitted</small><strong>'+esc(when)+'</strong></span>'+
+   '<span class="mgmt-status '+(["completed","released"].includes(d.status)?"positive":"pending")+'">'+esc(statusLabel(d.status||"pending"))+'</span>'+
+   '<span class="drug-order-row-arrow">View</span></button>';
+ }).join("");
+ $("pageContent").innerHTML='<div class="drug-order-directory"><div class="drug-order-stats">'+
+  '<div><small>Testing orders</small><strong>'+records.length+'</strong></div>'+
+  '<div><small>Awaiting scheduling</small><strong>'+records.filter(r=>r.data?.status==="awaiting_schedule").length+'</strong></div>'+
+  '<div><small>Completed</small><strong>'+records.filter(r=>["completed","released"].includes(r.data?.status)).length+'</strong></div></div>'+
+  '<section class="drug-order-list"><div class="directory-toolbar"><div class="directory-search">'+
+  '<input id="recordSearch" type="search" placeholder="Search orders, companies, or donors" value="'+esc(state.search)+'"></div>'+
+  '<select id="statusFilter"><option value="">All statuses</option>'+
+  statuses.map(st=>'<option value="'+esc(st)+'"'+(status===st?" selected":"")+'>'+esc(statusLabel(st))+'</option>').join("")+'</select>'+
+  '<span class="directory-total">'+visible.length+' orders</span></div>'+
+  (items||'<div class="directory-empty"><h2>No testing orders</h2><p>Use Order a Test to submit a request to Testing Operations.</p></div>')+
+  '</section></div>';
+}
 function renderDrugOrder(record){
  const d=record?.data||{};
  const header='<div class="program-head"><span class="program-head-icon">'+navIcon("testing_orders")+'</span><div><strong>'+
@@ -1426,7 +1454,7 @@ function renderDrugOrder(record){
     ["Testing reason",d.reason],["Specimen",d.specimen_type],["Panel",d.panel_name],
     ["DOT agency",d.dot_agency],["Priority",d.priority],["Requested date",d.requested_date],
     ["Processing status",d.status],["Instructions",d.notes]])+
-   '<div class="drug-order-handoff"><strong>Testing Operations</strong><span>Order submitted to the Testing Portal for scheduling and processing.</span></div>'+
+   (d.testing_case_id?'<div class="drug-order-handoff"><strong>Testing Operations</strong><span>Submitted to the Testing Portal for scheduling and processing. Status reflects the processing queue.</span></div>':"")+
    '<footer class="program-actions"><button type="button" class="btn secondary" data-back-list>Back to Testing Orders</button></footer></div>';
   return;
  }
@@ -1736,6 +1764,7 @@ function recordStatus(record){
 function showRecords(records){
  if(state.page==="dashboard"){renderDashboard(records);return}
  if(state.page==="selections"){selectionList(records);return}
+ if(state.page==="testing_orders"){renderDrugOrderList(records);return}
  const count=records.length,query=state.search.trim().toLowerCase();
  const statuses=[...new Set(records.map(r=>String(r.data?.status||"").trim()).filter(Boolean))].sort();
  const visible=records.filter(r=>(!query||Object.values(r.data||{}).some(v=>String(v??"").toLowerCase().includes(query)))&&
