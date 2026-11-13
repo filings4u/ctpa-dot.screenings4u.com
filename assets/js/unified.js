@@ -74,7 +74,7 @@ const CONFIG={
  integrations:["Integrations","Maintain connection and integration records.","name|Integration name|text|required;provider|Provider|text;status|Status|select:inactive,active"],
  audit_history:["Audit History","Maintain operational audit entries.","name|Event title|text|required;resource|Resource|text;description|Description|textarea"],
 };
-const state={supabase:null,workspaces:[],tenantId:null,context:"dot",page:"dashboard",cache:new Map(),sequence:0,editing:null,search:"",pageIndex:0,font:16,loading:false};
+const state={supabase:null,workspaces:[],tenantId:null,context:"dot",page:"dashboard",cache:new Map(),sequence:0,editing:null,search:"",statusFilter:"",pageIndex:0,font:16,loading:false};
 const $=id=>document.getElementById(id);
 const esc=value=>String(value??"").replace(/[&<>"']/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
 const label=id=>CONFIG[id]?.[0]||id.replaceAll("_"," ").replace(/\b\w/g,x=>x.toUpperCase());
@@ -182,7 +182,7 @@ function updateHeading(){
 }
 function switchPage(page,push=true){
  if(!CONFIG[page])page="dashboard";
- state.page=page;state.search="";state.pageIndex=0;state.management=null;state.pendingManagement=null;const seq=++state.sequence;
+ state.page=page;state.search="";state.statusFilter="";state.pageIndex=0;state.management=null;state.pendingManagement=null;const seq=++state.sequence;
  if(push)history.pushState(null,"","/unified.html?page="+encodeURIComponent(page));
  if(isCompactViewport())$("sidebar").classList.remove("open");updateSidebarToggle();renderNav();updateHeading();message("");
  if(page==="account"){void renderAccount();return}
@@ -403,14 +403,17 @@ async function submitManagement(form){
 function showRecords(records){
  if(state.page==="dashboard"){renderDashboard(records);return}
  const count=records.length,query=state.search.trim().toLowerCase();
- const visible=query?records.filter(r=>Object.values(r.data||{}).some(v=>String(v??"").toLowerCase().includes(query))):records;
+ const statuses=[...new Set(records.map(r=>String(r.data?.status||"").trim()).filter(Boolean))].sort();
+ const visible=records.filter(r=>(!query||Object.values(r.data||{}).some(v=>String(v??"").toLowerCase().includes(query)))&&(!state.statusFilter||String(r.data?.status||"")===state.statusFilter));
  const pageSize=30,maxPage=Math.max(0,Math.ceil(visible.length/pageSize)-1);
  state.pageIndex=Math.min(Math.max(0,state.pageIndex||0),maxPage);
  const displayed=visible.slice(state.pageIndex*pageSize,(state.pageIndex+1)*pageSize);
  const canWrite=["owner","admin","editor"].includes(activeWorkspace()?.role||"");
  $("newRecord")?.toggleAttribute("disabled",!canWrite);
  const columns=fields(state.page).filter(f=>f.type!=="file").slice(0,3);
- $("pageContent").innerHTML='<section class="panel"><div class="toolbar"><input id="recordSearch" type="search" aria-label="Search records" placeholder="Search records" value="'+esc(state.search)+'"><span class="search-meta">'+visible.length+' of '+count+' records</span></div>'+
+ $("pageContent").innerHTML='<section class="panel"><div class="toolbar"><input id="recordSearch" type="search" aria-label="Search records" placeholder="Search records" value="'+esc(state.search)+'">'+(statuses.length?'<select id="statusFilter" aria-label="Filter by status"><option value="">All statuses</option>'+
+    statuses.map(status=>'<option value="'+esc(status)+'"'+(status===state.statusFilter?' selected':'')+'>'+esc(status.replaceAll("_"," "))+'</option>').join("")+'</select>':"")+
+   '<span class="search-meta">'+visible.length+' of '+count+' records</span></div>'+
   (visible.length?'<div class="table-scroll"><table class="data-table"><thead><tr><th>Record</th>'+
    columns.map(c=>'<th>'+esc(c.label)+'</th>').join("")+'<th>Updated</th><th>Actions</th></tr></thead><tbody>'+
    displayed.map(r=>'<tr><td class="record-name">'+esc(recordTitle(r))+'<br><small>'+esc(r.operating_context==="shared"?"Shared":r.operating_context==="dot"?"DOT":"NON-DOT")+'</small></td>'+
@@ -581,6 +584,12 @@ function bindEvents(){
   else if(target.closest("#editProfile"))void editProfile();
   else if(target.closest("[data-back-list]"))leaveManagement();
   else if(target.closest("[data-manage-edit]"))openManagement("edit",target.closest("[data-manage-edit]").dataset.manageEdit);
+ });
+ $("pageContent").addEventListener("change",e=>{
+  if(e.target.id==="statusFilter"){
+   state.statusFilter=e.target.value;state.pageIndex=0;
+   showRecords(state.cache.get(cacheKey())?.records||[]);
+  }
  });
  $("pageContent").addEventListener("input",e=>{
   if(e.target.id!=="recordSearch")return;
