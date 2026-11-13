@@ -865,17 +865,24 @@ function renderProgramManagement(record,mode,canWrite){
   const chosen=names.map(n=>defs.find(f=>f.name===n)).filter(Boolean);
   return view?managementOverviewGroup(name,chosen.map(f=>[f.label,d[f.name]])):managementSection(name,chosen,record);
  }).join("");
+ const related='<section class="program-related"><h2>Program management</h2><div class="program-related-links">'+
+  [["pools","Manage pools"],["enrollments","Enrollments"],["selections","Random selections"],
+   ["testing_orders","Testing orders"],["reports","Reports"]].map(([page,title])=>
+   '<button type="button" data-program-related="'+page+'">'+navIcon(page)+'<span>'+esc(title)+'</span><span aria-hidden="true">›</span></button>').join("")+
+  '</div></section>';
  const assigned=view?managementOverviewGroup("Assigned company",[["Company",d.employer||"Unassigned"]]):
   '<section class="management-section"><header class="management-section-header"><h2>Assigned company</h2></header>'+
   '<div class="manage-form-grid"><label class="manage-field"><span>Company</span><select name="company_selection" id="programCompany" disabled>'+
   '<option value="">Loading companies…</option></select><small>Only companies in this workspace can be assigned.</small></label></div></section>';
  if(view){
-  $("pageContent").innerHTML='<div class="program-management">'+head+sections+assigned+
+  $("pageContent").innerHTML='<div class="program-management">'+head+'<div class="program-management-grid">'+
+   '<div class="program-primary">'+sections+assigned+'</div>'+related+'</div>'+
    '<footer class="program-actions"><button type="button" class="btn secondary" data-back-list>Back to Programs</button>'+
    (canWrite?'<button class="btn primary" type="button" data-manage-edit="'+esc(record.id)+'">Edit program</button>':"")+'</footer></div>';
   return;
  }
- $("pageContent").innerHTML='<div class="program-management">'+head+'<form id="managementForm">'+sections+assigned+
+ $("pageContent").innerHTML='<div class="program-management">'+head+'<form id="managementForm"><div class="program-management-grid">'+
+  '<div class="program-primary">'+sections+assigned+'</div>'+related+'</div>'+
   '<div class="program-rule-guidance" id="programRegulatoryGuidance">Loading regulatory references…</div>'+
   '<p class="manage-form-error" id="managementError" role="alert"></p>'+
   '<footer class="program-actions"><button type="button" class="btn secondary" data-back-list>Cancel</button>'+
@@ -1341,6 +1348,11 @@ function bindEvents(){
     if(state.cache.get(cacheKey()))openManagement("view",id);
     else state.pendingManagement={action:"view",id,section:destination};
    }
+   return;
+  }
+  if(target.closest("[data-program-related]")){
+   const page=target.closest("[data-program-related]").dataset.programRelated;
+   if(CONFIG[page])switchPage(page);
    return;
   }
   if(target.closest("[data-program-apply-rule]")){
