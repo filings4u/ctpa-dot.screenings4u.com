@@ -324,9 +324,6 @@ function renderDashboard(records){
   '<span class="enterprise-attention-count">'+v.count+'</span></button>').join("");
  $("pageContent").innerHTML=
   '<div class="enterprise-dashboard">'+
-   '<div class="enterprise-overview-heading"><div><span class="enterprise-overline">'+esc(context)+' WORKSPACE</span>'+
-   '<h2>Operations overview</h2><p>'+esc(company)+'</p></div>'+
-   '<span class="enterprise-live-marker"><span></span>Account data</span></div>'+
    '<div class="enterprise-kpi-grid">'+metricHtml+'</div>'+
    '<div class="enterprise-dashboard-grid"><div class="enterprise-dashboard-main">'+
     '<section class="enterprise-work-panel"><div class="enterprise-panel-heading"><div><span class="enterprise-panel-overline">WORKFORCE ACTIVITY</span><h3>Record activity</h3></div><span class="enterprise-panel-meta">Last six calendar months</span></div>'+
