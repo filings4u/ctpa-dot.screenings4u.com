@@ -1,4 +1,22 @@
-(()=>{'use strict';
+(()=>{
+'use strict';
+const legacyPage=location.pathname.split('/').pop()?.toLowerCase()||'';
+if(!new Set(['global-checkout.html','status.html','auth-handoff.html','login.html','forgot-password.html','reset-password.html','404.html','index.html']).has(legacyPage)){
+ const url=new URL('/unified.html',location.origin);
+ const p=legacyPage.replace(/\.html$/,'').replaceAll('-','_');
+ const mapping={testing:'testing_orders',testing_order:'testing_orders',new_entrant_audits:'audits',
+  employer_billing:'invoices',order_history:'orders',lab_services:'lab_accounts',
+  users_roles:'staff',laboratory_overview:'dashboard',laboratory_orders:'lab_orders',
+  laboratory_results:'lab_results',laboratory_accounts:'lab_accounts'};
+ const allowed=new Set(['dashboard','employers','owner_operators','people','programs','pools',
+  'selections','testing_orders','testing_documents','results','compliance','documents','reports',
+  'occupational_health','notifications','billing','invoices','integrations','locations',
+  'support','price_list','orders','audit_history','staff','audits','lab_accounts','lab_orders','lab_results']);
+ url.searchParams.set('page',mapping[p]|| (allowed.has(p)?p:'dashboard'));
+ if(new URLSearchParams(location.search).get('workspace')==='nondot')url.searchParams.set('context','nondot');
+ location.replace(url.href);
+ return;
+}
 const P=location.pathname.split('/').pop()?.toLowerCase()||'index.html';
 const PUBLIC=new Set(['login.html','auth-handoff.html','404.html','forgot-password.html','reset-password.html','index.html']);
 if(PUBLIC.has(P)){document.documentElement.classList.remove('s4u-auth-pending');return}
