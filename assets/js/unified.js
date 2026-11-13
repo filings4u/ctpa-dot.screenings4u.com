@@ -6,15 +6,22 @@ const ENDPOINT=BASE+"/functions/v1/workforce-unified-portal";
 const SELECTOR_URL="https://workforceapps.screenings4u.com/selector.html";
 const redirectToSelector=()=>location.replace(SELECTOR_URL);
 const GROUPS=[
- ["Overview",["dashboard"]],
- ["Clients & Programs",["employers","owner_operators","people","programs","pools","selections"]],
- ["Testing & Results",["testing_orders","testing_documents","results","occupational_health"]],
- ["Compliance",["compliance","audits","clearinghouse","return_to_duty","policies","enrollments","documents","reports"]],
- ["Laboratory",["lab_accounts","lab_clients","lab_orders","lab_tracking","lab_results","lab_documents","lab_billing","lab_supplies","lab_analytics","lab_delivery","lab_alerts","lab_benefits","lab_consortiums"]],
- ["Operations",["locations","messages","notifications","support","demo_sessions"]],
- ["Services & Billing",["orders","price_list","services","billing","invoices","subscriptions"]],
- ["Administration",["staff","integrations","audit_history"]]
+ ["People & Programs",["employers","owner_operators","people","programs","pools","selections"]],
+ ["Testing & Compliance",["testing_orders","testing_documents","results","occupational_health","compliance","audits","clearinghouse","return_to_duty","policies","enrollments","documents","reports","lab_clients","lab_orders","lab_tracking","lab_results","lab_documents","lab_supplies","lab_analytics","lab_delivery","lab_alerts","lab_benefits","lab_consortiums"]],
+ ["Services & Billing",["orders","price_list","services","billing","invoices","subscriptions","lab_billing"]],
+ ["Account & Support",["locations","messages","notifications","support","demo_sessions","staff","integrations","audit_history"]]
 ];
+const SIDEBAR_TOP=[
+ ["dashboard","Dashboard","⌂"],
+ ["lab_accounts","Lab Account","⚗"]
+];
+const NAV_STORAGE_KEY="workforce_ctpa_sidebar_open_groups";
+const openNavGroups=new Set((()=>{
+ try{const saved=JSON.parse(sessionStorage.getItem(NAV_STORAGE_KEY)||"[]");return Array.isArray(saved)?saved.filter(x=>GROUPS.some(group=>group[0]===x)):[]}
+ catch{return []}
+})());
+function saveNavGroups(){try{sessionStorage.setItem(NAV_STORAGE_KEY,JSON.stringify([...openNavGroups]))}catch{}}
+const navGroupForPage=id=>GROUPS.find(group=>group[1].includes(id))?.[0]||null;
 const CONFIG={
  account:["Account","Your Workforce C/TPA company and signed-in account."],
  dashboard:["Dashboard","Single C/TPA operations dashboard across the selected records."],
@@ -92,11 +99,29 @@ async function api(action,body={}){
 function showView(id){for(const name of ["workspaceSetup","application"])$(name).hidden=name!==id;}
 function activeWorkspace(){return state.workspaces.find(w=>w.tenant_id===state.tenantId)}
 function renderNav(){
- $("sidebarNavigation").innerHTML=GROUPS.map(([title,modules])=>'<div class="nav-group"><h2>'+esc(title)+'</h2>'+
- modules.map(id=>'<button type="button" class="nav-item'+(state.page===id?" active":"")+
- '" data-page="'+esc(id)+'"><span class="symbol" aria-hidden="true">'+(id==="dashboard"?"⌂":id.startsWith("lab_")?"⚗":"▪")+
- '</span><span>'+esc(label(id))+'</span></button>').join("")+'</div>').join("");
- document.querySelectorAll("[data-context]").forEach(btn=>btn.classList.toggle("selected",btn.dataset.context===state.context));
+ const nav=$("sidebarNavigation");
+ const top=SIDEBAR_TOP.map(([id,name,icon])=>'<button type="button" class="nav-item nav-top-link'+
+ (state.page===id?" active":"")+'" data-page="'+id+'" '+(state.page===id?'aria-current="page"':"")+
+ '><span class="symbol" aria-hidden="true">'+icon+'</span><span>'+esc(name)+'</span></button>').join("");
+ const activeGroup=navGroupForPage(state.page);
+ if(activeGroup)openNavGroups.add(activeGroup);
+ const groups=GROUPS.map(([title,modules],index)=>{
+  const expanded=openNavGroups.has(title);
+  const hasActive=modules.includes(state.page);
+  return '<section class="nav-group'+(expanded?" expanded":"")+'" data-group="'+esc(title)+'">'+
+   '<button type="button" class="nav-group-toggle" data-nav-group="'+esc(title)+'" aria-controls="nav-group-'+index+
+   '" aria-expanded="'+String(expanded)+'"><span>'+esc(title)+'</span><span class="group-indicator" aria-hidden="true">'+(expanded?"−":"+")+'</span></button>'+
+   '<div class="nav-group-links" id="nav-group-'+index+'"'+(expanded?"":' hidden')+'>'+
+   modules.map(id=>'<button type="button" class="nav-item nav-child'+(state.page===id?" active":"")+
+    '" data-page="'+esc(id)+'"'+(state.page===id?' aria-current="page"':"")+
+    '><span>'+esc(label(id))+'</span></button>').join("")+'</div></section>';
+ }).join("");
+ nav.innerHTML='<div class="nav-top-links">'+top+'</div>'+groups;
+ document.querySelectorAll("[data-context]").forEach(btn=>{
+  const active=btn.dataset.context===state.context;
+  btn.classList.toggle("selected",active);
+  btn.setAttribute("aria-pressed",String(active));
+ });
  $("contextPill").textContent=state.context==="dot"?"DOT":"NON-DOT";
  $("contextEyebrow").textContent=state.context==="dot"?"DOT OPERATIONS":"NON-DOT OPERATIONS";
 }
@@ -338,7 +363,21 @@ function bindEvents(){
   try{const name=String(new FormData(e.currentTarget).get("name")||"").trim();await api("create_workspace",{name});await initializeWorkspaces()}
   catch(error){$("setupMessage").textContent=error.message}finally{b.disabled=false}
  });
- $("sidebarNavigation").addEventListener("click",e=>{const b=e.target.closest("[data-page]");if(b)switchPage(b.dataset.page)});
+ $("sidebarNavigation").addEventListener("click",e=>{
+  const groupButton=e.target.closest("[data-nav-group]");
+  if(groupButton){
+   const title=groupButton.dataset.navGroup;
+   if(openNavGroups.has(title))openNavGroups.delete(title);else openNavGroups.add(title);
+   saveNavGroups();
+   const block=groupButton.closest(".nav-group"),expanded=openNavGroups.has(title);
+   block.classList.toggle("expanded",expanded);
+   groupButton.setAttribute("aria-expanded",String(expanded));
+   groupButton.querySelector(".group-indicator").textContent=expanded?"−":"+";
+   block.querySelector(".nav-group-links").hidden=!expanded;
+   return;
+  }
+  const b=e.target.closest("[data-page]");if(b)switchPage(b.dataset.page);
+ });
  document.querySelectorAll("[data-context]").forEach(b=>b.addEventListener("click",()=>changeContext(b.dataset.context)));
  const menu=$("accountMenu"),dropdown=$("accountDropdown"),trigger=$("accountTrigger");
  const closeAccountMenu=()=>{dropdown.hidden=true;trigger.setAttribute("aria-expanded","false")};
