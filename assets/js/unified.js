@@ -329,39 +329,89 @@ function managementField(f,value=""){
  }else control='<input id="manage-'+name+'" name="'+name+'" type="'+esc(f.type)+'" value="'+v+'"'+required+(f.type==="number"?' step="any"':"")+' maxlength="4000">';
  return '<label class="manage-field" for="manage-'+name+'"><span>'+esc(f.label)+(f.required?' <span class="required-mark">*</span>':'')+'</span>'+control+'</label>';
 }
+function singularLabel(page){
+ const words=label(page);
+ if(page==="people")return "Person";
+ if(words.endsWith("ies"))return words.slice(0,-3)+"y";
+ if(words.endsWith("s")&&!words.endsWith("ss"))return words.slice(0,-1);
+ return words;
+}
+function managementSection(title,fieldsList,record){
+ if(!fieldsList.length)return "";
+ return '<section class="management-section"><header class="management-section-header"><h2>'+esc(title)+'</h2></header>'+
+  '<div class="manage-form-grid">'+fieldsList.map(f=>managementField(f,record?.data?.[f.name]??"")).join("")+'</div></section>';
+}
+function managementOverviewGroup(title,entries){
+ const populated=entries.filter(([,value])=>value!==undefined&&value!==null&&String(value).trim()!=="");
+ if(!populated.length)return "";
+ return '<section class="profile-section"><div class="profile-section-heading"><h2>'+esc(title)+'</h2></div>'+
+  '<dl class="profile-fields">'+populated.map(([name,value])=>
+  '<div class="profile-field"><dt>'+esc(name)+'</dt><dd>'+esc(value)+'</dd></div>').join("")+'</dl></section>';
+}
 function renderManagementPage(){
  const m=state.management;
  if(!m||m.section!==state.page)return;
  const record=m.id?(state.cache.get(cacheKey())?.records||[]).find(r=>r.id===m.id):null;
  if(m.action!=="new"&&!record){
-  $("pageContent").innerHTML='<section class="panel"><h2>Record unavailable</h2><p>Reload the management list to review this record.</p><button class="btn secondary" data-back-list type="button">Back to '+esc(label(state.page))+'</button></section>';
+  $("pageContent").innerHTML='<section class="directory-panel directory-empty"><h2>Record unavailable</h2><p>Reload the management list to review this record.</p><button type="button" class="btn primary" data-back-list>Return to management</button></section>';
   return;
  }
- const title=m.action==="new"?"Add "+label(state.page):m.action==="edit"?"Edit "+label(state.page):"View "+label(state.page);
+ const singular=singularLabel(state.page),isEmployer=state.page==="employers";
+ const title=m.action==="new"?"Add "+singular:m.action==="edit"?"Edit "+singular:
+  isEmployer?recordTitle(record):"View "+singular;
  $("pageTitle").textContent=title;$("topTitle").textContent=title;
  updateBreadcrumbs(m.action);
- $("pageActions").innerHTML='<button class="btn secondary" type="button" data-back-list>Back</button>';
- const overview="";
- const detail=record?'<div class="record-management-meta"><span>Record ID: '+esc(record.id)+'</span><span>Context: '+esc(record.operating_context.toUpperCase())+'</span><span>Updated: '+esc(new Date(record.updated_at).toLocaleString())+'</span></div>':'';
+ $("pageActions").innerHTML='<button type="button" class="btn secondary" data-back-list>Back to '+esc(label(state.page))+'</button>';
+ const canWrite=["owner","admin","editor"].includes(activeWorkspace()?.role||"");
+ const context=record?.operating_context||state.context;
  if(m.action==="view"){
-  const rows=Object.entries(record?.data||{});
-  $("pageContent").innerHTML=overview+'<section class="panel manage-panel">'+
-   '<dl class="manage-details">'+rows.filter(([key])=>!key.startsWith("_")&&!["storage_bucket","storage_path","mime_type","file_url"].includes(key)).map(([key,value])=>'<div><dt>'+esc(fields(state.page).find(f=>f.name===key)?.label||key.replaceAll("_"," "))+'</dt><dd>'+esc(value??"—")+'</dd></div>').join("")+'</dl>'+detail+
-   (DOCUMENT_PAGES.has(state.page)&&record?.data?.storage_path?'<div class="document-file-actions"><button type="button" class="btn secondary" data-preview-file="'+esc(record.id)+'">View File</button><button type="button" class="btn primary" data-open-file="'+esc(record.id)+'">Download File</button><span>'+esc(record.data.file_name||"Attached document")+'</span></div>':"")+
-   '<div class="manage-actions"><button type="button" class="btn secondary" data-back-list>Back to List</button>'+
-   (["owner","admin","editor"].includes(activeWorkspace()?.role||"")?'<button type="button" class="btn primary" data-manage-edit="'+esc(record.id)+'">Edit Record</button>':'')+'</div></section>';
+  const d=record.data||{};
+  const sections=isEmployer?[
+   managementOverviewGroup("Company information",[
+    ["Legal name",d.legal_name],["USDOT number",d.dot_number],["Operating context",context==="shared"?"DOT and NON-DOT":context.toUpperCase()]
+   ]),
+   managementOverviewGroup("Primary contact",[
+    ["Contact name",d.contact_name],["Email",d.contact_email],["Phone",d.phone]
+   ])
+  ]:[
+   managementOverviewGroup("Record information",fields(state.page).filter(f=>f.type!=="file").map(f=>[f.label,d[f.name]])),
+   managementOverviewGroup("Additional information",Object.entries(d).filter(([key,value])=>
+    !key.startsWith("_")&&!["storage_bucket","storage_path","mime_type","size_bytes","file_url"].includes(key)&&
+    !fields(state.page).some(f=>f.name===key)&&value!==undefined&&value!==null).map(([key,value])=>[key.replaceAll("_"," "),value]))
+  ];
+  $("pageContent").innerHTML=
+   '<div class="management-profile"><div class="profile-identity"><span class="profile-identity-icon">'+navIcon(state.page)+'</span>'+
+   '<div class="profile-identity-name"><strong>'+esc(recordTitle(record))+'</strong>'+
+   '<span>'+esc(label(state.page))+' · '+esc(context==="shared"?"DOT and NON-DOT":context.toUpperCase())+'</span></div>'+
+   recordStatus(record)+'</div>'+
+   '<div class="profile-sections">'+sections.join("")+'</div>'+
+   (DOCUMENT_PAGES.has(state.page)&&d.storage_path?'<div class="document-file-actions"><button type="button" class="btn secondary" data-preview-file="'+esc(record.id)+'">View File</button><button type="button" class="btn primary" data-open-file="'+esc(record.id)+'">Download File</button></div>':"")+
+   '<div class="profile-toolbar"><span class="profile-updated">Updated '+esc(new Date(record.updated_at).toLocaleDateString())+'</span>'+
+   '<div class="profile-buttons"><button type="button" class="btn secondary" data-back-list>Back to '+esc(label(state.page))+'</button>'+
+   (canWrite?'<button type="button" class="btn primary" data-manage-edit="'+esc(record.id)+'">Edit '+esc(singular)+'</button>':'')+
+   '</div></div></div>';
   return;
  }
- const inputs=fields(state.page).map(f=>managementField(f,record?.data?.[f.name]??"")).join("");
+ const list=fields(state.page);
+ let body="";
+ if(isEmployer){
+  const pick=names=>list.filter(f=>names.includes(f.name));
+  body=managementSection("Company information",pick(["legal_name","dot_number","status"]),record)+
+    managementSection("Primary contact",pick(["contact_name","contact_email","phone"]),record);
+ }else{
+  body=managementSection("Record information",list,record);
+ }
  const shared=!record&&["owner","admin"].includes(activeWorkspace()?.role||"");
- const context=record?.operating_context||state.context;
- $("pageContent").innerHTML=overview+'<section class="panel manage-panel">'+
-  '<form id="managementForm"><div class="manage-form-grid">'+inputs+'<label class="manage-field manage-context"><span>Record context</span><select name="record_context"'+(record?' disabled':'')+'>'+
-  '<option value="'+esc(context)+'">'+esc(context.toUpperCase())+'</option>'+(shared?'<option value="shared">Shared: DOT and NON-DOT</option>':'')+'</select></label></div>'+
-  (DOCUMENT_PAGES.has(state.page)?'<p class="upload-help" id="uploadHelp">Attach a PDF, image, text or Word document (up to 8 MB). Files are private.</p>':"")+
-  detail+'<p class="manage-form-error" id="managementError" role="alert"></p><div class="manage-actions">'+
-  '<button type="button" class="btn secondary" data-back-list>Cancel</button><button type="submit" class="btn primary" id="managementSave">'+
-  (record?"Save Changes":"Create Record")+'</button></div></form></section>';
+ const contextPicker='<section class="management-section"><header class="management-section-header"><h2>Operating context</h2></header>'+
+  '<div class="manage-form-grid"><label class="manage-field manage-context"><span>Record context</span>'+
+  '<select name="record_context"'+(record?' disabled':'')+'><option value="'+esc(context)+'">'+esc(context.toUpperCase())+'</option>'+
+  (shared?'<option value="shared">DOT and NON-DOT</option>':"")+'</select></label></div></section>';
+ $("pageContent").innerHTML='<div class="management-editor"><form id="managementForm">'+body+contextPicker+
+   (DOCUMENT_PAGES.has(state.page)?'<p class="upload-help" id="uploadHelp">PDF, image, text, or Word document. Maximum file size: 8 MB.</p>':"")+
+   '<p class="manage-form-error" id="managementError" role="alert"></p>'+
+   '<footer class="management-editor-actions"><button type="button" class="btn secondary" data-back-list>Cancel</button>'+
+   '<button type="submit" class="btn primary" id="managementSave">'+(record?"Save changes":"Create "+esc(singular))+'</button></footer>'+
+   '</form></div>';
  $("managementForm").querySelector("input,select,textarea")?.focus({preventScroll:true});
 }
 function leaveManagement(push=true){
