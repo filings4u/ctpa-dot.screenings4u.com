@@ -52,7 +52,7 @@ const CONFIG={
  lab_tracking:["Laboratory Tracking","Carrier tracking published by Workforce Testing and shared with associated employers."],
  lab_billing:["Laboratory Billing","Manage laboratory billing records.","name|Billing reference|text|required;account|Lab account|text;amount|Amount|number;due_date|Due date|date;status|Status|select:open,paid,void"],
  lab_supplies:["Laboratory Supplies","Manage laboratory supply requests.","name|Supply item|text|required;quantity|Quantity|number;account|Account|text;status|Status|select:requested,shipped,received"],
- lab_analytics:["Laboratory Analytics","Manage laboratory analytics reports.","name|Analysis name|text|required;period|Period|text;metric|Metric|text;value|Value|number"],
+ lab_analytics:["Laboratory Analytics","Operational metrics for laboratory accounts, supplies, and shipments."],
  lab_delivery:["Laboratory Delivery","Manage document and supply delivery records.","name|Delivery reference|text|required;recipient|Recipient|text;tracking_number|Tracking number|text;status|Status|select:pending,shipped,delivered"],
  lab_alerts:["Laboratory Alerts","Manage laboratory notifications and alerts.","name|Alert title|text|required;severity|Severity|select:info,warning,urgent;message|Message|textarea;status|Status|select:open,resolved"],
  lab_benefits:["Laboratory Benefits","Manage laboratory service benefit records.","name|Benefit name|text|required;description|Description|textarea;status|Status|select:active,inactive"],
@@ -249,26 +249,59 @@ async function renderAccount(){
  '<button type="button" class="btn secondary" data-goto="staff">Manage Staff</button>'+
  '<button type="button" class="btn secondary" data-goto="employers">Manage Employers</button></div></section>';
 }
-async function renderLabAnalytics(refresh=false){
- const key="lab-summary|"+state.tenantId+"|"+state.context,seq=state.sequence;
- let stored=state.cache.get(key);
- if(!stored||refresh||Date.now()-stored.time>30000){
-  if(state.page==="lab_analytics")$("pageContent").innerHTML='<section class="panel"><div class="loading-line"><span class="spinner"></span>Loading laboratory records…</div></section>';
-  try{
-   const result=await api("lab_summary",{tenant_id:state.tenantId,operating_context:state.context});
-   stored={counts:result.counts||[],time:Date.now()};state.cache.set(key,stored);
-  }catch(error){
-   if(state.page==="lab_analytics"&&seq===state.sequence)message(error.message,true);
-   return;
-  }
- }
- if(state.page!=="lab_analytics"||seq!==state.sequence)return;
- const counts=new Map(stored.counts.map(row=>[row.kind,Number(row.count)||0]));
- const pages=["lab_accounts","lab_tracking","lab_supplies"];
- $("pageContent").innerHTML='<section class="panel"><div class="lab-summary-grid">'+pages.map(kind=>
-  '<button type="button" class="lab-summary-card" data-goto="'+kind+'"><span>'+esc(label(kind))+'</span>'+
-   '<strong>'+String(counts.get(kind)||0)+'</strong><small>Manage records</small></button>').join("")+'</div></section>';
+
+const labAnalyticsState={months:6,cache:null,fetching:false,request:0};
+const analyticsCash=v=>new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",maximumFractionDigits:2}).format(Number(v)||0);
+async function analyticsRequest(months=6){
+ const {data:{session}}=await state.supabase.auth.getSession();
+ if(!session?.access_token)throw Error("Sign in required");
+ const response=await fetch(BASE+"/functions/v1/workforce-ctpa-lab-analytics",{
+  method:"POST",cache:"no-store",
+  headers:{"Authorization":"Bearer "+session.access_token,"apikey":KEY,"Content-Type":"application/json"},
+  body:JSON.stringify({tenant_id:state.tenantId,operating_context:state.context,months})
+ });
+ const data=await response.json().catch(()=>({}));
+ if(!response.ok||data.error)throw Error(data.error||"Lab analytics unavailable");
+ return data;
 }
+function analyticsBars(rows,key,money=false){
+ const max=Math.max(1,...rows.map(r=>Number(r[key])||0));
+ return '<div class="analytics-chart" role="img" aria-label="'+esc(key.replaceAll("_"," "))+' by month">'+rows.map(r=>'<div class="analytics-bar-column"><div class="analytics-bar-value">'+(money?analyticsCash(r[key]):String(r[key]||0))+'</div><div class="analytics-bar-track"><div class="analytics-bar-fill" style="height:'+Math.max(Number(r[key])?6:0,Math.min(100,100*(Number(r[key])||0)/max))+'%"></div></div><small>'+esc(r.label)+'</small></div>').join("")+'</div>';
+}
+function renderLabAnalyticsPage(data){
+ const counts=data.counts||{},monthly=data.monthly||[],carriers=data.carriers||{},statuses=data.statuses||{};
+ const cards=[["Lab accounts",counts.lab_accounts||0,"Configured in this workspace"],["Associated employers",counts.employers||0,"DOT or NON-DOT organizations"],["Paid supply orders",counts.paid_orders||0,"Paid during selected period"],["Supply purchases",analyticsCash(counts.revenue),"Verified paid amount"],["Shipments",counts.shipments||0,"Published in selected period"],["Delivered",counts.delivered||0,"Carrier status recorded"],["In transit",counts.in_transit||0,"Shipped or en route"],["Employer notifications",counts.employer_notifications||0,"Shipment emails submitted"]];
+ const carrierItems=["USPS","FEDEX","UPS"].map(name=>({name,count:Number(carriers[name]||0)}));const highest=Math.max(1,...carrierItems.map(x=>x.count));
+ const rows=(data.recent_shipments||[]).map(r=>'<tr><td><strong>'+esc(r.employer_name||"—")+'</strong></td><td>'+esc(r.carrier||"—")+'</td><td><span class="analytics-state">'+esc(String(r.status||"—").replaceAll("_"," "))+'</span></td><td>'+esc(r.created_at?new Date(r.created_at).toLocaleDateString():"—")+'</td><td>'+esc(r.notified?"Sent":"Not sent")+'</td></tr>').join("");
+ $("pageContent").innerHTML='<div class="analytics-root">'+
+ '<section class="analytics-hero"><div><span>WORKFORCE / LABORATORY INTELLIGENCE</span><h2>Laboratory Analytics</h2><p>Operational reporting for lab accounts, supply purchases, shipments, and employer notifications. All figures reflect your selected '+esc(data.context==="nondot"?"NON-DOT":"DOT")+' workspace.</p></div><label class="analytics-period-label">Reporting period<select id="analyticsPeriod"><option value="3"'+(labAnalyticsState.months===3?' selected':'')+'>Last 3 months</option><option value="6"'+(labAnalyticsState.months===6?' selected':'')+'>Last 6 months</option><option value="12"'+(labAnalyticsState.months===12?' selected':'')+'>Last 12 months</option></select></label></section>'+
+ '<section class="analytics-kpis">'+cards.map(([name,value,detail])=>'<article class="analytics-kpi"><small>'+esc(name)+'</small><strong>'+esc(value)+'</strong><span>'+esc(detail)+'</span></article>').join("")+'</section>'+
+ '<div class="analytics-main-grid"><section class="analytics-panel"><div class="analytics-panel-head"><div><h3>Supply order activity</h3><p>Orders created and paid during the selected period</p></div></div>'+analyticsBars(monthly,"supply_orders")+'</section>'+
+ '<section class="analytics-panel"><div class="analytics-panel-head"><div><h3>Shipment volume</h3><p>Published shipments per month</p></div></div>'+analyticsBars(monthly,"shipments")+'</section>'+
+ '<section class="analytics-panel"><div class="analytics-panel-head"><div><h3>Paid supply purchases</h3><p>Verified order value by order creation month</p></div></div>'+analyticsBars(monthly,"revenue",true)+'</section>'+
+ '<section class="analytics-panel"><div class="analytics-panel-head"><div><h3>Shipping carrier mix</h3><p>Distribution across supported carriers</p></div></div><div class="analytics-carriers">'+carrierItems.map(x=>'<div class="analytics-carrier"><div><strong>'+x.name+'</strong><span>'+x.count+' shipments</span></div><div class="analytics-progress"><div style="width:'+(x.count/highest*100)+'%"></div></div></div>').join("")+'</div></section></div>'+
+ '<section class="analytics-panel analytics-recent"><div class="analytics-panel-head"><div><h3>Recent shipment activity</h3><p>Latest shipment updates published in this workspace</p></div></div><div class="analytics-table-wrap"><table><thead><tr><th>Employer</th><th>Carrier</th><th>Status</th><th>Published</th><th>Employer notified</th></tr></thead><tbody>'+(rows||'<tr><td colspan="5" class="analytics-no-records">No shipment activity for the selected period.</td></tr>')+'</tbody></table></div></section>'+
+ '<p class="analytics-footnote">Source: authorized Workforce C/TPA records, independently verified paid supply orders, and staff-published shipment updates. Shipping statuses are not live carrier API events.</p></div>';
+ $("analyticsPeriod").onchange=e=>{labAnalyticsState.months=Number(e.target.value)||6;void renderLabAnalytics(true)};
+}
+async function renderLabAnalytics(refresh=false){
+ const seq=state.sequence,tenant=state.tenantId,context=state.context,months=labAnalyticsState.months;
+ const key=tenant+"|"+context+"|"+months;
+ const cached=labAnalyticsState.cache;
+ if(!refresh&&cached?.key===key&&Date.now()-cached.time<30000){renderLabAnalyticsPage(cached.value);return}
+ const run=++labAnalyticsState.request;
+ $("pageContent").innerHTML='<div class="analytics-loading"><span class="spinner"></span>Loading laboratory analytics…</div>';
+ try{
+  const data=await analyticsRequest(months);
+  if(run!==labAnalyticsState.request||seq!==state.sequence||tenant!==state.tenantId||context!==state.context||state.page!=="lab_analytics")return;
+  labAnalyticsState.cache={key,time:Date.now(),value:data};renderLabAnalyticsPage(data);
+ }catch(error){
+  if(run!==labAnalyticsState.request||state.page!=="lab_analytics")return;
+  $("pageContent").innerHTML='<section class="analytics-error"><h2>Laboratory analytics unavailable</h2><p>'+esc(error.message||"Unable to load analytics")+'</p><button class="btn secondary" id="analyticsRetry" type="button">Try again</button></section>';
+  $("analyticsRetry").onclick=()=>void renderLabAnalytics(true);
+ }
+}
+
 function renderDashboard(records){
  const context=state.context==="dot"?"DOT":"NON-DOT";
  const company=activeWorkspace()?.name||"C/TPA";
