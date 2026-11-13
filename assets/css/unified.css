@@ -974,3 +974,27 @@ body.modal-open{overflow:hidden}
 .person-management .person-company-picker small{line-height:1.55}
 @media(max-width:920px){.people-company-row{flex-wrap:wrap}.people-company-name{min-width:150px}.people-company-row .results-row-view{display:none}}
 @media(max-width:620px){.people-company-row{padding:14px;gap:12px}.people-primary{flex-basis:calc(100% - 60px)}.people-company-name{margin-left:54px;flex-basis:calc(100% - 54px)}.people-role{margin-left:54px}}
+
+
+/* Structured company and employee compliance case management */
+.compliance-workspace,.compliance-profile{display:grid;gap:0;min-width:0}
+.compliance-workspace{gap:17px}
+.compliance-record-row{width:100%;display:flex;align-items:center;gap:15px;text-align:left;padding:17px 22px;border:0;border-top:1px solid #e7edf4;background:#fff;cursor:pointer;color:#01122f}
+.compliance-record-row:hover,.compliance-record-row:focus-visible{background:#f6f9fc}
+.compliance-record-title{flex:1;min-width:0;display:grid;gap:6px}
+.compliance-record-title strong{font-size:.87rem;font-weight:850;overflow-wrap:anywhere}
+.compliance-record-title small{font-size:.75rem;color:#688097;overflow-wrap:anywhere}
+.compliance-record-outcome{padding:7px 10px;border:1px solid #e0e8f0;border-radius:7px;background:#f6f9fc;font-size:.75rem;font-weight:750;color:#284a6c;min-width:115px;text-align:center}
+.compliance-profile{background:#fff;border:1px solid #dce6ee;border-radius:13px;overflow:hidden}
+.compliance-profile .management-section{border-bottom:1px solid #e6ecf2}
+.compliance-profile .manage-form-grid{padding:0 25px 24px}
+.compliance-profile .management-section-header{padding:20px 25px}
+.compliance-profile .manage-field:has(textarea){grid-column:1/-1}
+.compliance-profile textarea{resize:vertical;min-height:105px}
+.compliance-profile .compliance-association .manage-field{min-width:0}
+.compliance-helper{font-size:.77rem;color:#657a91;line-height:1.55;padding:0 25px 20px;margin:0}
+.compliance-note{font-size:.86rem;line-height:1.65;color:#223d59;white-space:pre-wrap;overflow-wrap:anywhere;margin:0}
+.compliance-profile .manage-form-error{padding:0 25px;color:#aa2633}
+.compliance-profile #managementSave:disabled{opacity:.55;cursor:not-allowed}
+@media(max-width:850px){.compliance-record-row{flex-wrap:wrap}.compliance-record-outcome{margin-left:55px}.compliance-record-row .results-row-view{display:none}}
+@media(max-width:650px){.compliance-record-row{padding:14px;gap:9px}.compliance-record-title{flex-basis:calc(100% - 60px)}.compliance-record-outcome{margin-left:0}.compliance-profile .manage-form-grid{padding:0 16px 20px}.compliance-profile .management-section-header{padding:16px}.compliance-helper{padding:0 16px 16px}}
