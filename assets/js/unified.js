@@ -185,7 +185,7 @@ function updateHeading(){
  updateBreadcrumbs();
  $("pageActions").innerHTML=state.page==="account"?"":state.page==="dashboard"||state.page==="lab_analytics"
   ?'<button class="btn secondary" type="button" id="refreshPage">Refresh</button>'
-  :'<button class="btn secondary" type="button" id="refreshPage">Refresh</button><button class="btn secondary" type="button" id="exportPage">Export CSV</button><button class="btn primary" type="button" id="newRecord">Add '+esc(title)+'</button>';
+  :'<button class="btn secondary" type="button" id="refreshPage">Refresh</button><button class="btn secondary" type="button" id="exportPage">Export CSV</button><button class="btn primary" type="button" id="newRecord">'+(state.page==="selections"?"Run Selection":"Add "+esc(title))+'</button>';
 }
 function switchPage(page,push=true){
  if(!CONFIG[page])page="dashboard";
@@ -353,6 +353,7 @@ function managementUrl(action,id=null,section=state.page){
 }
 function openManagement(action,id=null,push=true){
  if(!MANAGEMENT_ACTIONS.has(action)||!CONFIG[state.page]||["dashboard","account"].includes(state.page))return;
+ if(state.page==="selections"&&action==="edit")action="view";
  const records=state.cache.get(cacheKey())?.records||[];
  const record=id?records.find(r=>r.id===id):null;
  if(action!=="new"&&!record){message("Record not available. Refresh the management page.",true);return}
@@ -1635,6 +1636,7 @@ async function saveRecord(event){
  if(mode==="view"){closeModal();return}
 }
 function archiveRecord(id){
+ if(state.page==="selections"){message("Locked selection records cannot be archived.",true);return}
  const record=state.cache.get(cacheKey())?.records.find(x=>x.id===id);
  if(!record){message("Record not found. Refresh the page.",true);return}
  state.editing=record;
@@ -1907,6 +1909,7 @@ function bindEvents(){
   else if(target.closest("[data-manage-edit]"))openManagement("edit",target.closest("[data-manage-edit]").dataset.manageEdit);
  });
  $("pageContent").addEventListener("change",e=>{
+  if(e.target.id==="selectionPool"){void selectionPreviewPool();return}
   if(e.target.id==="statusFilter"){
    state.statusFilter=e.target.value;state.pageIndex=0;
    showRecords(state.cache.get(cacheKey())?.records||[]);
