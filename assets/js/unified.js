@@ -187,7 +187,7 @@ function updateHeading(){
 }
 function switchPage(page,push=true){
  if(!CONFIG[page])page="dashboard";
- state.page=page;state.search="";state.statusFilter="";state.pageIndex=0;state.management=null;state.pendingManagement=null;const seq=++state.sequence;
+ state.page=page;state.search="";state.statusFilter="";state.pageIndex=0;state.companyFilter=null;state.companyDraft=null;state.management=null;state.pendingManagement=null;const seq=++state.sequence;
  if(push)history.pushState(null,"","/unified.html?page="+encodeURIComponent(page));
  if(isCompactViewport())$("sidebar").classList.remove("open");updateSidebarToggle();renderNav();updateHeading();message("");
  if(page==="account"){void renderAccount();return}
@@ -357,6 +357,14 @@ function openManagement(action,id=null,push=true){
  state.management={action,id,section:state.page,context:state.context};
  if(push)history.pushState({management:true},"",managementUrl(action,id));
  renderManagementPage();
+ if(action==="new"&&state.companyDraft?.page===state.page){
+  const draft=state.companyDraft;
+  const form=$("managementForm");
+  if(form){
+   const companyField=form.elements.namedItem("employer")||form.elements.namedItem("client");
+   if(companyField)companyField.value=draft.companyName;
+  }
+ }
 }
 function managementField(f,value=""){
  const required=f.required?" required":"";
@@ -722,7 +730,7 @@ function renderManagementPage(){
  $("managementForm").querySelector("input,select,textarea")?.focus({preventScroll:true});
 }
 function leaveManagement(push=true){
- state.management=null;state.editing=null;
+ state.management=null;state.editing=null;state.companyDraft=null;
  if(push)history.pushState({},"","/unified.html?page="+encodeURIComponent(state.page));
  updateHeading();const stored=state.cache.get(cacheKey());
  if(stored)showRecords(stored.records);else void loadRecords();
@@ -773,6 +781,11 @@ async function submitManagement(form,continueEditing=false){
  if(!m||!form.reportValidity())return;
  const button=$("managementSave");button.disabled=true;
  const data=Object.fromEntries(new FormData(form).entries()),recordContext=data.record_context||state.context;
+ if(state.companyDraft?.page===state.page&&m.action==="new"){
+  data.company_id=state.companyDraft.companyId;
+  if(Object.hasOwn(data,"employer"))data.employer=state.companyDraft.companyName;
+  if(Object.hasOwn(data,"client"))data.client=state.companyDraft.companyName;
+ }
  delete data.record_context;
  const file=data.document_file;delete data.document_file;
  for(const f of fields(state.page))if(f.type==="number"&&data[f.name]!=="")data[f.name]=Number(data[f.name]);
@@ -787,7 +800,7 @@ async function submitManagement(form,continueEditing=false){
   }
   if(!uploaded)await api("save",{tenant_id:state.tenantId,operating_context:state.context,
    kind:state.page,record_context:recordContext,id:m.id||null,data});
-  state.cache.delete(cacheKey());
+  state.cache.delete(cacheKey());state.companyDraft=null;
   if(continueEditing&&m.id){
    message("Company details saved successfully.");
    void loadRecords(state.sequence,true);
@@ -815,7 +828,10 @@ function showRecords(records){
  if(state.page==="dashboard"){renderDashboard(records);return}
  const count=records.length,query=state.search.trim().toLowerCase();
  const statuses=[...new Set(records.map(r=>String(r.data?.status||"").trim()).filter(Boolean))].sort();
- const visible=records.filter(r=>(!query||Object.values(r.data||{}).some(v=>String(v??"").toLowerCase().includes(query)))&&(!state.statusFilter||String(r.data?.status||"")===state.statusFilter));
+ const visible=records.filter(r=>(!query||Object.values(r.data||{}).some(v=>String(v??"").toLowerCase().includes(query)))&&
+ (!state.statusFilter||String(r.data?.status||"")===state.statusFilter)&&
+ (!state.companyFilter||r.data?.company_id===state.companyFilter.companyId||
+  ["employer","client","company"].some(k=>String(r.data?.[k]||"").trim().toLowerCase()===state.companyFilter.companyName.trim().toLowerCase())));
  const pageSize=25,maxPage=Math.max(0,Math.ceil(visible.length/pageSize)-1);
  state.pageIndex=Math.min(Math.max(0,state.pageIndex||0),maxPage);
  const displayed=visible.slice(state.pageIndex*pageSize,(state.pageIndex+1)*pageSize);
@@ -851,6 +867,7 @@ function showRecords(records){
   '<input id="recordSearch" type="search" aria-label="Search '+esc(label(state.page))+'" placeholder="Search '+esc(label(state.page).toLowerCase())+'..." value="'+esc(state.search)+'"></div>'+
   (statuses.length?'<select id="statusFilter" aria-label="Filter by status"><option value="">All statuses</option>'+
    statuses.map(v=>'<option value="'+esc(v)+'"'+(state.statusFilter===v?' selected':'')+'>'+esc(statusLabel(v))+'</option>').join("")+'</select>':"")+
+  (state.companyFilter?'<button type="button" class="company-filter-chip" data-clear-company-filter>Company: '+esc(state.companyFilter.companyName)+' ×</button>':"")+
   '<span class="directory-total">'+visible.length+' '+(visible.length===1?'record':'records')+'</span></div>'+
   (visible.length?'<div class="directory-list"><div class="directory-head"><span>'+esc(isEmployer?"Company":label(state.page))+'</span><span>'+esc(second)+'</span><span>'+esc(third)+'</span><span>Status</span><span>Actions</span></div>'+directoryRows+'</div>':
   '<div class="directory-empty"><div class="directory-empty-icon">'+navIcon(state.page)+'</div><h2>'+esc(query||state.statusFilter?"No matching records":"No "+label(state.page).toLowerCase()+" yet")+'</h2>'+
@@ -1032,6 +1049,7 @@ function bindEvents(){
    }
    return;
   }
+  if(target.closest("[data-clear-company-filter]")){state.companyFilter=null;showRecords(state.cache.get(cacheKey())?.records||[]);return}
   if(target.closest("[data-company-add]")){openCompanyAdd(target.closest("[data-company-add]").dataset.companyAdd);return}
   if(target.closest("[data-company-remove]")){
    const b=target.closest("[data-company-remove]");confirmCompanyRemove(b.dataset.relatedKind,b.dataset.companyRemove);return
@@ -1053,15 +1071,16 @@ function bindEvents(){
   const employerCreate=target.closest("[data-employer-create]");
   if(employerRelated||employerCreate){
    const page=(employerRelated||employerCreate).dataset.employerRelated||(employerRelated||employerCreate).dataset.employerCreate;
-   const company=state.editing?.data?.legal_name||"";
-   if(!CONFIG[page])return;
-   const creating=Boolean(employerCreate),filterable=["people","programs","pools","testing_orders"].includes(page);
+   const company=currentCompany();
+   if(!CONFIG[page]||!company)return;
+   const creating=Boolean(employerCreate);
    switchPage(page);
    if(creating){
+    state.companyDraft={page,companyId:company.id,companyName:company.data?.legal_name||""};
     if(state.cache.get(cacheKey()))openManagement("new");
     else state.pendingManagement={action:"new",id:null,section:page};
-   }else if(filterable&&company){
-    state.search=company;state.pageIndex=0;
+   }else{
+    state.companyFilter={companyId:company.id,companyName:company.data?.legal_name||""};
     const cached=state.cache.get(cacheKey());
     if(cached)showRecords(cached.records);
    }
