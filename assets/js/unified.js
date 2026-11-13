@@ -454,7 +454,7 @@ async function hydrateCompanyRelations(){
  const company=currentCompany(),context=state.context,seq=state.sequence;
  if(!company)return;
  try{
-  const kinds=["people","locations"];
+  const kinds=["people","locations","invoices"];
   const loaded=await Promise.all(kinds.map(async kind=>{
    const key=cacheKey(kind),stored=state.cache.get(key);
    if(stored&&Date.now()-stored.time<30000)return stored.records;
@@ -465,6 +465,8 @@ async function hydrateCompanyRelations(){
   if(seq!==state.sequence||currentCompany()?.id!==company.id)return;
   const people=loaded[0].filter(r=>belongsToCompany(r,company));
   const locations=loaded[1].filter(r=>belongsToCompany(r,company));
+  const invoices=loaded[2].filter(r=>belongsToCompany(r,company)||
+   String(r.data?.client||"").trim().toLowerCase()===String(company.data?.legal_name||"").trim().toLowerCase());
   const contactEmail=String(company.data?.contact_email||company.data?.email||"").trim().toLowerCase();
   const contactName=String(company.data?.contact_name||"").trim().toLowerCase();
   const contact=people.find(p=>
@@ -473,9 +475,9 @@ async function hydrateCompanyRelations(){
    (company.data?.contact_person_id?loaded[0].find(p=>p.id===company.data.contact_person_id):null);
   const contactHolder=document.querySelector("[data-company-contact-profile]");
   if(contactHolder){
-   contactHolder.disabled=!contact;
+   contactHolder.disabled=false;
    contactHolder.dataset.personId=contact?.id||"";
-   contactHolder.textContent=contact?"View contact profile":"Contact profile not linked";
+   contactHolder.textContent=contact?"View contact profile":"Add contact to People";
   }
   const render=(kind,items)=>{
    const holder=document.querySelector('[data-company-rows="'+kind+'"]');
@@ -495,6 +497,12 @@ async function hydrateCompanyRelations(){
   };
   render("people",people.filter(r=>r.data?.relationship==="staff"||r.data?.relationship==="contact"||r.data?.company_id===company.id));
   render("locations",locations);
+  const billingHolder=document.querySelector("[data-company-invoices]");
+  if(billingHolder)billingHolder.innerHTML=invoices.length?
+   invoices.slice(0,5).map(r=>'<button type="button" class="company-invoice-row" data-company-invoice="'+esc(r.id)+'">'+
+    '<span>'+esc(r.data?.name||r.data?.invoice_number||"Invoice")+'</span>'+
+    '<strong>'+esc(r.data?.amount!==undefined?"$"+r.data.amount:String(r.data?.status||""))+'</strong></button>').join(""):
+   '<p class="company-related-empty">No invoices linked to this company.</p>';
  }catch(error){
   for(const kind of ["people","locations"]){
    const holder=document.querySelector('[data-company-rows="'+kind+'"]');
@@ -512,17 +520,25 @@ function companyRelatedPanel(kind,canWrite,hasRecord){
    '<p class="company-related-empty">Save the company before adding '+(people?"staff.":"locations.")+'</p>')+
   '</div></section>';
 }
-function openCompanyAdd(kind){
+function openCompanyAdd(kind,asContact=false){
  const company=currentCompany();
  if(!company||!["people","locations"].includes(kind))return;
- companyAction={action:"add",kind,companyId:company.id};
+ companyAction={action:"add",kind,companyId:company.id,asContact};
  const specs=kind==="locations"?
   [["name","Location name","text",true],["address","Street address","text"],["city","City","text"],["state","State","text"],["zip","ZIP","text"],["phone","Phone","tel"]]:
   [["first_name","First name","text",true],["last_name","Last name","text",true],["job_title","Title","text"],["email","Email","email"],["phone","Phone","tel"]];
- $("modalTitle").textContent=kind==="locations"?"Add company location":"Add company staff";
+ $("modalTitle").textContent=kind==="locations"?"Add company location":asContact?"Add company contact":"Add company staff";
  $("modalDescription").textContent=company.data.legal_name||"Company";
  $("recordFields").innerHTML='<div class="company-modal-grid">'+specs.map(([name,label,type,required])=>
   '<label><span>'+label+(required?" *":"")+'</span><input name="'+name+'" type="'+type+'"'+(required?" required":"")+' maxlength="250"></label>').join("")+'</div>';
+ if(asContact){
+  const d=company.data||{},names=String(d.contact_name||"").trim().split(/\s+/);
+  const first=$("recordFields").querySelector('[name="first_name"]'),last=$("recordFields").querySelector('[name="last_name"]'),email=$("recordFields").querySelector('[name="email"]'),phone=$("recordFields").querySelector('[name="phone"]');
+  if(first)first.value=names[0]||"";
+  if(last)last.value=names.slice(1).join(" ");
+  if(email)email.value=d.contact_email||d.email||"";
+  if(phone)phone.value=d.phone||"";
+ }
  $("recordForm").dataset.mode="company-related-add";
  $("saveRecord").hidden=false;$("saveRecord").disabled=false;$("saveRecord").className="btn primary";
  $("saveRecord").textContent="Add "+(kind==="locations"?"location":"staff member");
@@ -552,7 +568,7 @@ async function submitCompanyAction(){
    const data=Object.fromEntries(new FormData(form).entries());
    data.company_id=company.id;
    data.employer=company.data.legal_name;
-   if(op.kind==="people"){data.relationship="staff";data.status="active"}
+   if(op.kind==="people"){data.relationship=op.asContact?"contact":"staff";data.status="active"}
    await api("save",{tenant_id:state.tenantId,operating_context:state.context,
     kind:op.kind,record_context:company.operating_context,id:null,data});
   }else{
@@ -603,6 +619,11 @@ function renderEmployerManagement(record,mode,canWrite,kind="employers"){
  const side='<aside class="employer-management-side">'+
   companyRelatedPanel("locations",canWrite,Boolean(record))+
   companyRelatedPanel("people",canWrite,Boolean(record))+
+  '<section class="employer-side-panel company-related-panel"><div class="company-related-heading"><h2>Billing & invoices</h2>'+
+   (record?'<button type="button" data-employer-related="invoices">Manage</button>':"")+'</div>'+
+   '<div class="company-related-list" data-company-invoices>'+
+   (record?'<p class="company-related-empty">Loading billing records…</p>':'<p class="company-related-empty">Save the company to manage invoices.</p>')+
+   '</div></section>'+
   '<section class="employer-side-panel"><h2>Related management</h2><div class="employer-side-links">'+rightLinks+'</div></section>'+
   '<section class="employer-side-panel"><h2>Quick actions</h2><div class="employer-side-links">'+shortcuts+'</div></section>'+
   (record?'<section class="employer-side-panel employer-record-facts"><h2>Account information</h2><dl><div><dt>Last updated</dt><dd>'+
@@ -1018,7 +1039,14 @@ function bindEvents(){
   if(target.closest("[data-company-person]")){void openCompanyPerson(target.closest("[data-company-person]").dataset.companyPerson);return}
   if(target.closest("[data-company-contact-profile]")){
    const id=target.closest("[data-company-contact-profile]").dataset.personId;
-   if(id)void openCompanyPerson(id);else message("Link a matching contact in People before opening their profile.",true);
+   if(id)void openCompanyPerson(id);else openCompanyAdd("people",true);
+   return;
+  }
+  if(target.closest("[data-company-invoice]")){
+   const id=target.closest("[data-company-invoice]").dataset.companyInvoice;
+   switchPage("invoices");
+   if(state.cache.get(cacheKey()))openManagement("view",id);
+   else state.pendingManagement={action:"view",id,section:"invoices"};
    return;
   }
   const employerRelated=target.closest("[data-employer-related]");
