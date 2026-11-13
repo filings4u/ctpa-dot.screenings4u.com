@@ -669,17 +669,19 @@ const PAGE_MEMORY=new Map();
 const PAGE_INFLIGHT=new Map();
 function memoryCacheKey(p,search=location.search){return cacheIdentity(p,search)}
 async function getCachedPageData(p,search=location.search){
-  if((workspace()?.surface==='nondot'&&NONDOT_PAGES[norm(p)])||p==='lab_services'||isLaboratoryPage(p))return null;
   const key=memoryCacheKey(p,search),m=PAGE_MEMORY.get(key);
+  if((workspace()?.surface==='nondot'&&NONDOT_PAGES[norm(p)])||p==='lab_services'||isLaboratoryPage(p))
+    return m&&Date.now()-m.saved_at<30000?m.data:null;
   if(m&&Date.now()-m.saved_at<PAGE_CACHE_MAX_AGE)return m.data;
   const d=await readPageCache(p,search);
   if(d!==null)PAGE_MEMORY.set(key,{saved_at:Date.now(),data:d});
   return d;
 }
 async function setCachedPageData(p,data,search=location.search){
-  if((workspace()?.surface==='nondot'&&NONDOT_PAGES[norm(p)])||p==='lab_services'||isLaboratoryPage(p))return;
   const key=memoryCacheKey(p,search);PAGE_MEMORY.set(key,{saved_at:Date.now(),data});
-  await writePageCache(p,data,search);
+  if((workspace()?.surface==='nondot'&&NONDOT_PAGES[norm(p)])||p==='lab_services'||isLaboratoryPage(p))return;
+  // Disk persistence is never a prerequisite for rendering.
+  void writePageCache(p,data,search);
 }
 async function loadPageDataCached(p,search=location.search,{force=false}={}){
   const key=memoryCacheKey(p,search);
@@ -936,27 +938,28 @@ function updatePortalChrome(){
 }
 let navigationSequence=0;
 async function navigatePortal(url,{replace=false,pop=false}={}){
-  const u=new URL(url,location.href);
-  if(u.origin!==location.origin||!u.pathname.endsWith('.html'))throw Error('This destination is outside the C/TPA application.');
-  const sequence=++navigationSequence;
-  const pathPage=norm(u.pathname.split('/').pop()?.replace('.html','')||'dashboard');
-  const currentSurface=workspace()?.surface;
-  const prepared=(pathPage==='dashboard'||['profile','account_settings'].includes(pathPage))
-   ?{targetPage:pathPage}:await prepareTarget(u.href);
-  if(sequence!==navigationSequence||workspace()?.surface!==currentSurface)return;
-  const targetPage=prepared.targetPage,targetSearch=u.search;
-  if(!pop){if(replace)history.replaceState({s4u:true},'',u.pathname+u.search+u.hash);else history.pushState({s4u:true},'',u.pathname+u.search+u.hash)}
-  document.body.dataset.portalPage=targetPage;
-  updatePortalChrome();
-  const error=document.getElementById('error');if(error)error.textContent='';
-  const stillCurrent=()=>sequence===navigationSequence&&
-   workspace()?.surface===currentSurface&&page()===targetPage&&
-   location.pathname===u.pathname&&location.search===targetSearch;
-  const cache=await getCachedPageData(targetPage,targetSearch);
-  if(!stillCurrent())return;
-  if(cache!==null){await render(window.portalCtx,cache);return}
-  const data=await loadPageDataCached(targetPage,targetSearch,{force:false});
-  if(stillCurrent())await render(window.portalCtx,data);
+ const u=new URL(url,location.href);
+ if(u.origin!==location.origin||!u.pathname.endsWith('.html'))throw Error('This destination is outside the C/TPA application.');
+ const sequence=++navigationSequence;
+ const targetPage=norm(u.pathname.split('/').pop()?.replace('.html','')||'dashboard');
+ const targetSearch=u.search,currentSurface=workspace()?.surface;
+ // Update the active route before network requests, keeping the portal mounted.
+ if(!pop){if(replace)history.replaceState({s4u:true},'',u.pathname+u.search+u.hash);else history.pushState({s4u:true},'',u.pathname+u.search+u.hash)}
+ document.body.dataset.portalPage=targetPage;
+ updatePortalChrome();
+ const content=document.getElementById('content');
+ const error=document.getElementById('error');if(error)error.textContent='';
+ if(content)content.innerHTML='<section class="panel" role="status" aria-live="polite"><p>Loading '+esc(cfgPage(targetPage).label)+'…</p></section>';
+ const stillCurrent=()=>sequence===navigationSequence&&workspace()?.surface===currentSurface&&
+  page()===targetPage&&location.pathname===u.pathname&&location.search===targetSearch;
+ const prepare=prepareTarget(u.href);
+ const cached=await getCachedPageData(targetPage,targetSearch);
+ if(!stillCurrent())return;
+ await prepare;
+ if(!stillCurrent())return;
+ if(cached!==null){await render(window.portalCtx,cached);return}
+ const data=await loadPageDataCached(targetPage,targetSearch,{force:false});
+ if(stillCurrent())await render(window.portalCtx,data);
 }
 
 async function switchOperatingWorkspace(desired){
