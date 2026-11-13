@@ -9,14 +9,14 @@ const GROUPS=[
  ["People & Programs",["employers","owner_operators","people","programs","pools","selections"]],
  ["Testing & Compliance",["testing_orders","testing_documents","results","occupational_health","compliance","audits","return_to_duty","policies","reports"]],
  ["Private Documents",["documents"]],
- ["Lab Account",["lab_accounts","lab_orders","lab_tracking","lab_results","lab_documents","lab_supplies","lab_analytics"]],
+ ["Lab Account",["lab_accounts","lab_tracking","lab_results","lab_documents","lab_supplies","lab_analytics"]],
  ["Services & Billing",["orders","price_list","services","billing","invoices","subscriptions"]],
  ["Account & Support",["locations","messages","notifications","support","demo_sessions","staff","integrations","audit_history"]]
 ];
 const SIDEBAR_TOP=[
  ["dashboard","Dashboard"]
 ];
-const NAV_ICON_NAMES={"dashboard":"house","employers":"building","owner_operators":"truck","people":"users","programs":"clipboard","pools":"layers","selections":"shuffle","testing_orders":"flask","testing_documents":"file","results":"check","occupational_health":"heart","compliance":"shield","audits":"shield","clearinghouse":"database","return_to_duty":"route","policies":"book","enrollments":"users","documents":"file","reports":"chart","lab_accounts":"building","lab_orders":"clipboard","lab_tracking":"truck","lab_results":"check","lab_documents":"file","lab_supplies":"package","lab_analytics":"chart","orders":"bag","price_list":"card","services":"shield","billing":"card","invoices":"receipt","subscriptions":"calendar","locations":"pin","messages":"message","notifications":"bell","support":"support","demo_sessions":"calendar","staff":"users","integrations":"plug","audit_history":"history"};
+const NAV_ICON_NAMES={"dashboard":"house","employers":"building","owner_operators":"truck","people":"users","programs":"clipboard","pools":"layers","selections":"shuffle","testing_orders":"flask","testing_documents":"file","results":"check","occupational_health":"heart","compliance":"shield","audits":"shield","clearinghouse":"database","return_to_duty":"route","policies":"book","enrollments":"users","documents":"file","reports":"chart","lab_accounts":"building","lab_tracking":"truck","lab_results":"check","lab_documents":"file","lab_supplies":"package","lab_analytics":"chart","orders":"bag","price_list":"card","services":"shield","billing":"card","invoices":"receipt","subscriptions":"calendar","locations":"pin","messages":"message","notifications":"bell","support":"support","demo_sessions":"calendar","staff":"users","integrations":"plug","audit_history":"history"};
 const NAV_ICON_SHAPES={"building":"<rect x=\"4\" y=\"2\" width=\"16\" height=\"20\" rx=\"2\"/><path d=\"M9 22v-4h6v4M8 7h2m4 0h2M8 12h2m4 0h2\"/>","clipboard":"<rect x=\"5\" y=\"4\" width=\"14\" height=\"18\" rx=\"2\"/><rect x=\"9\" y=\"2\" width=\"6\" height=\"4\" rx=\"1\"/><path d=\"M9 12h6M9 16h6\"/>","truck":"<path d=\"M10 17h4V5H2v12h3M14 9h4l4 4v4h-3\"/><circle cx=\"7.5\" cy=\"17.5\" r=\"2.5\"/><circle cx=\"16.5\" cy=\"17.5\" r=\"2.5\"/>","check":"<rect x=\"5\" y=\"4\" width=\"14\" height=\"18\" rx=\"2\"/><rect x=\"9\" y=\"2\" width=\"6\" height=\"4\" rx=\"1\"/><path d=\"m9 14 2 2 4-4\"/>","file":"<path d=\"M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M8 13h8M8 17h8\"/>","chart":"<path d=\"M4 20h4v-7H4zM10 20h4V4h-4zM16 20h4v-11h-4z\"/>","package":"<path d=\"m12 2 9 5v10l-9 5-9-5V7zM3 7l9 5 9-5M12 12v10\"/>","house":"<path d=\"m3 10 9-7 9 7M5 9v12h14V9M9 21v-8h6v8\"/>","users":"<circle cx=\"9\" cy=\"7\" r=\"4\"/><path d=\"M2 21v-2a7 7 0 0 1 14 0v2M16 4a4 4 0 0 1 0 8M22 21v-2a5 5 0 0 0-4-5\"/>","layers":"<path d=\"m12 2 9 5-9 5-9-5 9-5ZM3 12l9 5 9-5M3 17l9 5 9-5\"/>","shuffle":"<path d=\"m18 14 4 4-4 4M18 2l4 4-4 4M2 18h3c7 0 7-12 14-12h3M2 6h3c2 0 3 1 4 3M15 16c1 1 2 2 4 2h3\"/>","flask":"<path d=\"M9 3h6M10 3v6L4 19a2 2 0 0 0 2 3h12a2 2 0 0 0 2-3L14 9V3M7 16h10\"/>","shield":"<path d=\"M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z\"/><path d=\"m9 12 2 2 4-4\"/>","heart":"<path d=\"M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8ZM3 12h5l2-3 3 6 2-3h6\"/>","route":"<circle cx=\"6\" cy=\"19\" r=\"2\"/><circle cx=\"18\" cy=\"5\" r=\"2\"/><path d=\"M8 19h6a4 4 0 0 0 0-8H10a4 4 0 0 1 0-8h6\"/>","database":"<ellipse cx=\"12\" cy=\"5\" rx=\"9\" ry=\"3\"/><path d=\"M3 5v14c0 1.7 4 3 9 3s9-1.3 9-3V5M3 12c0 1.7 4 3 9 3s9-1.3 9-3\"/>","book":"<path d=\"M12 7c-3-2-6-2-10-1v14c4-1 7-1 10 1 3-2 6-2 10-1V6c-4-1-7-1-10 1ZM12 7v14\"/>","bag":"<path d=\"M4 8h16l-1 13H5zM9 9V6a3 3 0 0 1 6 0v3\"/>","card":"<rect x=\"2\" y=\"4\" width=\"20\" height=\"16\" rx=\"2\"/><path d=\"M2 10h20M6 16h4\"/>","receipt":"<path d=\"M4 2h16v20l-4-2-4 2-4-2-4 2zM8 7h8M8 11h8M8 15h5\"/>","calendar":"<rect x=\"3\" y=\"4\" width=\"18\" height=\"18\" rx=\"2\"/><path d=\"M7 2v4M17 2v4M3 9h18M8 14h3m3 0h3M8 18h3\"/>","pin":"<path d=\"M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0Z\"/><circle cx=\"12\" cy=\"10\" r=\"2.5\"/>","message":"<path d=\"M3 4h18v13H8l-5 4zM7 9h10M7 13h7\"/>","bell":"<path d=\"M18 8a6 6 0 1 0-12 0c0 7-3 8-3 10h18c0-2-3-3-3-10M10 21h4\"/>","support":"<circle cx=\"12\" cy=\"12\" r=\"10\"/><circle cx=\"12\" cy=\"12\" r=\"4\"/><path d=\"m5 5 4 4m6 6 4 4m0-14-4 4m-6 6-4 4\"/>","plug":"<path d=\"M8 2v6M16 2v6M7 8h10v4a5 5 0 0 1-10 0zM12 17v5\"/>","history":"<path d=\"M3 12a9 9 0 1 0 3-7M3 4v5h5M12 7v5l4 2\"/>"};
 function navIcon(id){return '<svg class="nav-svg" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true" focusable="false">'+NAV_ICON_SHAPES[NAV_ICON_NAMES[id]||"file"]+'</svg>'}
 const NAV_STORAGE_KEY="workforce_ctpa_sidebar_open_groups";
@@ -49,7 +49,6 @@ const CONFIG={
  reports:["Reports","Maintain generated reporting records.","name|Report name|text|required;report_type|Report type|text;period|Reporting period|text;status|Status|select:draft,ready,archived"],
  lab_accounts:["Lab Accounts","Manage connected laboratory accounts and setup.","name|Company / Account name|text|required;account_number|Lab account number|text;provider|Laboratory|text;status|Status|select:pending,active,inactive;setup_status|Setup status|text;order_number|Order number|text"],
  lab_clients:["Laboratory Clients","Manage laboratory client accounts.","name|Client name|text|required;contact|Contact|text;email|Email|email;status|Status|select:active,inactive"],
- lab_orders:["Laboratory Orders","Manage laboratory order records.","name|Order reference|text|required;account|Lab account|text;donor|Donor|text;collection_date|Collection date|date;status|Status|select:requested,scheduled,collected,complete"],
  lab_tracking:["Laboratory Tracking","Track specimen and order movement.","name|Tracking reference|text|required;order_reference|Order reference|text;carrier|Carrier|text;tracking_number|Tracking number|text;status|Status|select:pending,in_transit,delivered"],
  lab_results:["Laboratory Results","Manage laboratory result records.","name|Lab result reference|text|required;order_reference|Order reference|text;status|Status|select:pending,reported,reviewed;reported_at|Reported at|date"],
  lab_documents:["Laboratory Documents","Manage laboratory documents.","title|Document title|text|required;account|Account|text;document_file|Upload document|file;status|Status|select:pending,received,complete"],
@@ -189,6 +188,7 @@ function updateHeading(){
 }
 function switchPage(page,push=true){
  if(page==="clearinghouse")page="compliance";
+ if(page==="lab_orders")page="testing_orders";
  if(page==="enrollments")page="programs";
  if(!CONFIG[page])page="dashboard";
  if(state.context==="nondot"&&["owner_operators","audits","return_to_duty"].includes(page))page=page==="owner_operators"?"employers":"dashboard";
@@ -262,7 +262,7 @@ async function renderLabAnalytics(refresh=false){
  }
  if(state.page!=="lab_analytics"||seq!==state.sequence)return;
  const counts=new Map(stored.counts.map(row=>[row.kind,Number(row.count)||0]));
- const pages=["lab_accounts","lab_orders","lab_tracking","lab_results","lab_documents","lab_supplies"];
+ const pages=["lab_accounts","lab_tracking","lab_results","lab_documents","lab_supplies"];
  $("pageContent").innerHTML='<section class="panel"><div class="lab-summary-grid">'+pages.map(kind=>
   '<button type="button" class="lab-summary-card" data-goto="'+kind+'"><span>'+esc(label(kind))+'</span>'+
    '<strong>'+String(counts.get(kind)||0)+'</strong><small>Manage records</small></button>').join("")+'</div></section>';
@@ -272,10 +272,10 @@ function renderDashboard(records){
  const company=activeWorkspace()?.name||"C/TPA";
  const byKind=new Map(),statusPending=/pending|awaiting|in.progress|requested|draft|overdue|review|unassigned|needs.action|unscheduled|incomplete/i;
  for(const r of records)byKind.set(r.kind,(byKind.get(r.kind)||0)+1);
- const allowedKinds=new Set(["employers","owner_operators","people","programs","pools","selections","testing_orders","testing_documents","results","documents","audits","lab_accounts","lab_orders","lab_tracking","lab_results","lab_documents","lab_supplies","invoices","billing"]);
+ const allowedKinds=new Set(["employers","owner_operators","people","programs","pools","selections","testing_orders","testing_documents","results","documents","audits","lab_accounts","lab_tracking","lab_results","lab_documents","lab_supplies","invoices","billing"]);
  const recent=records.filter(r=>allowedKinds.has(r.kind)&&!r.archived_at)
   .sort((x,y)=>new Date(y.updated_at||y.created_at||0)-new Date(x.updated_at||x.created_at||0)).slice(0,6);
- const activeOrders=records.filter(r=>["testing_orders","lab_orders"].includes(r.kind));
+ const activeOrders=records.filter(r=>r.kind==="testing_orders");
  const followUp=activeOrders.filter(r=>statusPending.test(String(r.data?.status||""))).length;
  const outstanding=records.filter(r=>["invoices","billing"].includes(r.kind)&&/unpaid|open|overdue|past.due|pending/i.test(String(r.data?.status||""))).length;
  const metrics=[
@@ -3441,10 +3441,11 @@ function startApp(){
  const search=new URLSearchParams(location.search);
  const desired=search.get("page")||"dashboard";
  if(desired==="enrollments")history.replaceState(null,"","/unified.html?page=programs");
- switchPage(desired==="enrollments"?"programs":desired==="clearinghouse"?"compliance":CONFIG[desired]?desired:"dashboard",false);
+ if(desired==="lab_orders")history.replaceState(null,"","/unified.html?page=testing_orders"+(search.get("manage")==="new"?"&manage=new":""));
+ switchPage(desired==="lab_orders"?"testing_orders":desired==="enrollments"?"programs":desired==="clearinghouse"?"compliance":CONFIG[desired]?desired:"dashboard",false);
  const action=search.get("manage"),id=search.get("record");
  if(MANAGEMENT_ACTIONS.has(action)){
-  const apply=()=>{if(state.page===desired)openManagement(action,id,false)};
+  const apply=()=>{if(state.page===(desired==="lab_orders"?"testing_orders":desired))openManagement(action,id,false)};
   const cached=state.cache.get(cacheKey());
   if(cached||action==="new")apply();else state.pendingManagement={action,id,section:state.page};
  }
