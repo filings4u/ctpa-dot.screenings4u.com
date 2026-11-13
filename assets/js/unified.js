@@ -57,7 +57,7 @@ const CONFIG={
  lab_alerts:["Laboratory Alerts","Manage laboratory notifications and alerts.","name|Alert title|text|required;severity|Severity|select:info,warning,urgent;message|Message|textarea;status|Status|select:open,resolved"],
  lab_benefits:["Laboratory Benefits","Manage laboratory service benefit records.","name|Benefit name|text|required;description|Description|textarea;status|Status|select:active,inactive"],
  lab_consortiums:["Laboratory Consortiums","Manage consortium laboratory relationships.","name|Consortium name|text|required;account|Lab account|text;contact|Contact|text;status|Status|select:active,inactive"],
- locations:["Locations","Maintain collection and employer location records.","name|Location name|text|required;company_id|Company record ID|text;employer|Company|text;address|Street address|text;city|City|text;state|State|text;zip|Postal code|text;phone|Phone|tel"],
+ locations:["Locations","Manage your C/TPA company locations, shared with Workforce."],
  messages:["Messages","Manage organizational message records.","title|Subject|text|required;recipient|Recipient|text;message|Message|textarea;status|Status|select:draft,sent,read"],
  notifications:["Notifications","Manage account notification records.","title|Notification title|text|required;message|Message|textarea;status|Status|select:unread,read"],
  support:["Support","Manage support case records.","name|Ticket subject|text|required;priority|Priority|select:normal,high,urgent;description|Description|textarea;status|Status|select:open,pending,closed"],
@@ -180,7 +180,7 @@ function updateHeading(){
  const title=label(state.page);
  $("topTitle").textContent=title;$("pageTitle").textContent=title;
  updateBreadcrumbs();
- if(["reports","lab_supplies","lab_tracking","orders","price_list","services","billing","invoices","settlements","subscriptions"].includes(state.page)){$("pageActions").innerHTML=state.page==="lab_supplies"?'<button class="btn secondary" type="button" id="refreshPage">Refresh catalog</button>':state.page==="lab_tracking"?'<button class="btn secondary" type="button" id="refreshPage">Refresh tracking</button>':["orders","price_list","services","billing","invoices","settlements","subscriptions"].includes(state.page)?'<button class="btn secondary" type="button" id="refreshPage">Refresh</button><button class="btn secondary" type="button" id="exportPage">Export CSV</button>':"";return}
+ if(["reports","lab_supplies","lab_tracking","orders","price_list","services","billing","invoices","settlements","subscriptions","locations"].includes(state.page)){$("pageActions").innerHTML=state.page==="lab_supplies"?'<button class="btn secondary" type="button" id="refreshPage">Refresh catalog</button>':state.page==="lab_tracking"?'<button class="btn secondary" type="button" id="refreshPage">Refresh tracking</button>':["orders","price_list","services","billing","invoices","settlements","subscriptions"].includes(state.page)?'<button class="btn secondary" type="button" id="refreshPage">Refresh</button><button class="btn secondary" type="button" id="exportPage">Export CSV</button>':"";return}
  $("pageActions").innerHTML=state.page==="results"?'<button class="btn secondary" type="button" id="refreshPage">Refresh</button>':state.page==="account"?"":state.page==="dashboard"||state.page==="lab_analytics"
   ?'<button class="btn secondary" type="button" id="refreshPage">Refresh</button>'
   :'<button class="btn secondary" type="button" id="refreshPage">Refresh</button><button class="btn secondary" type="button" id="exportPage">Export CSV</button><button class="btn primary" type="button" id="newRecord">'+(state.page==="selections"?"Run Selection":state.page==="testing_orders"?"Order a Test":state.page==="testing_documents"?"Upload Document":state.page==="occupational_health"?"Order Physical":state.page==="compliance"?"Add Compliance Record":state.page==="audits"?"Start New Entrant Audit":state.page==="return_to_duty"?"Create RTD Case":state.page==="policies"?"Create Policy":state.page==="documents"?"Upload Private Document":state.page==="lab_accounts"?"Request Lab Account":"Add "+esc(title))+'</button>';
@@ -192,6 +192,7 @@ function switchPage(page,push=true){
  if(page==="lab_documents")page="testing_documents";
  if(page==="enrollments")page="programs";
  if(!CONFIG[page])page="dashboard";
+ if(state.locationSetupRequired&&page!=="locations")page="locations";
  if(state.context==="nondot"&&["owner_operators","audits","return_to_duty"].includes(page))page=page==="owner_operators"?"employers":"dashboard";
  state.page=page;state.search="";state.statusFilter="";state.pageIndex=0;state.companyFilter=null;state.companyDraft=null;state.management=null;state.pendingManagement=null;const seq=++state.sequence;
  if(push)history.pushState(null,"","/unified.html?page="+encodeURIComponent(page));
@@ -207,6 +208,7 @@ function switchPage(page,push=true){
  if(page==="billing"){void openEmployerBilling();return}
  if(page==="invoices"||page==="settlements"){void openWorkforceFinance(page);return}
  if(page==="subscriptions"){void openSubscriptionsPortal();return}
+ if(page==="locations"){void openBusinessLocations();return}
  const stored=state.cache.get(cacheKey());
  if(stored){showRecords(stored.records);if(Date.now()-stored.time>30000)void loadRecords(seq,true)}
  else {$("pageContent").innerHTML='<section class="panel"><div class="loading-line"><span class="spinner"></span>Loading authorized records…</div></section>';void loadRecords(seq,false)}
@@ -222,6 +224,7 @@ function openProviderServices(){const tenantId=state.tenantId,context=state.cont
 function openEmployerBilling(){const tenantId=state.tenantId,context=state.context;if(!window.WorkforceEmployerInvoices){$("pageContent").textContent="Employer Billing module is unavailable. Refresh the page.";return}return window.WorkforceEmployerInvoices.open({tenantId,context,supabase:state.supabase,active:()=>state.page==="billing"&&state.tenantId===tenantId&&state.context===context})}
 function openWorkforceFinance(page){const tenantId=state.tenantId,context=state.context;if(!window.WorkforceFinance){$("pageContent").textContent="Workforce financial records are unavailable. Refresh the page.";return}return window.WorkforceFinance.open({tenantId,context,supabase:state.supabase,active:()=>state.page===page&&state.tenantId===tenantId&&state.context===context},page==="settlements"?"settlement":"bill")}
 function openSubscriptionsPortal(){const tenantId=state.tenantId,context=state.context;if(!window.WorkforceSubscriptions){$("pageContent").textContent="Subscription dashboard is unavailable. Refresh the page.";return}return window.WorkforceSubscriptions.open({tenantId,context,supabase:state.supabase,active:()=>state.page==="subscriptions"&&state.tenantId===tenantId&&state.context===context})}
+function openBusinessLocations(){const tenantId=state.tenantId,context=state.context;if(!window.WorkforceLocations){$("pageContent").textContent="Locations unavailable. Refresh the page.";return}return window.WorkforceLocations.open({tenantId,context,supabase:state.supabase,active:()=>state.page==="locations"&&state.tenantId===tenantId})}
 function changeContext(next){
  if(!["dot","nondot"].includes(next)||next===state.context)return;
  state.context=next;sessionStorage.setItem("workforce_unified_context",next);
@@ -3644,7 +3647,7 @@ function startApp(){
  if(desired==="lab_orders")history.replaceState(null,"","/unified.html?page=testing_orders"+(search.get("manage")==="new"?"&manage=new":""));
  if(desired==="lab_results"||desired==="lab_documents")history.replaceState(null,"","/unified.html?page="+(desired==="lab_results"?"results":"testing_documents"));
  switchPage(desired==="lab_results"?"results":desired==="lab_documents"?"testing_documents":desired==="lab_orders"?"testing_orders":desired==="enrollments"?"programs":desired==="clearinghouse"?"compliance":CONFIG[desired]?desired:"dashboard",false);
- const action=["lab_supplies","lab_tracking","orders","price_list","services","billing","invoices","settlements","subscriptions"].includes(desired)?null:["lab_orders","lab_results","lab_documents"].includes(desired)?(desired==="lab_orders"&&search.get("manage")==="new"?"new":null):search.get("manage"),id=["lab_orders","lab_results","lab_documents"].includes(desired)?null:search.get("record");
+ const action=["lab_supplies","lab_tracking","orders","price_list","services","billing","invoices","settlements","subscriptions","locations"].includes(desired)?null:["lab_orders","lab_results","lab_documents"].includes(desired)?(desired==="lab_orders"&&search.get("manage")==="new"?"new":null):search.get("manage"),id=["lab_orders","lab_results","lab_documents"].includes(desired)?null:search.get("record");
  if(MANAGEMENT_ACTIONS.has(action)){
   const apply=()=>{if(state.page===(desired==="lab_orders"?"testing_orders":desired))openManagement(action,id,false)};
   const cached=state.cache.get(cacheKey());
@@ -3656,6 +3659,23 @@ async function initializeWorkspaces(){
  state.workspaces=r.workspaces||[];
  if(!state.workspaces.length){showView("workspaceSetup");return}
  state.tenantId=state.workspaces[0].tenant_id;
+ try{
+  const context={tenantId:state.tenantId,context:state.context,supabase:state.supabase,active:()=>state.page==="locations"&&state.tenantId===context.tenantId};
+  if(!window.WorkforceLocations)throw Error("Location onboarding module is unavailable");
+  const complete=await window.WorkforceLocations.ensureFirstLocation(context,()=>{state.locationSetupRequired=false;switchPage("dashboard")});
+  state.locationSetupRequired=!complete;
+  if(!complete){
+   showView("application");
+   void updateAccountMenu();
+   switchPage("locations",false);
+   return;
+  }
+ }catch(error){
+  console.error("Business location verification",error);
+  showView("application");void updateAccountMenu();
+  $("pageContent").textContent="Unable to verify your required business location. Refresh the page or contact Support.";
+  return;
+ }
  startApp();
 }
 function bindEvents(){
@@ -3706,8 +3726,8 @@ function bindEvents(){
  $("pageActions").addEventListener("click",e=>{
   if(e.target.closest("[data-back-list]")){leaveManagement();return}
   if(e.target.closest("#newRecord")){openManagement("new");return}
-  if(e.target.closest("#refreshPage")){void (state.page==="lab_analytics"?renderLabAnalytics(true):state.page==="lab_supplies"?openSupplyStore():state.page==="lab_tracking"?openTracking():state.page==="orders"?openHistoryPortal():state.page==="price_list"?openRatesPortal():state.page==="services"?openProviderServices():state.page==="billing"?openEmployerBilling():["invoices","settlements"].includes(state.page)?openWorkforceFinance(state.page):state.page==="subscriptions"?openSubscriptionsPortal():loadRecords(state.sequence,true,true));return}
-  if(e.target.closest("#exportPage")){if(state.page==="orders"){window.WorkforceOrderHistory?.exportCsv();return}if(state.page==="price_list"){window.WorkforceRateSheet?.exportCsv();return}if(state.page==="services"){window.WorkforceProviderServices?.exportCsv();return}if(state.page==="billing"){window.WorkforceEmployerInvoices?.exportCsv();return}if(["invoices","settlements"].includes(state.page)){window.WorkforceFinance?.exportCsv();return}if(state.page==="subscriptions"){window.WorkforceSubscriptions?.exportCsv();return}exportRecords();return}
+  if(e.target.closest("#refreshPage")){void (state.page==="lab_analytics"?renderLabAnalytics(true):state.page==="lab_supplies"?openSupplyStore():state.page==="lab_tracking"?openTracking():state.page==="orders"?openHistoryPortal():state.page==="price_list"?openRatesPortal():state.page==="services"?openProviderServices():state.page==="billing"?openEmployerBilling():["invoices","settlements"].includes(state.page)?openWorkforceFinance(state.page):state.page==="subscriptions"?openSubscriptionsPortal():state.page==="locations"?openBusinessLocations():loadRecords(state.sequence,true,true));return}
+  if(e.target.closest("#exportPage")){if(state.page==="orders"){window.WorkforceOrderHistory?.exportCsv();return}if(state.page==="price_list"){window.WorkforceRateSheet?.exportCsv();return}if(state.page==="services"){window.WorkforceProviderServices?.exportCsv();return}if(state.page==="billing"){window.WorkforceEmployerInvoices?.exportCsv();return}if(["invoices","settlements"].includes(state.page)){window.WorkforceFinance?.exportCsv();return}if(state.page==="subscriptions"){window.WorkforceSubscriptions?.exportCsv();return}if(state.page==="locations"){window.WorkforceLocations?.exportCsv();return}exportRecords();return}
  });
  $("notice").addEventListener("click",e=>{if(e.target.closest(".notice-close"))message("")});
  $("pageContent").addEventListener("click",e=>{
