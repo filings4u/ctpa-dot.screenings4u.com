@@ -46,7 +46,7 @@ const CONFIG={
  enrollments:["Enrollments","Manage enrollment record status.","name|Enrollment name|text|required;participant|Participant|text;program|Program|text;status|Status|select:pending,active,complete"],
  documents:["Documents","Manage account and compliance documents.","title|Document title|text|required;document_type|Document type|text;document_file|Upload document|file;status|Status|select:requested,received,approved"],
  reports:["Reports","Maintain generated reporting records.","name|Report name|text|required;report_type|Report type|text;period|Reporting period|text;status|Status|select:draft,ready,archived"],
- lab_accounts:["Lab Accounts","Manage connected laboratory account records.","name|Account name|text|required;account_number|Account number|text;provider|Provider|text;status|Status|select:active,inactive"],
+ lab_accounts:["Lab Accounts","Manage connected laboratory accounts and setup.","name|Company / Account name|text|required;account_number|Lab account number|text;provider|Laboratory|text;status|Status|select:pending,active,inactive;setup_status|Setup status|text;order_number|Order number|text"],
  lab_clients:["Laboratory Clients","Manage laboratory client accounts.","name|Client name|text|required;contact|Contact|text;email|Email|email;status|Status|select:active,inactive"],
  lab_orders:["Laboratory Orders","Manage laboratory order records.","name|Order reference|text|required;account|Lab account|text;donor|Donor|text;collection_date|Collection date|date;status|Status|select:requested,scheduled,collected,complete"],
  lab_tracking:["Laboratory Tracking","Track specimen and order movement.","name|Tracking reference|text|required;order_reference|Order reference|text;carrier|Carrier|text;tracking_number|Tracking number|text;status|Status|select:pending,in_transit,delivered"],
@@ -176,7 +176,7 @@ function updateHeading(){
  const title=label(state.page);
  $("topTitle").textContent=title;$("pageTitle").textContent=title;
  updateBreadcrumbs();
- $("pageActions").innerHTML=state.page==="account"?"":state.page==="dashboard"
+ $("pageActions").innerHTML=state.page==="account"?"":state.page==="dashboard"||state.page==="lab_analytics"
   ?'<button class="btn secondary" type="button" id="refreshPage">Refresh</button>'
   :'<button class="btn secondary" type="button" id="refreshPage">Refresh</button><button class="btn secondary" type="button" id="exportPage">Export CSV</button><button class="btn primary" type="button" id="newRecord">Add '+esc(title)+'</button>';
 }
@@ -186,6 +186,7 @@ function switchPage(page,push=true){
  if(push)history.pushState(null,"","/unified.html?page="+encodeURIComponent(page));
  if(isCompactViewport())$("sidebar").classList.remove("open");updateSidebarToggle();renderNav();updateHeading();message("");
  if(page==="account"){void renderAccount();return}
+ if(page==="lab_analytics"){void renderLabAnalytics();return}
  const stored=state.cache.get(cacheKey());
  if(stored){showRecords(stored.records);if(Date.now()-stored.time>30000)void loadRecords(seq,true)}
  else {$("pageContent").innerHTML='<section class="panel"><div class="loading-line"><span class="spinner"></span>Loading authorized records…</div></section>';void loadRecords(seq,false)}
@@ -197,6 +198,7 @@ function changeContext(next){
  switchPage(state.page,false);
 }
 async function loadRecords(sequence=state.sequence,refresh=false){
+ if(state.page==="lab_analytics")return renderLabAnalytics(refresh);
  const kind=state.page==="dashboard"?"all":state.page,key=cacheKey(),tenant=state.tenantId,context=state.context;
  try{
   const result=await api("list",{tenant_id:tenant,operating_context:context,kind});
@@ -228,6 +230,26 @@ async function renderAccount(){
  '<div class="management-account-actions"><button type="button" class="btn primary" id="editProfile">Edit Profile</button>'+
  '<button type="button" class="btn secondary" data-goto="staff">Manage Staff</button>'+
  '<button type="button" class="btn secondary" data-goto="employers">Manage Employers</button></div></section>';
+}
+async function renderLabAnalytics(refresh=false){
+ const key="lab-summary|"+state.tenantId+"|"+state.context,seq=state.sequence;
+ let stored=state.cache.get(key);
+ if(!stored||refresh||Date.now()-stored.time>30000){
+  if(state.page==="lab_analytics")$("pageContent").innerHTML='<section class="panel"><div class="loading-line"><span class="spinner"></span>Loading laboratory records…</div></section>';
+  try{
+   const result=await api("lab_summary",{tenant_id:state.tenantId,operating_context:state.context});
+   stored={counts:result.counts||[],time:Date.now()};state.cache.set(key,stored);
+  }catch(error){
+   if(state.page==="lab_analytics"&&seq===state.sequence)message(error.message,true);
+   return;
+  }
+ }
+ if(state.page!=="lab_analytics"||seq!==state.sequence)return;
+ const counts=new Map(stored.counts.map(row=>[row.kind,Number(row.count)||0]));
+ const pages=["lab_accounts","lab_orders","lab_tracking","lab_results","lab_documents","lab_supplies"];
+ $("pageContent").innerHTML='<section class="panel"><div class="lab-summary-grid">'+pages.map(kind=>
+  '<button type="button" class="lab-summary-card" data-goto="'+kind+'"><span>'+esc(label(kind))+'</span>'+
+   '<strong>'+String(counts.get(kind)||0)+'</strong><small>Manage records</small></button>').join("")+'</div></section>';
 }
 function renderDashboard(records){
  const byType=new Map();for(const r of records)byType.set(r.kind,(byType.get(r.kind)||0)+1);
@@ -543,7 +565,7 @@ function bindEvents(){
   }
  });
  setupSidebarToggle();
- $("pageActions").addEventListener("click",e=>{if(e.target.closest("#newRecord"))openManagement("new");if(e.target.closest("#refreshPage"))void loadRecords(state.sequence,true);if(e.target.closest("#exportPage"))exportRecords()});
+ $("pageActions").addEventListener("click",e=>{if(e.target.closest("#newRecord"))openManagement("new");if(e.target.closest("#refreshPage"))void (state.page==="lab_analytics"?renderLabAnalytics(true):loadRecords(state.sequence,true));if(e.target.closest("#exportPage"))exportRecords()});
  $("pageContent").addEventListener("click",e=>{
   const target=e.target;
   const view=target.closest("[data-view]"),edit=target.closest("[data-edit]"),archive=target.closest("[data-archive]"),create=target.closest("[data-create]"),goto=target.closest("[data-goto]"),retry=target.closest("#retryLoad"),openFile=target.closest("[data-open-file]"),previewFile=target.closest("[data-preview-file]"),step=target.closest("[data-page-step]");
