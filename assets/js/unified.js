@@ -2090,9 +2090,9 @@ async function saveAudit(form){
    id:state.management?.id||null,company_id:d.company_id,name:d.name,notice_date:d.notice_date,
    due_date:d.due_date,status:d.status,notes:d.notes});
   state.cache.delete(cacheKey());
-  state.management=null;
-  void loadRecords();
+  leaveManagement();
   message("New Entrant Audit saved.");
+  void loadRecords(state.sequence,true);
  }catch(err){error.textContent=err.message;button.disabled=false}
 }
 async function renderAuditChecklistItems(record,canWrite){
