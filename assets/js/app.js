@@ -582,7 +582,7 @@ function wireManagementActions(p,d,ctx){
     if(['drivers','covered-workers','mariners'].includes(p))addAction('Add Covered Worker',()=>modal('Add Covered Worker',[{name:'first_name',label:'First name',required:true},{name:'last_name',label:'Last name',required:true},{name:'employee_number',label:'Employee number'},{name:'email',label:'Email',type:'email'},{name:'job_title',label:'Safety-sensitive position'}],async v=>invoke('workforce-employer-management',{action:'save_employee',employee:{...v,dot_covered:true,dot_agency:C.agency,safety_sensitive:true,employment_status:'active'}})));
     return;
   }
-  if(p==='people'&&C.kind==='ctpa'){addAction('Add Person',()=>{location.href='/people-form.html'});return;}
+  if(p==='people'&&C.kind==='ctpa'){addAction('Add Person',()=>{navigatePortal('/people-form.html').catch(showNavigationError)});return;}
   if(p==='people')addAction(C.surface==='dot'?'Add Covered Worker':'Add Employee',()=>{
     const fields=[];
     if(C.kind==='ctpa')fields.push({name:'employer_id',label:'Client Employer',type:'select',required:true,options:(d.employers||[]).map(x=>({value:x.id,label:x.legal_name||x.dba_name||x.id}))});
