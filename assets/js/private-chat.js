@@ -48,14 +48,27 @@ function populateRecipientPicker(){
  const prior=el.value;
  el.innerHTML='<option value="">Select an employer or owner-operator</option>'+recipients.map(r=>'<option value="'+safe(r.id)+'"'+(!r.ready?' disabled':'')+'>'+safe(r.name)+' — '+safe(r.kind==="owner_operators"?"Owner-Operator":"Employer")+' ('+safe(r.operating_context==="nondot"?"NON-DOT":r.operating_context==="dot"?"DOT":"Shared")+')'+(r.ready?"":" — contact email required")+'</option>').join("");
  if(recipients.some(r=>r.id===prior))el.value=prior;
+ el.disabled=false;
  const button=$("ctpaChatStart");if(button)button.disabled=!el.value;
  el.onchange=()=>{button.disabled=!el.value};
 }
 async function getRecipients(){
- const result=await api("recipients");
- recipients=result.recipients||[];
- populateRecipientPicker();
- if(!recipients.length)status("No associated employers or owner-operators are available for this C/TPA. Add them under People & Programs first.");
+ const picker=$("ctpaChatRecipient"),start=$("ctpaChatStart");
+ if(picker){picker.disabled=true;picker.innerHTML='<option value="">Loading associated accounts…</option>'}
+ if(start)start.disabled=true;
+ try{
+  const result=await api("recipients");
+  recipients=result.recipients||[];
+  populateRecipientPicker();
+  if(!recipients.length)status("No associated employers or owner-operators found. Add an account in People & Programs to start a chat.");
+  return true;
+ }catch(e){
+  recipients=[];
+  if(picker){picker.innerHTML='<option value="">Unable to load associated accounts</option>';picker.disabled=true}
+  if(start)start.disabled=true;
+  status("Could not load employers and owner-operators: "+e.message);
+  return false;
+ }
 }
 async function startSelected(){
  const id=$("ctpaChatRecipient")?.value;if(!id){status("Select an employer or owner-operator to begin.");return}
@@ -77,6 +90,15 @@ async function compose(){
   overlay.querySelector("select").focus();
  }catch(e){status(e.message)}
 }
-async function open(value){unsubscribe();context=value;selected=null;search="";const tick=++serial;shell();$("main")?.scrollTo({top:0,behavior:"instant"});status("Loading private conversations…");try{await Promise.all([list(),getRecipients()]);if(tick!==serial||!context.active())return;if(recipients.length)status("")}catch(e){if(tick===serial)status(e.message)}}
+async function open(value){
+ unsubscribe();context=value;selected=null;search="";
+ const tick=++serial;shell();status("Loading private conversations…");
+ const results=await Promise.allSettled([list(),getRecipients()]);
+ if(tick!==serial||!value.active())return;
+ const [conversationResult,recipientResult]=results;
+ if(conversationResult.status==="rejected")status("Could not load conversations: "+conversationResult.reason?.message);
+ else if(recipientResult.status==="rejected")status("Could not load associated accounts: "+recipientResult.reason?.message);
+ else if(recipientResult.value&&recipients.length)status("");
+}
 window.WorkforcePrivateChat=Object.freeze({open,refresh:()=>list()});
 })();
