@@ -39,7 +39,7 @@ const CONFIG={
  testing_orders:["Testing Orders","Submit testing requests to Workforce Testing Operations.","name|Reference|text|required;employee|Donor|text;employer|Company|text;test_type|Test type|text;status|Status|select:awaiting_schedule,scheduled,completed,cancelled"],
  testing_documents:["Testing Documents","Secure management of all drug and alcohol testing files.","title|Document title|text|required;document_type|Document category|text;order_reference|Testing order|text;status|Status|select:received,verified,archived"],
  results:["Results","Track confidential test result metadata.","name|Result reference|text|required;order_reference|Order reference|text;status|Status|select:pending,received,reviewed;reported_at|Date reported|date;notes|Notes|textarea"],
- occupational_health:["Occupational Health","Manage occupational health service requests.","name|Service reference|text|required;employee_name|Employee name|text;service|Service|text;appointment_date|Appointment date|date;status|Status|select:requested,scheduled,completed"],
+ occupational_health:["Occupational Health","Order DOT and NON-DOT physicals and track Testing Operations processing."],
  compliance:["Compliance","Manage compliance cases and required actions.","name|Case title|text|required;employer|Employer|text;due_date|Due date|date;priority|Priority|select:low,normal,high;status|Status|select:open,in_progress,complete"],
  audits:["New Entrant Audits","Manage audit preparation and document milestones.","name|Audit title|text|required;carrier|Carrier|text;dot_number|USDOT number|text;due_date|Due date|date;status|Status|select:draft,in_progress,submitted,complete"],
  clearinghouse:["Clearinghouse","Track Clearinghouse-related workflow tasks.","name|Task title|text|required;employer|Employer|text;reference|Reference|text;due_date|Due date|date;status|Status|select:open,in_progress,complete"],
@@ -356,8 +356,10 @@ function openManagement(action,id=null,push=true){
  if(state.page==="selections"&&action==="edit")action="view";
  if(state.page==="testing_orders"&&action==="edit")action="view";
  if(state.page==="results"&&action==="edit")action="view";
+ if(state.page==="occupational_health"&&action==="edit")action="view";
  if(state.page==="results"&&action==="new"){message("Official results are issued by Testing Operations.",true);return;}
  if(state.page==="testing_orders"&&action==="new")drugOrderId=crypto.randomUUID();
+ if(state.page==="occupational_health"&&action==="new")physicalRequestId=crypto.randomUUID();
  const records=state.cache.get(cacheKey())?.records||[];
  const record=id?records.find(r=>r.id===id):null;
  if(action!=="new"&&!record){message("Record not available. Refresh the management page.",true);return}
@@ -1752,6 +1754,121 @@ async function sendOfficialResult(){
   if(state.management?.id===id)void populateOfficialResult(id);
  }catch(error){$("formMessage").textContent=error.message;button.disabled=false}
 }
+
+let physicalRequestId=null;
+function physicalOrderList(records){
+ const q=state.search.trim().toLowerCase(),filter=state.statusFilter;
+ const visible=records.filter(r=>{
+  const d=r.data||{};
+  return (!q||[d.reference,d.employee_name,d.employer,d.physical_type,d.case_number].some(v=>String(v||"").toLowerCase().includes(q)))&&
+   (!filter||d.status===filter);
+ });
+ const statusOptions=[...new Set(records.map(r=>r.data?.status).filter(Boolean))].sort();
+ const items=visible.map(r=>{
+  const d=r.data||{};
+  return '<button class="physical-list-row" type="button" data-view="'+esc(r.id)+'">'+
+   '<span class="results-row-icon">'+navIcon("occupational_health")+'</span>'+
+   '<span class="physical-list-primary"><strong>'+esc(d.reference||"Physical order")+'</strong><small>'+esc(d.employee_name||"Employee")+' · '+esc(d.employer||"Employer")+'</small></span>'+
+   '<span class="physical-list-type">'+esc(d.physical_type==="DOT"?"DOT Physical":"NON-DOT Physical")+'</span>'+
+   '<span class="mgmt-status '+statusClass(d.status)+'">'+esc(statusLabel(d.status))+'</span>'+
+   '<span class="results-row-view">View order</span></button>';
+ }).join("");
+ $("pageContent").innerHTML='<div class="results-workspace physical-workspace">'+
+  '<section class="results-intro"><span class="results-intro-icon">'+navIcon("occupational_health")+'</span><div>'+
+  '<strong>Occupational physical orders</strong><p>Order DOT and NON-DOT physicals for employees. Submitted requests go directly to Workforce Testing Operations for scheduling and processing.</p></div></section>'+
+  '<section class="results-list"><div class="directory-toolbar"><div class="directory-search"><input type="search" id="recordSearch" aria-label="Search physical orders" placeholder="Search orders, employees or employers" value="'+esc(state.search)+'"></div>'+
+  '<select id="statusFilter" aria-label="Filter physical orders"><option value="">All statuses</option>'+
+  statusOptions.map(v=>'<option value="'+esc(v)+'"'+(filter===v?' selected':'')+'>'+esc(statusLabel(v))+'</option>').join("")+
+  '</select><span class="directory-total">'+visible.length+' orders</span></div>'+
+  (items||'<div class="directory-empty"><div class="directory-empty-icon">'+navIcon("occupational_health")+'</div><h2>No physical orders yet</h2>'+
+  '<p>Submit a physical request and track its status here as Testing Operations processes it.</p>'+
+  (["owner","admin","editor"].includes(activeWorkspace()?.role||"")?'<button type="button" class="btn primary" data-create="1">Order a physical</button>':"")+'</div>')+
+  '</section></div>';
+}
+function renderPhysicalOrder(record,mode){
+ const d=record?.data||{};
+ if(mode==="view"){
+  const item=(label,value)=>'<div class="official-result-field"><small>'+esc(label)+'</small><strong>'+esc(value||"Not provided")+'</strong></div>';
+  $("pageContent").innerHTML='<div class="results-workspace official-result-profile physical-workspace">'+
+   '<div class="program-head"><span class="program-head-icon">'+navIcon("occupational_health")+'</span><div><strong>'+esc(d.reference||"Physical order")+'</strong>'+
+   '<small>Workforce Testing Operations · '+esc(d.physical_type==="DOT"?"DOT":"NON-DOT")+'</small></div>'+recordStatus(record)+'</div>'+
+   '<section class="official-result-section"><h2>Employee and employer</h2><div class="official-result-grid">'+
+   item("Employee",d.employee_name)+item("Employer",d.employer)+item("Employee email",d.donor_email)+item("Employee phone",d.donor_phone)+'</div></section>'+
+   '<section class="official-result-section"><h2>Physical request</h2><div class="official-result-grid">'+
+   item("Physical",d.physical_type==="DOT"?"DOT Physical":"NON-DOT Physical")+item("Exam type",statusLabel(d.exam_type))+
+   item("Preferred date",d.requested_date)+item("Processing status",statusLabel(d.status))+
+   item("Testing case",d.case_number)+item("Scheduled appointment",d.scheduled_at?new Date(d.scheduled_at).toLocaleString():"Awaiting scheduling")+
+   '</div></section><section class="official-result-section"><h2>Instructions</h2><p class="official-result-description">'+esc(d.notes||"No additional instructions.")+'</p></section>'+
+   '<footer class="program-actions"><button class="btn secondary" type="button" data-back-list>Back to Occupational Health</button></footer></div>';
+  return;
+ }
+ if(!physicalRequestId)physicalRequestId=crypto.randomUUID();
+ const examOptions=[["physical","Standard physical"],["pre_employment","Pre-employment physical"],["recertification","Recertification"],["return_to_duty","Return-to-duty physical"],["fit_for_duty","Fitness-for-duty evaluation"]];
+ const initial=state.context==="dot"?"DOT":"NON_DOT";
+ $("pageContent").innerHTML='<div class="physical-workspace"><div class="physical-order-intro"><span class="program-head-icon">'+navIcon("occupational_health")+'</span>'+
+  '<div><h2>Order an occupational physical</h2><p>Choose the employer and employee, then submit the request to Testing Operations.</p></div></div>'+
+  '<form id="physicalOrderForm" class="management-editor">'+
+  '<section class="management-section"><header class="management-section-header"><h2>Physical examination</h2></header>'+
+  '<div class="physical-type-choice"><label><input type="radio" name="physical_type" value="DOT"'+(initial==="DOT"?" checked":"")+'> DOT Physical</label>'+
+  '<label><input type="radio" name="physical_type" value="NON_DOT"'+(initial==="NON_DOT"?" checked":"")+'> NON-DOT Physical</label></div>'+
+  '<p class="physical-helper">Physical type follows the current DOT or NON-DOT workspace. Switch the workspace to order the other type.</p>'+
+  '<div class="manage-form-grid"><label class="manage-field"><span>Examination type *</span><select name="exam_type" required>'+
+  examOptions.map(([v,t])=>'<option value="'+esc(v)+'">'+esc(t)+'</option>').join("")+'</select></label>'+
+  '<label class="manage-field"><span>Preferred appointment date</span><input name="requested_date" type="date"></label></div></section>'+
+  '<section class="management-section"><header class="management-section-header"><h2>Employer and employee</h2></header>'+
+  '<div class="manage-form-grid"><label class="manage-field"><span>Employer / Owner-Operator *</span><select name="company_id" id="physicalCompany" required disabled><option value="">Loading employers…</option></select></label>'+
+  '<label class="manage-field"><span>Employee *</span><select name="person_id" id="physicalPerson" required disabled><option value="">Select employer first</option></select></label></div>'+
+  '<p class="physical-helper">The employee must already be assigned to the selected employer in People.</p></section>'+
+  '<section class="management-section"><header class="management-section-header"><h2>Additional information</h2></header>'+
+  '<div class="manage-form-grid"><label class="manage-field physical-notes"><span>Scheduling instructions (optional)</span>'+
+  '<textarea name="notes" rows="4" maxlength="2000" placeholder="Preferred location, availability, or information for Testing Operations"></textarea></label></div></section>'+
+  '<p id="physicalOrderError" class="manage-form-error" role="alert"></p>'+
+  '<footer class="management-editor-actions"><button type="button" class="btn secondary" data-back-list>Cancel</button>'+
+  '<button type="submit" class="btn primary" id="physicalOrderSubmit" disabled>Submit physical order</button></footer></form></div>';
+ void hydratePhysicalOrder();
+}
+async function hydratePhysicalOrder(){
+ const m=state.management,context=state.context;
+ try{
+  const kinds=context==="dot"?["employers","owner_operators","people"]:["employers","people"];
+  const res=await Promise.all(kinds.map(kind=>api("list",{tenant_id:state.tenantId,operating_context:context,kind})));
+  if(state.management!==m||state.context!==context)return;
+  const companies=kinds.flatMap((kind,i)=>kind==="people"?[]:res[i].records||[]);
+  const people=res[kinds.indexOf("people")].records||[];
+  const company=$("physicalCompany"),person=$("physicalPerson"),submit=$("physicalOrderSubmit");
+  if(!company||!person)return;
+  company.innerHTML='<option value="">Select employer</option>'+companies.map(r=>'<option value="'+esc(r.id)+'">'+esc(r.data?.legal_name||"Employer")+'</option>').join("");
+  company.disabled=false;
+  const update=()=>{
+   const candidates=people.filter(p=>p.data?.company_id===company.value&&p.data?.status!=="inactive");
+   person.innerHTML='<option value="">Select employee</option>'+candidates.map(p=>'<option value="'+esc(p.id)+'">'+esc([p.data?.first_name,p.data?.last_name].filter(Boolean).join(" ")||"Employee")+'</option>').join("");
+   person.disabled=!company.value;submit.disabled=!company.value||!person.value;
+  };
+  company.addEventListener("change",update);
+  person.addEventListener("change",()=>{submit.disabled=!company.value||!person.value});
+  update();
+  if(!companies.length)$("physicalOrderError").textContent="Create an employer before ordering a physical.";
+ }catch(error){if(state.management===m&&$("physicalOrderError"))$("physicalOrderError").textContent="Unable to load employers and employees: "+error.message}
+}
+async function submitPhysicalOrder(form){
+ const button=$("physicalOrderSubmit"),errorBox=$("physicalOrderError");
+ if(!form.reportValidity()||!button||button.disabled)return;
+ const payload=Object.fromEntries(new FormData(form).entries());
+ if(payload.physical_type!==(state.context==="dot"?"DOT":"NON_DOT")){
+  errorBox.textContent="Switch to the matching DOT or NON-DOT workspace before ordering.";return;
+ }
+ button.disabled=true;errorBox.textContent="";
+ try{
+  const result=await api("occupational_health_submit",{tenant_id:state.tenantId,operating_context:state.context,
+   request_id:physicalRequestId,company_id:payload.company_id,person_id:payload.person_id,
+   exam_type:payload.exam_type,requested_date:payload.requested_date,notes:payload.notes});
+  physicalRequestId=null;
+  state.cache.delete(cacheKey());leaveManagement();
+  message("Physical order "+(result.reference_number||"")+" submitted to Testing Operations.");
+  void loadRecords(state.sequence,true);
+ }catch(error){errorBox.textContent=error.message;button.disabled=false}
+}
+
 function renderManagementPage(){
  const m=state.management;
  if(!m||m.section!==state.page)return;
@@ -1788,6 +1905,7 @@ function renderManagementPage(){
  if(state.page==="testing_orders"){renderDrugOrder(record);return;}
  if(state.page==="testing_documents"){renderTestingDocumentManagement(record,m.action);return;}
  if(state.page==="results"){renderOfficialResult(record);return;}
+ if(state.page==="occupational_health"){renderPhysicalOrder(record,m.action);return;}
  if(m.action==="view"){
   const d=record.data||{};
   const sections=isEmployer?[
@@ -2020,6 +2138,7 @@ function showRecords(records){
  if(state.page==="testing_orders"){renderDrugOrderList(records);return}
  if(state.page==="testing_documents"){testingDocumentsList(records);return}
  if(state.page==="results"){resultsManagementList(records);return}
+ if(state.page==="occupational_health"){physicalOrderList(records);return}
  const count=records.length,query=state.search.trim().toLowerCase();
  const statuses=[...new Set(records.map(r=>String(r.data?.status||"").trim()).filter(Boolean))].sort();
  const visible=records.filter(r=>(!query||Object.values(r.data||{}).some(v=>String(v??"").toLowerCase().includes(query)))&&
@@ -2086,6 +2205,7 @@ async function saveRecord(event){
 }
 function archiveRecord(id){
  if(state.page==="results"){message("Official results cannot be archived here.",true);return}
+ if(state.page==="occupational_health"){message("Submitted physical requests are managed by Testing Operations.",true);return}
  if(state.page==="selections"){message("Locked selection records cannot be archived.",true);return}
  const record=state.cache.get(cacheKey())?.records.find(x=>x.id===id);
  if(!record){message("Record not found. Refresh the page.",true);return}
@@ -2379,7 +2499,7 @@ function bindEvents(){
  });
  $("recordFields").addEventListener("click",e=>{const b=e.target.closest("[data-modal-download]");if(b)void openDocumentFile(b.dataset.modalDownload)});
  $("recordForm").addEventListener("submit",saveRecord);
- $("pageContent").addEventListener("submit",e=>{if(e.target.id==="testingDocForm"){e.preventDefault();void submitTestingDocument(e.target);return}if(e.target.id==="drugOrderForm"){e.preventDefault();void submitDrugOrder(e.target);return}if(e.target.id==="managementForm"){e.preventDefault();void submitManagement(e.target)}});
+ $("pageContent").addEventListener("submit",e=>{if(e.target.id==="testingDocForm"){e.preventDefault();void submitTestingDocument(e.target);return}if(e.target.id==="drugOrderForm"){e.preventDefault();void submitDrugOrder(e.target);return}if(e.target.id==="physicalOrderForm"){e.preventDefault();void submitPhysicalOrder(e.target);return}if(e.target.id==="managementForm"){e.preventDefault();void submitManagement(e.target)}});
  for(const id of ["modalClose","cancelModal","modalDismiss"])$(id).addEventListener("click",closeModal);
  document.addEventListener("keydown",e=>{if(e.key==="Escape"){if(!$("modal").hidden)closeModal();$("accountDropdown").hidden=true;$("accountTrigger").setAttribute("aria-expanded","false")}});
  const setFont=n=>{state.font=Math.max(13,Math.min(21,n));document.documentElement.style.fontSize=state.font+"px";localStorage.setItem("workforce_unified_font",String(state.font))};
