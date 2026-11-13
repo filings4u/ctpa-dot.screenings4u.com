@@ -3055,8 +3055,8 @@ function bindEvents(){
   if(format){applyPolicyFormatting(format.dataset.policyCommand);return}
   if(target.closest("#policyInsertLink")){
    const input=$("policyLinkUrl"),url=input?.value?.trim()||"";
-   if(!/^https?:\\/\\/[^\\s]+$/i.test(url)){message("Enter a valid http:// or https:// URL.",true);return}
-   applyPolicyFormatting("createLink");
+   if(!/^https?:\/\/[^\s]+$/i.test(url)){message("Enter a valid http:// or https:// URL.",true);return}
+   $("policyRichEditor")?.focus();
    document.execCommand("createLink",false,url);
    input.value="";return;
   }
