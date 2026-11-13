@@ -6,10 +6,10 @@
   Permissions-Policy: camera=(), microphone=(), geolocation=()
 
 /*.html
-  Cache-Control: public, max-age=300, stale-while-revalidate=86400
+  Cache-Control: no-cache, must-revalidate
 
 /
-  Cache-Control: public, max-age=300, stale-while-revalidate=86400
+  Cache-Control: no-cache, must-revalidate
 
 /assets/*
   Cache-Control: public, max-age=31536000, immutable
@@ -20,3 +20,14 @@
 /sw.js
   Cache-Control: no-cache, max-age=0
   Service-Worker-Allowed: /
+
+# Shared application runtime changes frequently during portal consolidation.
+# Revalidate these files so older HTML version query strings cannot pin stale code.
+/assets/js/app.js
+  Cache-Control: no-cache, must-revalidate
+
+/assets/js/config.js
+  Cache-Control: no-cache, must-revalidate
+
+/assets/js/session-security.js
+  Cache-Control: no-cache, must-revalidate
