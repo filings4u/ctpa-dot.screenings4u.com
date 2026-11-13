@@ -440,7 +440,7 @@ Deno.serve(async request=>{
     return respond({error:"Choose a valid drug or alcohol service"},400);
    const provider=text(input.provider,100),notes=text(input.notes,1500);
    const price=Number(input.resale_price);
-   if(!Number.isFinite(price)||price<0||price>1000000||!/^\\d+(?:\\.\\d{1,2})?$/.test(String(input.resale_price)))
+   if(!Number.isFinite(price)||price<0||price>1000000||!/^\d+(?:\.\d{1,2})?$/.test(String(input.resale_price)))
     return respond({error:"Enter a valid C/TPA selling price"},400);
    const record={
     name:"Lab Account Request - "+text(company.data?.legal_name,150),
@@ -464,7 +464,7 @@ Deno.serve(async request=>{
    if(!company)return respond({error:"Choose a company in this workspace"},400);
    const service=text(input.service,40),number=text(input.account_number,100);
    if(!["urine_drug","breath_alcohol","urine_drug_and_alcohol"].includes(service)||
-    !/^[A-Za-z0-9][A-Za-z0-9._\\/-]{2,99}$/.test(number))
+    !/^[A-Za-z0-9][A-Za-z0-9._/-]{2,99}$/.test(number))
     return respond({error:"Enter the service and a valid lab account number"},400);
    const price=Number(input.resale_price||0);
    if(!Number.isFinite(price)||price<0||price>1000000)return respond({error:"Invalid selling price"},400);
