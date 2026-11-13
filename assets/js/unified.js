@@ -8,7 +8,7 @@ const redirectToSelector=()=>location.replace(SELECTOR_URL);
 const GROUPS=[
  ["People & Programs",["employers","owner_operators","people","programs","pools","selections"]],
  ["Testing & Compliance",["testing_orders","testing_documents","results","occupational_health","compliance","audits","clearinghouse","return_to_duty","policies","enrollments","documents","reports"]],
- ["Laboratory Services",["lab_accounts","lab_clients","lab_orders","lab_tracking","lab_results","lab_documents","lab_supplies","lab_delivery","lab_alerts","lab_analytics","lab_consortiums","lab_benefits","lab_billing"]],
+ ["Lab Account",["lab_accounts","lab_clients","lab_orders","lab_tracking","lab_results","lab_documents","lab_supplies","lab_delivery","lab_alerts","lab_analytics","lab_consortiums","lab_benefits","lab_billing"]],
  ["Services & Billing",["orders","price_list","services","billing","invoices","subscriptions"]],
  ["Account & Support",["locations","messages","notifications","support","demo_sessions","staff","integrations","audit_history"]]
 ];
