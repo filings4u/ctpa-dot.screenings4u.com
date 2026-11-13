@@ -25,6 +25,8 @@ const openNavGroups=new Set((()=>{
 })());
 function saveNavGroups(){try{sessionStorage.setItem(NAV_STORAGE_KEY,JSON.stringify([...openNavGroups]))}catch{}}
 const navGroupForPage=id=>GROUPS.find(group=>group[1].includes(id))?.[0]||null;
+const companyAccountTypes=[["dot_employer","DOT Employer"],["owner_operator","Owner-Operator"],["nondot_employer","NON-DOT Employer"]];
+const accountTypeLabel=(value)=>companyAccountTypes.find(([id])=>id===value)?.[1]||"DOT Employer";
 const CONFIG={
  account:["Account","Your Workforce C/TPA company and signed-in account."],
  dashboard:["Dashboard","Single C/TPA operations dashboard across the selected records."],
@@ -152,7 +154,7 @@ function renderNav(){
    '<button type="button" class="nav-group-toggle" data-nav-group="'+esc(title)+'" aria-controls="nav-group-'+index+
    '" aria-expanded="'+String(expanded)+'"><span>'+esc(title)+'</span><span class="group-indicator" aria-hidden="true">'+(expanded?"−":"+")+'</span></button>'+
    '<div class="nav-group-links" id="nav-group-'+index+'"'+(expanded?"":' hidden')+'>'+
-   modules.map(id=>'<button type="button" class="nav-item nav-child'+(state.page===id?" active":"")+
+   modules.filter(id=>!(state.context==="nondot"&&id==="owner_operators")).map(id=>'<button type="button" class="nav-item nav-child'+(state.page===id?" active":"")+
     '" data-page="'+esc(id)+'"'+(state.page===id?' aria-current="page"':"")+
     '><span class="symbol" aria-hidden="true">'+navIcon(id)+'</span><span>'+esc(label(id))+'</span></button>').join("")+'</div></section>';
  }).join("");
@@ -187,6 +189,7 @@ function updateHeading(){
 }
 function switchPage(page,push=true){
  if(!CONFIG[page])page="dashboard";
+ if(state.context==="nondot"&&page==="owner_operators")page="employers";
  state.page=page;state.search="";state.statusFilter="";state.pageIndex=0;state.companyFilter=null;state.companyDraft=null;state.management=null;state.pendingManagement=null;const seq=++state.sequence;
  if(push)history.pushState(null,"","/unified.html?page="+encodeURIComponent(page));
  if(isCompactViewport())$("sidebar").classList.remove("open");updateSidebarToggle();renderNav();updateHeading();message("");
@@ -200,7 +203,9 @@ function switchPage(page,push=true){
 function changeContext(next){
  if(!["dot","nondot"].includes(next)||next===state.context)return;
  state.context=next;sessionStorage.setItem("workforce_unified_context",next);
- switchPage(state.page,false);
+ const nextPage=next==="nondot"&&state.page==="owner_operators"?"employers":state.page;
+ history.replaceState(null,"","/unified.html?page="+encodeURIComponent(nextPage)+"&context="+next);
+ switchPage(nextPage,false);
 }
 async function loadRecords(sequence=state.sequence,refresh=false,notify=false){
  if(state.page==="lab_analytics")return renderLabAnalytics(refresh);
@@ -616,12 +621,22 @@ function renderEmployerManagement(record,mode,canWrite,kind="employers"){
  }).join("");
  const current=record?.operating_context||state.context;
  const shared=!record&&["owner","admin"].includes(activeWorkspace()?.role||"");
+ const defaultType=isOwner?"owner_operator":current==="nondot"?"nondot_employer":"dot_employer";
+ const classification=record?.data?.account_type||defaultType;
  const contextBlock=view?
-  managementOverviewGroup("Operating context",[["Workspace",current==="shared"?"DOT and NON-DOT":current.toUpperCase()]])
-  :'<section class="management-section"><header class="management-section-header"><h2>Operating context</h2></header>'+
-   '<div class="manage-form-grid"><label class="manage-field manage-context"><span>Record context</span><select name="record_context"'+(record?' disabled':'')+'>'+
-   '<option value="'+esc(current)+'">'+esc(current.toUpperCase())+'</option>'+
-   (shared?'<option value="shared">DOT and NON-DOT</option>':"")+'</select></label></div></section>';
+  managementOverviewGroup("Account classification",[["Account type",accountTypeLabel(classification)],
+   ["Workspace",classification==="nondot_employer"?"NON-DOT":"DOT"]]):
+  record?
+   '<section class="management-section"><header class="management-section-header"><h2>Account classification</h2></header>'+
+   '<div class="manage-form-grid"><div class="company-account-type-readonly"><strong>'+esc(accountTypeLabel(classification))+
+   '</strong><span>Workspace: '+(classification==="nondot_employer"?"NON-DOT":"DOT")+'</span></div></div></section>':
+   '<section class="management-section company-account-selector"><header class="management-section-header"><h2>Account classification</h2></header>'+
+   '<div class="manage-form-grid"><label class="manage-field manage-context"><span>Account type *</span>'+
+   '<select name="account_type" id="companyAccountType" required>'+
+    '<option value="" selected disabled>Select account type</option>'+
+    companyAccountTypes.map(([value,name])=>'<option value="'+value+'">'+esc(name)+'</option>').join("")+
+   '</select><small>DOT Employer and Owner-Operator accounts appear in DOT. NON-DOT Employer accounts appear in NON-DOT.</small>'+
+   '</label></div></section>';
  const rightLinks=EMPLOYER_RELATED.map(([page,name])=>
   '<button type="button" class="employer-side-link" data-employer-related="'+page+'"'+(record?'':' disabled')+'>'+
   '<span class="employer-side-icon">'+navIcon(page)+'</span><span>'+esc(name)+'</span><span aria-hidden="true">›</span></button>').join("");
@@ -654,7 +669,7 @@ function renderEmployerManagement(record,mode,canWrite,kind="employers"){
  }
  $("pageContent").innerHTML='<div class="employer-workspace">'+employerSummary(record,true,kind)+
   '<div class="employer-management-grid"><div class="employer-management-main">'+
-   '<form id="managementForm">'+groups+contactProfile+contextBlock+
+   '<form id="managementForm">'+(newRecord?contextBlock:"")+groups+contactProfile+(newRecord?"":contextBlock)+
    '<p class="manage-form-error" id="managementError" role="alert"></p>'+
    '<footer class="employer-workspace-footer">'+
    '<button type="button" class="btn secondary" data-back-list>Cancel</button>'+
@@ -803,8 +818,20 @@ async function submitManagement(form,continueEditing=false){
     uploaded=true;
    }else if(!m.id)throw Error("Select a document file before saving.");
   }
-  if(!uploaded)await api("save",{tenant_id:state.tenantId,operating_context:state.context,
+  let result=null;
+  if(!uploaded)result=await api("save",{tenant_id:state.tenantId,operating_context:state.context,
    kind:state.page,record_context:recordContext,id:m.id||null,data});
+  // Company classification is authoritative: route new accounts to their selected workspace.
+  if(!m.id&&["employers","owner_operators"].includes(state.page)&&result){
+   const nextContext=result.operating_context==="nondot"?"nondot":"dot";
+   const nextKind=result.kind==="owner_operators"?"owner_operators":"employers";
+   state.cache.clear();state.companyDraft=null;
+   state.context=nextContext;sessionStorage.setItem("workforce_unified_context",nextContext);
+   history.replaceState(null,"","/unified.html?page="+encodeURIComponent(nextKind)+"&context="+nextContext);
+   switchPage(nextKind,false);
+   message("Account created in the "+(nextContext==="dot"?"DOT":"NON-DOT")+" workspace.");
+   return;
+  }
   state.cache.delete(cacheKey());state.companyDraft=null;
   if(continueEditing&&m.id){
    button.disabled=false;
