@@ -212,7 +212,10 @@ async function loadRecords(sequence=state.sequence,refresh=false,notify=false){
    if(state.pendingManagement?.section===state.page){
     const pending=state.pendingManagement;state.pendingManagement=null;
     openManagement(pending.action,pending.id,false);
-   }else if(state.management)renderManagementPage();else showRecords(result.records||[]);
+   }else if(state.management){
+    // Preserve unsaved inputs during background refresh.
+    if(state.management.action==="view")renderManagementPage();
+   }else showRecords(result.records||[]);
    if(notify&&!state.management)message("Records refreshed successfully.");
   }
  }catch(error){if(sequence===state.sequence&&key===cacheKey()){
@@ -744,7 +747,7 @@ function bindEvents(){
    else state.pendingManagement={action,id,section:state.page};
   }else if(state.management)leaveManagement(false);
 });
- addEventListener("focus",()=>{if(!$("application").hidden&&state.cache.get(cacheKey())&&Date.now()-state.cache.get(cacheKey()).time>60000)void loadRecords(state.sequence,true)});
+ addEventListener("focus",()=>{if(!state.management&&!$("application").hidden&&state.cache.get(cacheKey())&&Date.now()-state.cache.get(cacheKey()).time>60000)void loadRecords(state.sequence,true)});
 }
 async function init(){
  if(!window.supabase?.createClient){redirectToSelector();return}
