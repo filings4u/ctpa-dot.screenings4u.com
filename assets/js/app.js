@@ -103,7 +103,7 @@ function pageAccess(ctx,p){
  if(MANAGER_PAGES.has(key)&&!managerRole(ctx))return {allowed:false,reason:'Your C/TPA team role does not permit this administrative action.',feature};
  // Lab Account navigation is part of the C/TPA workspace. Protected lab
  // records and mutations remain exclusively authorized in the backend.
- if(workspace()?.surface==='nondot'&&ctx?.nondotVerified!==true)return {allowed:false,reason:'This NON-DOT workspace is not authorized for the selected C/TPA account.',feature:'nondot_access'};
+ if(workspace()?.surface==='nondot'&&ctx?.nondotVerified!==true)return {allowed:false,reason:'Unable to verify the selected C/TPA operating context.',feature:'workspace_context'};
  return {allowed:true};
 }
 function buildNavigation(ctx={}){
@@ -142,7 +142,7 @@ async function invoke(name,body={}){
   const s=await getSession();if(!s)throw Object.assign(new Error('AUTH_REQUIRED'),{status:401});
   const w=workspace();if(!w?.ctpa_id||!w?.subscription_id)throw Object.assign(new Error('C/TPA workspace selection is required.'),{status:409});
   const payload={...body,legacy_endpoint:name,ctpa_id:w.ctpa_id,subscription_id:w.subscription_id,membership_id:w.membership_id||undefined};
-  const endpoint=name==='ctpa-new-entrant-audits'?`${C.workforceUrl}/functions/v1/ctpa-new-entrant-audits`:`${C.workforceUrl}/functions/v1/ctpa-dot?forceFunctionRegion=ca-central-1`;
+  const endpoint=name==='ctpa-new-entrant-audits'?`${C.workforceUrl}/functions/v1/ctpa-new-entrant-audits`:(w.surface==='nondot'?`${C.workforceUrl}/functions/v1/nondot-workforce-ctpa-portal`:`${C.workforceUrl}/functions/v1/ctpa-dot?forceFunctionRegion=ca-central-1`);
   const r=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${s.access_token}`,'apikey':C.workforceKey},body:JSON.stringify(payload)});const d=await r.json().catch(()=>({}));const em=typeof d.error==='string'?d.error:(d.error?.message||d.message||d.details||d.hint||'');if(!r.ok||d.error)throw Object.assign(new Error(em||`Request failed (${r.status}).`),{status:r.status,payload:d});return d;
 }
 async function nondotWorkspaceAccess(){
@@ -410,7 +410,7 @@ function bindUtilityPage(p,d,ctx){
 
 async function ctpaData(p){
   if(p==='lab_services'||isLaboratoryPage(p))return {authorized:false,loading:true};
-  if(workspace()?.surface==='nondot'&&Boolean(NONDOT_PAGES[norm(p)]))return nondotWorkspaceData();
+  if(workspace()?.surface==='nondot'&&p==='dashboard')return nondotWorkspaceData();
   if(p==='profile'||p==='account_settings')return {workspace:workspace(),profile:(await getSession())?.user||null};
   if(p==='employers'||p==='employer_form')return invoke('workforce-ctpa-employers',{action:'workspace'});
   if(p==='owner_operators')return invoke('workforce-ctpa-owner-operators',{action:'workspace'});
@@ -694,7 +694,6 @@ async function render(ctx,prefetched){
   else if(C.kind==='ctpa'&&p==='integration_connect'&&window.CtpaIntegrations){setSubtitle('Connect this integration using your business credentials or API access.');html=window.CtpaIntegrations.renderConnect(d,ctx);}
   else if(C.kind==='ctpa'&&p==='integration_workspace'&&window.CtpaIntegrations){setSubtitle('Manage, test, and use this connected integration.');html=window.CtpaIntegrations.renderWorkspace(d,ctx);}
   else if(C.kind==='ctpa'&&p==='location_form'&&window.CtpaLocations){setSubtitle('Add or edit a location for your C/TPA, an Employer, or an Owner-Operator.');html=window.CtpaLocations.renderForm(d,ctx);}
-  else if(C.kind==='ctpa'&&workspace()?.surface==='nondot'&&p!=='dashboard'&&NONDOT_PAGES[p]&&window.CtpaNondotWorkspace){setSubtitle('Your C/TPA NON-DOT employer, people, program, pool, testing and result records.');html=window.CtpaNondotWorkspace.render(d,ctx);}
   else if(C.kind==='ctpa'&&(p==='lab_services'||isLaboratoryPage(p))&&window.CtpaLabServices){setSubtitle('Your purchased laboratory account numbers, setup progress, and physical supply shipments.');html=window.CtpaLabServices.render(d,ctx);}
   else if(C.kind==='ctpa'&&p==='lab_accounts'&&window.CtpaLabAccounts){setSubtitle('View the laboratory accounts and account numbers configured for your C/TPA.');html=window.CtpaLabAccounts.render(d,ctx);}
   else if(C.kind==='ctpa'&&p==='schedule_demo'&&window.CtpaDemos){setSubtitle('Choose a date and time for a live Workforce platform demonstration.');html=window.CtpaDemos.renderSchedule(d,ctx);}
@@ -773,7 +772,6 @@ async function render(ctx,prefetched){
     wireManagementActions(p,d,ctx);
   }
   $('#content').innerHTML=html||`<div class="panel"><div class="empty">No data available.</div></div>`;
-  if(C.kind==='ctpa'&&workspace()?.surface==='nondot'&&NONDOT_PAGES[norm(p)]&&p!=='dashboard'&&window.CtpaNondotWorkspace)window.CtpaNondotWorkspace.bind(d,saveNondotRecord);
   if(C.kind==='ctpa'&&(p==='lab_services'||isLaboratoryPage(p))&&window.CtpaLabServices)window.CtpaLabServices.bind(labServiceCall,d);
   if(isUtilityPage(p)&&!(C.kind==='ctpa'&&p==='integrations'&&window.CtpaIntegrations))bindUtilityPage(p,d,ctx);
   if(C.kind==='ctpa'&&['integrations','integration_connect','integration_workspace'].includes(p)&&window.CtpaIntegrations)window.CtpaIntegrations.bind(p,d,ctx);
@@ -909,7 +907,7 @@ async function navigatePortal(url,{replace=false,pop=false}={}){
  const pathPage=norm(u.pathname.split('/').pop()?.replace('.html','')||'dashboard');
  // Internal C/TPA modules are already bundled into the application. Do not
  // download HTML, reinitialize auth, or rebuild the entire screen on each click.
- const prepared=(pathPage==='dashboard'||isNonDotPage(pathPage)||['profile','account_settings'].includes(pathPage))
+ const prepared=(pathPage==='dashboard'||['profile','account_settings'].includes(pathPage))
   ?{targetPage:pathPage}:await prepareTarget(u.href);
  const targetPage=prepared.targetPage,targetSearch=u.search;
  if(!pop){if(replace)history.replaceState({s4u:true},'',u.pathname+u.search+u.hash);else history.pushState({s4u:true},'',u.pathname+u.search+u.hash)}
