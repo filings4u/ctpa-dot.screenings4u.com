@@ -205,6 +205,17 @@ Deno.serve(async request=>{
     !["tenant_id","user_id","role","permissions","created_by","updated_by","operating_context","storage_bucket","storage_path","file_name","mime_type","size_bytes"].includes(k)&&
     (v===null||typeof v==="string"||typeof v==="number"||typeof v==="boolean")));
    if(!Object.keys(clean).length)return respond({error:"Nothing to save"},400);
+   if(kind==="people"&&typeof clean.company_id==="string"&&clean.company_id){
+    if(!uuid(clean.company_id))return respond({error:"Invalid company association"},400);
+    const linked=await collection.select("id,kind,operating_context,data")
+     .eq("id",clean.company_id).eq("tenant_id",tenantId)
+     .in("kind",context==="dot"?["employers","owner_operators"]:["employers"])
+     .eq("operating_context",context).is("archived_at",null).maybeSingle();
+    if(linked.error)throw linked.error;
+    if(!linked.data)return respond({error:"This company is not available in your current workspace"},400);
+    clean.employer=linked.data.data?.legal_name||"";
+    clean.relationship=clean.relationship==="contact"?"contact":"staff";
+   }
    const id=body.id;
    // New company account classification determines both its module and workspace.
    // This is enforced server-side, regardless of the selected frontend tab.
