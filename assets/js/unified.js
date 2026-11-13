@@ -33,7 +33,7 @@ const CONFIG={
  employers:["Employers","Manage employer organizations, contacts and identifiers.","legal_name|Legal name|text|required;dba_name|DBA / Trade name|text;dot_number|USDOT number|text;mc_number|MC number|text;ein|Tax ID / EIN|text;company_type|Company type|text;status|Status|select:active,pending,inactive;contact_name|Primary contact|text;contact_title|Contact title|text;contact_email|Contact email|email;phone|Phone|tel;secondary_phone|Secondary phone|tel;address_line1|Address line 1|text;address_line2|Address line 2|text;city|City|text;state|State|text;zip|ZIP / Postal code|text;country|Country|text;testing_program|Testing program|text;consortium_status|Consortium status|text;random_pool|Random pool|text;clearinghouse_status|Clearinghouse status|text;audit_status|New entrant audit status|text;occupational_health|Occupational health|select:enabled,disabled;billing_contact|Billing contact|text;billing_email|Billing email|email;billing_phone|Billing phone|tel;billing_address1|Billing address|text;billing_city|Billing city|text;billing_state|Billing state|text;billing_zip|Billing ZIP|text;billing_country|Billing country|text;payment_terms|Payment terms|text;mailing_address1|Mailing address|text;mailing_city|Mailing city|text;mailing_state|Mailing state|text;mailing_zip|Mailing ZIP|text;mailing_country|Mailing country|text;account_notes|Internal account notes|textarea"],
  owner_operators:["Owner-Operators","Manage owner-operator accounts and operating contacts.","legal_name|Legal name|text|required;dba_name|DBA / Trade name|text;dot_number|USDOT number|text;mc_number|MC number|text;ein|Tax ID / EIN|text;company_type|Company type|text;status|Status|select:active,pending,inactive;contact_name|Primary contact|text;contact_title|Contact title|text;email|Email|email;phone|Phone|tel;secondary_phone|Secondary phone|tel;address_line1|Address line 1|text;address_line2|Address line 2|text;city|City|text;state|State|text;zip|ZIP / Postal code|text;country|Country|text;testing_program|Testing program|text;consortium_status|Consortium status|text;random_pool|Random pool|text;clearinghouse_status|Clearinghouse status|text;audit_status|New entrant audit status|text;occupational_health|Occupational health|select:enabled,disabled;billing_contact|Billing contact|text;billing_email|Billing email|email;billing_phone|Billing phone|tel;billing_address1|Billing address|text;billing_city|Billing city|text;billing_state|Billing state|text;billing_zip|Billing ZIP|text;billing_country|Billing country|text;payment_terms|Payment terms|text;mailing_address1|Mailing address|text;mailing_city|Mailing city|text;mailing_state|Mailing state|text;mailing_zip|Mailing ZIP|text;mailing_country|Mailing country|text;account_notes|Internal account notes|textarea"],
  people:["People","Manage individual profiles and company affiliations.","first_name|First name|text|required;last_name|Last name|text|required;employee_number|Employee number|text;job_title|Position / Title|text;email|Email address|email;phone|Phone number|tel;status|Status|select:active,inactive;relationship|Company role|select:staff,contact,worker"],
- programs:["Programs","Set up testing and compliance programs.","name|Program name|text|required;employer|Employer|text;program_type|Program type|text;effective_date|Effective date|date;status|Status|select:active,draft,inactive"],
+ programs:["Programs","Manage regulatory testing programs, employers and enrollment.","name|Program name|text|required;program_type|Program type|select:DOT,NON-DOT;dot_agency|DOT agency|select:FMCSA,FAA,FRA,FTA,PHMSA,USCG;regulatory_authority|Regulatory authority|text;testing_panel|Testing panel|text;testing_method|Testing method|select:urine,oral fluid,blood,breath,hair;drug_random_rate|Annual random drug rate (%)|number;alcohol_random_rate|Annual random alcohol rate (%)|number;testing_frequency|Selection frequency|select:monthly,quarterly,semiannual,annual;effective_date|Effective date|date;status|Status|select:active,draft,inactive;regulatory_category|Regulatory category|text;notes|Program notes|textarea"],
  pools:["Pools","Manage consortium and employer selection pools.","name|Pool name|text|required;employer|Employer|text;program|Program|text;frequency|Selection frequency|select:monthly,quarterly,annual;status|Status|select:active,inactive"],
  selections:["Selections","Review and record randomized selection activity.","name|Selection reference|text|required;pool|Pool|text;selection_date|Selection date|date;status|Status|select:scheduled,selected,completed;notes|Notes|textarea"],
  testing_orders:["Testing Orders","Create and manage testing requests.","name|Order reference|text|required;employee_name|Employee / donor|text;employer|Employer|text;test_type|Test type|text;reason|Testing reason|text;status|Status|select:draft,ordered,scheduled,completed,cancelled"],
@@ -797,6 +797,98 @@ function renderPersonManagement(record,mode,canWrite){
  $("managementForm").querySelector("input")?.focus({preventScroll:true});
  void loadPersonCompanies();
 }
+
+const PROGRAM_SECTIONS=[
+ ["Program information",["name","status","effective_date"]],
+ ["Regulatory configuration",["dot_agency","regulatory_authority","regulatory_category","testing_panel","testing_method"]],
+ ["Random testing",["drug_random_rate","alcohol_random_rate","testing_frequency"]],
+ ["Notes",["notes"]]
+];
+async function prepareProgramManagement(){
+ const m=state.management,seq=state.sequence;
+ if(state.page!=="programs"||!m)return;
+ const agency=$("manage-dot_agency"),select=$("programCompany"),guide=$("programRegulatoryGuidance");
+ if(!select)return;
+ const current=(m.id?(state.cache.get(cacheKey())?.records||[]).find(r=>r.id===m.id)?.data:null)||{};
+ const choices=[];
+ try{
+  for(const kind of state.context==="dot"?["employers","owner_operators"]:["employers"]){
+   const key=cacheKey(kind),cached=state.cache.get(key);
+   let records=cached?.records||[];
+   if(!cached||Date.now()-cached.time>30000){
+    const result=await api("list",{tenant_id:state.tenantId,operating_context:state.context,kind});
+    records=result.records||[];state.cache.set(key,{records,time:Date.now()});
+   }
+   choices.push(...records.filter(r=>r.operating_context===state.context));
+  }
+  if(state.page!=="programs"||state.management!==m||seq!==state.sequence)return;
+  select.innerHTML='<option value="">Unassigned</option>'+choices.map(r=>
+   '<option value="'+esc(r.id)+'">'+esc(r.data?.legal_name||"Unnamed company")+
+   (r.kind==="owner_operators"?" · Owner-Operator":"")+'</option>').join("");
+  const existing=current.company_id||state.companyDraft?.companyId||"";
+  const selected=choices.find(r=>r.id===existing)||
+   choices.find(r=>String(r.data?.legal_name||"").toLowerCase()===
+    String(current.employer||state.companyDraft?.companyName||"").toLowerCase());
+  if(selected)select.value=selected.id;
+  select.disabled=false;
+  if(state.context!=="dot"){
+   guide.textContent="NON-DOT testing requirements are set by the company. DOT regulatory random-testing rates do not apply automatically.";
+   return;
+  }
+  const response=await api("program_rules",{tenant_id:state.tenantId,operating_context:state.context});
+  if(state.page!=="programs"||state.management!==m||seq!==state.sequence)return;
+  state.programRules=response.rules||[];
+  const draw=()=>{
+   const rule=state.programRules.find(x=>x.dot_agency===agency?.value);
+   if(!rule){
+    guide.textContent="Select the DOT agency to review its current regulatory rule, where available.";
+    return;
+   }
+   guide.innerHTML='<strong>'+esc(rule.rule_name||"Regulatory rule")+'</strong> · '+esc(rule.effective_date||"")+
+    ' · Drug '+esc(rule.drug_rate==null?"not specified":String(rule.drug_rate)+"%")+
+    ' · Alcohol '+esc(rule.alcohol_rate==null?"not specified":String(rule.alcohol_rate)+"%")+
+    '<button type="button" data-program-apply-rule="'+esc(rule.dot_agency)+'">Apply rates</button>';
+  };
+  agency?.addEventListener("change",draw);draw();
+ }catch(error){
+  if(select.disabled)select.innerHTML='<option value="">Company list unavailable</option>';
+  guide.textContent="Reference unavailable: "+error.message;
+ }
+}
+function renderProgramManagement(record,mode,canWrite){
+ const view=mode==="view",d=record?.data||{},title=d.name||"New program";
+ const head='<div class="program-head"><span class="program-head-icon">'+navIcon("programs")+'</span><div><strong>'+
+  esc(title)+'</strong><small>'+esc(state.context==="dot"?"DOT testing program":"NON-DOT testing program")+'</small></div>'+
+  (record?recordStatus(record):'<span class="mgmt-status pending">New program</span>')+'</div>';
+ const defs=fields("programs");
+ const sections=PROGRAM_SECTIONS.map(([name,names])=>{
+  const chosen=names.map(n=>defs.find(f=>f.name===n)).filter(Boolean);
+  return view?managementOverviewGroup(name,chosen.map(f=>[f.label,d[f.name]])):managementSection(name,chosen,record);
+ }).join("");
+ const assigned=view?managementOverviewGroup("Assigned company",[["Company",d.employer||"Unassigned"]]):
+  '<section class="management-section"><header class="management-section-header"><h2>Assigned company</h2></header>'+
+  '<div class="manage-form-grid"><label class="manage-field"><span>Company</span><select name="company_selection" id="programCompany" disabled>'+
+  '<option value="">Loading companies…</option></select><small>Only companies in this workspace can be assigned.</small></label></div></section>';
+ if(view){
+  $("pageContent").innerHTML='<div class="program-management">'+head+sections+assigned+
+   '<footer class="program-actions"><button type="button" class="btn secondary" data-back-list>Back to Programs</button>'+
+   (canWrite?'<button class="btn primary" type="button" data-manage-edit="'+esc(record.id)+'">Edit program</button>':"")+'</footer></div>';
+  return;
+ }
+ $("pageContent").innerHTML='<div class="program-management">'+head+'<form id="managementForm">'+sections+assigned+
+  '<div class="program-rule-guidance" id="programRegulatoryGuidance">Loading regulatory references…</div>'+
+  '<p class="manage-form-error" id="managementError" role="alert"></p>'+
+  '<footer class="program-actions"><button type="button" class="btn secondary" data-back-list>Cancel</button>'+
+  '<button type="submit" class="btn primary" id="managementSave">'+(record?"Save changes":"Create program")+'</button></footer></form></div>';
+ const programType=state.context==="dot"?"DOT":"NON-DOT";
+ const typeInput=document.createElement("input");typeInput.type="hidden";typeInput.name="program_type";typeInput.value=programType;
+ $("managementForm").append(typeInput);
+ if(state.context==="nondot"){
+  const agency=$("manage-dot_agency");if(agency)agency.closest(".manage-field")?.remove();
+ }
+ $("managementForm").querySelector('input[name="name"]')?.focus({preventScroll:true});
+ void prepareProgramManagement();
+}
 function renderManagementPage(){
  const m=state.management;
  if(!m||m.section!==state.page)return;
@@ -819,6 +911,10 @@ function renderManagementPage(){
  }
  if(state.page==="people"){
   renderPersonManagement(record,m.action,canWrite);
+  return;
+ }
+ if(state.page==="programs"){
+  renderProgramManagement(record,m.action,canWrite);
   return;
  }
  if(m.action==="view"){
