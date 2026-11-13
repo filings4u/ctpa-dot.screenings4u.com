@@ -1412,6 +1412,9 @@ async function loadDrugOrderOptions(){
   if(seq!==state.sequence||state.management!==m)return;
   state.drugCompanies=[...(refs.employers||[]),...(refs.owner_operators||[])].filter(r=>r.operating_context===state.context&&r.data?.status==="active");
   state.drugPeople=refs.people||[];
+  const labResponse=await api("lab_accounts_list",{tenant_id:state.tenantId,operating_context:state.context});
+  if(seq!==state.sequence||state.management!==m)return;
+  state.drugLabAccounts=(labResponse.records||[]).filter(r=>r.data?.issued_by_testing===true&&r.data?.ready_for_orders===true&&r.data?.status==="issued");
   company.innerHTML='<option value="">Select company</option>'+state.drugCompanies.map(r=>'<option value="'+esc(r.id)+'">'+esc(r.data?.legal_name||"Company")+'</option>').join("");
   company.disabled=false;
   if(state.companyDraft?.page==="testing_orders"&&state.drugCompanies.some(r=>r.id===state.companyDraft.companyId))
@@ -1427,6 +1430,15 @@ function refreshDrugDonors(){
   esc([r.data?.first_name,r.data?.last_name].filter(Boolean).join(" ")||"Person")+'</option>').join("");
  person.disabled=!companyId;
  $("drugDonorHint").textContent=companyId?(choices.length?choices.length+" available donor(s)":"No active people are linked to this company. Add the donor on the People page."):"Select a company first.";
+ const account=$("drugLabAccount");
+ if(account){
+  const eligible=(state.drugLabAccounts||[]).filter(r=>r.data?.company_id===companyId);
+  account.innerHTML='<option value="">No laboratory account selected</option>'+eligible.map(r=>
+   '<option value="'+esc(r.id)+'">'+esc(r.data.account_number)+' · '+esc(r.data.provider||"Laboratory")+'</option>').join("");
+  account.disabled=!companyId||!eligible.length;
+  if($("drugLabAccountHint"))$("drugLabAccountHint").textContent=eligible.length?
+   eligible.length+" verified account(s) available for this employer.":"No issued laboratory accounts are assigned to this employer.";
+ }
 }
 function renderDrugOrderList(records){
  const query=state.search.trim().toLowerCase(),status=state.statusFilter;
@@ -1487,6 +1499,9 @@ function renderDrugOrder(record){
   section("Company and donor",input("company","Company *",'<select id="drugCompany" required disabled><option>Loading companies…</option></select>')+
    input("person","Employee / donor *",'<select id="drugPerson" required disabled><option>Select company first</option></select>')+
    '<p id="drugDonorHint" class="drug-order-hint">Select company first.</p>')+
+  section("Laboratory account",input("account","Verified employer lab account (if applicable)",
+   '<select id="drugLabAccount" disabled><option value="">Select company first</option></select>')+
+   '<p id="drugLabAccountHint" class="drug-order-hint">Only account numbers issued by Testing Operations can be selected.</p>')+
   section("Testing service",input("type","Test type *",choose("drugType",[["drug","Drug"],["alcohol","Alcohol"],["drug_and_alcohol","Drug and alcohol"]],"Select test type"))+
    input("reason","Reason for testing *",choose("drugReason",reasons,"Select reason"))+
    input("panel","Panel *",choose("drugPanel",panels,"Select panel"))+
@@ -1506,6 +1521,7 @@ async function submitDrugOrder(form){
  const button=$("drugSubmit");button.disabled=true;$("drugError").textContent="";
  const payload={tenant_id:state.tenantId,operating_context:state.context,
   request_id:drugOrderId||crypto.randomUUID(),company_id:$("drugCompany").value,person_id:$("drugPerson").value,
+  lab_account_id:$("drugLabAccount")?.value||null,
   test_type:$("drugType").value,reason:$("drugReason").value,panel_name:$("drugPanel").value,
   specimen_type:$("drugSpecimen").value,dot_agency:$("drugAgency")?.value||"",
   priority:$("drugPriority").value,requested_date:$("drugDate").value,notes:$("drugNotes").value};
