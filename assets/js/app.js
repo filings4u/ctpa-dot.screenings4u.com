@@ -127,7 +127,7 @@ function buildNavigation(ctx={}){
   ['billing','Workforce Billing','$','billing_tools'],['employer-billing','Employer Billing','$','client_invoicing'],
   ['branding','Branding','◐','white_label'],['integrations','Integrations','↔','integrations'],
   ['locations','Locations','⌖','locations'],['users-roles','Users & Roles','♙','team_users'],
-  ['audit-history','Audit & Log History','◷','audit_history'],['schedule-demo','Schedule Demo','◫',null],
+  ['audit-history','Audit & Log History','◷','audit_history'],['enterprise-tools','Enterprise Tools','▦',null],['schedule-demo','Schedule Demo','◫',null],
   ['attend-demo','Attend Demo','▶',null],['profile','Profile','●',null],['account-settings','Account Settings','⚙',null],['support','Support','? ',null]
  ];
  for(const [id,meta] of Object.entries(LABORATORY_PAGES))items.push([id.replaceAll('_','-'),meta.label,'⚗',null]);
@@ -207,7 +207,7 @@ function organizePortalNavigation(){
 
   ["People & Programs",["employers","people","programs","pools","selections","owner-operators","laboratory-clients","laboratory-consortiums"]],
   ["Testing & Laboratory Services",["testing","create-order","order-history","results","occupational-health","laboratory-overview","laboratory-accounts","laboratory-orders","laboratory-tracking","laboratory-results","laboratory-delivery","laboratory-supplies","laboratory-alerts","laboratory-analytics"]],
-  ["Compliance & Documents",["compliance","new-entrant-audits","documents","legal-documents","reports","laboratory-documents","laboratory-benefits"]],
+  ["Compliance & Documents",["compliance","new-entrant-audits","documents","legal-documents","reports","enterprise-tools","laboratory-documents","laboratory-benefits"]],
   ["Services & Billing",["price-list","order-services","subscription","billing","employer-billing","laboratory-services","laboratory-billing"]],
   ["Account & Support",["notifications","branding","integrations","locations","users-roles","audit-history","schedule-demo","attend-demo","profile","account-settings","support"]]
  ];
@@ -411,6 +411,7 @@ function bindUtilityPage(p,d,ctx){
 async function ctpaData(p){
   if(p==='lab_services'||isLaboratoryPage(p))return {authorized:false,loading:true};
   if(workspace()?.surface==='nondot'&&p==='dashboard')return nondotWorkspaceData();
+  if(p==='enterprise_tools')return window.CtpaEnterpriseTools.load();
   if(p==='profile'||p==='account_settings')return {workspace:workspace(),profile:(await getSession())?.user||null};
   if(p==='employers'||p==='employer_form')return invoke('workforce-ctpa-employers',{action:'workspace'});
   if(p==='owner_operators')return invoke('workforce-ctpa-owner-operators',{action:'workspace'});
@@ -702,6 +703,7 @@ async function render(ctx,prefetched){
   else if(C.kind==='ctpa'&&p==='staff_view'&&window.CtpaStaff){setSubtitle('View and manage this internal C/TPA staff member and their assigned roles.');html=window.CtpaStaff.view(d,ctx);}
   else if(C.kind==='ctpa'&&p==='staff_invite'&&window.CtpaStaff){setSubtitle('Send this staff member their portal invitation and password-creation link.');html=window.CtpaStaff.invite(d,ctx);}
   else if(C.kind==='ctpa'&&p==='staff_delete'&&window.CtpaStaff){setSubtitle('Permanently remove this internal staff member from the C/TPA account.');html=window.CtpaStaff.del(d,ctx);}
+  else if(C.kind==='ctpa'&&p==='enterprise_tools'&&window.CtpaEnterpriseTools){setSubtitle('Enterprise operations for the selected C/TPA context.');html=window.CtpaEnterpriseTools.render(d);}
   else if(isUtilityPage(p))html=renderUtilityPage(p,d);
   else if(p==='dashboard')html=workspace()?.surface==='nondot'&&d?.ok!==true?'<section class="panel" role="alert"><h2>Unable to load dashboard</h2><p>'+esc(d?.message||'NON-DOT records could not be loaded. Please retry.')+'</p></section>':dashboard(ctx,d);
   else if(C.kind==='ctpa'&&p==='create_order'&&window.CtpaStoreOrders){setSubtitle('Create a Workforce order for supplies and approved testing products.');html=window.CtpaStoreOrders.render(d,ctx);}
@@ -772,6 +774,7 @@ async function render(ctx,prefetched){
     wireManagementActions(p,d,ctx);
   }
   $('#content').innerHTML=html||`<div class="panel"><div class="empty">No data available.</div></div>`;
+  if(C.kind==='ctpa'&&p==='enterprise_tools'&&window.CtpaEnterpriseTools)window.CtpaEnterpriseTools.bind(d);
   if(C.kind==='ctpa'&&(p==='lab_services'||isLaboratoryPage(p))&&window.CtpaLabServices)window.CtpaLabServices.bind(labServiceCall,d);
   if(isUtilityPage(p)&&!(C.kind==='ctpa'&&p==='integrations'&&window.CtpaIntegrations))bindUtilityPage(p,d,ctx);
   if(C.kind==='ctpa'&&['integrations','integration_connect','integration_workspace'].includes(p)&&window.CtpaIntegrations)window.CtpaIntegrations.bind(p,d,ctx);
