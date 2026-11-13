@@ -1977,6 +1977,14 @@ async function hydrateComplianceCompanies(record){
   };
   company.addEventListener("change",sync);
   sync();
+  const scope=$("managementForm")?.elements.namedItem("scope");
+  const updateScope=()=>{
+   const required=scope?.value==="employee";
+   person.required=required;
+   if(required)person.options[0].textContent="Select employee (required)";
+   else person.options[0].textContent="Company-wide record";
+  };
+  if(scope){scope.addEventListener("change",updateScope);updateScope();}
   if(!companies.length)$("managementError").textContent="Add an employer before creating compliance records.";
  }catch(error){if(state.management===m&&$("managementError"))$("managementError").textContent="Unable to load company and employee options: "+error.message}
 }
