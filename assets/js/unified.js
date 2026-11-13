@@ -262,7 +262,7 @@ async function renderLabAnalytics(refresh=false){
  }
  if(state.page!=="lab_analytics"||seq!==state.sequence)return;
  const counts=new Map(stored.counts.map(row=>[row.kind,Number(row.count)||0]));
- const pages=["lab_accounts","lab_tracking","lab_results","lab_documents","lab_supplies"];
+ const pages=["lab_accounts","lab_tracking","lab_supplies"];
  $("pageContent").innerHTML='<section class="panel"><div class="lab-summary-grid">'+pages.map(kind=>
   '<button type="button" class="lab-summary-card" data-goto="'+kind+'"><span>'+esc(label(kind))+'</span>'+
    '<strong>'+String(counts.get(kind)||0)+'</strong><small>Manage records</small></button>').join("")+'</div></section>';
@@ -272,7 +272,7 @@ function renderDashboard(records){
  const company=activeWorkspace()?.name||"C/TPA";
  const byKind=new Map(),statusPending=/pending|awaiting|in.progress|requested|draft|overdue|review|unassigned|needs.action|unscheduled|incomplete/i;
  for(const r of records)byKind.set(r.kind,(byKind.get(r.kind)||0)+1);
- const allowedKinds=new Set(["employers","owner_operators","people","programs","pools","selections","testing_orders","testing_documents","results","documents","audits","lab_accounts","lab_tracking","lab_results","lab_documents","lab_supplies","invoices","billing"]);
+ const allowedKinds=new Set(["employers","owner_operators","people","programs","pools","selections","testing_orders","testing_documents","results","documents","audits","lab_accounts","lab_tracking","lab_supplies","invoices","billing"]);
  const recent=records.filter(r=>allowedKinds.has(r.kind)&&!r.archived_at)
   .sort((x,y)=>new Date(y.updated_at||y.created_at||0)-new Date(x.updated_at||x.created_at||0)).slice(0,6);
  const activeOrders=records.filter(r=>r.kind==="testing_orders");
