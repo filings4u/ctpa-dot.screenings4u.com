@@ -568,3 +568,12 @@ body.modal-open{overflow:hidden}
 .company-modal-grid input{width:100%;min-width:0;border:1px solid #cfdceb;border-radius:8px;padding:10px 12px;font-size:.87rem;background:#fff;color:#01122f}
 .company-modal-grid input:focus-visible{outline:2px solid #fdc102;outline-offset:1px}
 @media(max-width:650px){.company-modal-grid{grid-template-columns:1fr}.company-contact-action{padding:13px 16px}.company-related-item{flex-wrap:wrap}.company-related-actions{width:100%;justify-content:flex-end}}
+
+/* Visible company scope when opening linked management modules. */
+.company-filter-chip{display:inline-flex;align-items:center;gap:5px;border:1px solid #e3c456;border-radius:20px;background:#fff9e5;color:#5f4d05;padding:7px 12px;font-size:.73rem;font-weight:800;cursor:pointer;max-width:100%;overflow-wrap:anywhere}
+.company-filter-chip:hover{background:#fff0b6}
+.company-invoice-row{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;padding:12px 4px;border:0;border-bottom:1px solid #edf0f4;background:transparent;text-align:left;color:#122e4b;font-size:.76rem}
+.company-invoice-row:last-child{border:0}
+.company-invoice-row:hover{text-decoration:underline;background:#f5f8fc}
+.company-invoice-row span{overflow-wrap:anywhere}
+.company-invoice-row strong{font-size:.77rem;white-space:nowrap}
