@@ -184,7 +184,7 @@ async function saveNondotRecord(payload){
 }
 async function nondotWorkspaceData(){
  const session=await getSession(),w=workspace(),section=nondotSection(page());
- const accepted=["people","programs","pools","testing","results"];
+ const accepted=["dashboard","people","programs","pools","testing","results"];
  if(!accepted.includes(section))return {ok:false,context:"nondot",message:"Unknown NON-DOT module"};
  if(!session?.access_token||!w?.ctpa_id||!w.subscription_id)throw Error("Select an authorized C/TPA subscription");
  const response=await fetch(C.workforceUrl+"/functions/v1/workforce-ctpa-nondot-workspace",{method:"POST",cache:"no-store",headers:{"Content-Type":"application/json",apikey:C.workforceKey,Authorization:"Bearer "+session.access_token},body:JSON.stringify({ctpa_id:w.ctpa_id,subscription_id:w.subscription_id,section,operating_context:w.surface==='nondot'?'nondot':'dot'})});
