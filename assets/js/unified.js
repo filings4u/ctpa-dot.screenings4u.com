@@ -1865,7 +1865,6 @@ async function submitPhysicalOrder(form){
   physicalRequestId=null;
   state.cache.delete(cacheKey());leaveManagement();
   message("Physical order "+(result.reference_number||"")+" submitted to Testing Operations.");
-  void loadRecords(state.sequence,true);
  }catch(error){errorBox.textContent=error.message;button.disabled=false}
 }
 
