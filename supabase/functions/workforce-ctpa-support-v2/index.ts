@@ -40,11 +40,11 @@ async function notify(eventId,subject,preview){
   const dedupe="support:"+eventId+":staff:"+p.user_id;
   const record=await db.from("workforce_mail_delivery_v2").upsert({dedupe_key:dedupe,kind:"support",recipient:target,subject,status:"pending"},{onConflict:"dedupe_key",ignoreDuplicates:true}).select("id").maybeSingle();
   if(record.error)throw record.error;
-  const emailKey=Deno.env.get("RESEND_API_KEY")||"",from=Deno.env.get("WORKFORCE_EMAIL_FROM")||"Workforce <notifications@screenings4u.com>";
+  const emailKey=Deno.env.get("RESEND_API_KEY")||"",from=Deno.env.get("WORKFORCE_FROM_EMAIL")||Deno.env.get("SCREENINGS4U_FROM_EMAIL")||"Workforce <notifications@screenings4u.com>";
   if(!emailKey||!from)continue;
   if(!record.data)continue;
   try{
-   const result=await fetch("https://api.resend.com/emails",{method:"POST",headers:{"Authorization":"Bearer "+emailKey,"Content-Type":"application/json","Idempotency-Key":dedupe},body:JSON.stringify({from,to:[target],subject:"Workforce Support: "+subject,html:'<div style="background:#01122F;padding:20px;text-align:center;color:white;font-size:24px;font-weight:bold">Workforce</div><div style="padding:24px;font-family:Arial,sans-serif"><h2>New C/TPA support message</h2><p>A customer submitted a new support request. For privacy, read the message after signing in to Workforce.</p><p><a href="https://app.screenings4u.com/ctpa-support-management.html">View Support Inbox</a></p></div>'})});
+   const result=await fetch("https://api.resend.com/emails",{method:"POST",headers:{"Authorization":"Bearer "+emailKey,"Content-Type":"application/json","Idempotency-Key":dedupe},body:JSON.stringify({from,to:[target],subject:"Workforce Support: "+subject,html:'<div style="background:#01122F;padding:22px"><img src="https://ctpa.screenings4u.com/images/logo2.png" alt="Workforce" width="175" style="max-width:100%"></div><div style="padding:24px;font-family:Arial,sans-serif"><h2>New C/TPA support message</h2><p>A customer submitted a new support request. For privacy, read the message after signing in to Workforce.</p><p><a href="https://app.screenings4u.com/ctpa-support-management.html">View Support Inbox</a></p></div>'})});
    const resultBody=await result.json().catch(()=>({}));
    const update=await db.from("workforce_mail_delivery_v2").update({status:result.ok?"sent":"failed",attempt_count:1,provider_message_id:resultBody.id||null,last_error:result.ok?null:str(resultBody.message||"Provider rejected message",300),updated_at:new Date().toISOString()}).eq("id",record.data.id);
    if(update.error)console.error(update.error);
