@@ -952,13 +952,16 @@ async function navigatePortal(url,{replace=false,pop=false}={}){
  if(content)content.innerHTML='<section class="panel" role="status" aria-live="polite"><p>Loading '+esc(cfgPage(targetPage).label)+'…</p></section>';
  const stillCurrent=()=>sequence===navigationSequence&&workspace()?.surface===currentSurface&&
   page()===targetPage&&location.pathname===u.pathname&&location.search===targetSearch;
+ // Start the record request while the target module loads; both may run
+ // concurrently, but content is rendered only after its script is available.
  const prepare=prepareTarget(u.href);
  const cached=await getCachedPageData(targetPage,targetSearch);
  if(!stillCurrent())return;
+ const dataRequest=cached===null?loadPageDataCached(targetPage,targetSearch,{force:false}):null;
  await prepare;
  if(!stillCurrent())return;
  if(cached!==null){await render(window.portalCtx,cached);return}
- const data=await loadPageDataCached(targetPage,targetSearch,{force:false});
+ const data=await dataRequest;
  if(stillCurrent())await render(window.portalCtx,data);
 }
 
