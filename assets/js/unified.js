@@ -7,7 +7,7 @@ const SELECTOR_URL="https://workforceapps.screenings4u.com/selector.html";
 const redirectToSelector=()=>location.replace(SELECTOR_URL);
 const GROUPS=[
  ["People & Programs",["employers","owner_operators","people","programs","pools","selections"]],
- ["Testing & Compliance",["testing_orders","testing_documents","results","occupational_health","compliance","audits","return_to_duty","policies","enrollments","documents","reports"]],
+ ["Testing & Compliance",["testing_orders","testing_documents","results","occupational_health","compliance","audits","return_to_duty","policies","documents","reports"]],
  ["Lab Account",["lab_accounts","lab_orders","lab_tracking","lab_results","lab_documents","lab_supplies","lab_analytics"]],
  ["Services & Billing",["orders","price_list","services","billing","invoices","subscriptions"]],
  ["Account & Support",["locations","messages","notifications","support","demo_sessions","staff","integrations","audit_history"]]
@@ -44,7 +44,6 @@ const CONFIG={
  audits:["New Entrant Audits","Manage audit preparation and document milestones.","name|Audit title|text|required;carrier|Carrier|text;dot_number|USDOT number|text;due_date|Due date|date;status|Status|select:draft,in_progress,submitted,complete"],
  return_to_duty:["Return to Duty","Manage Return-to-Duty and follow-up tracking.","name|Case reference|text|required;agency|DOT agency|text;employee|Employee|text;status|Status|select:opened,in_progress,follow_up,complete;notes|Notes|textarea"],
  policies:["Policies","Manage compliance policy records.","name|Policy name|text|required;version|Version|text;effective_date|Effective date|date;status|Status|select:draft,active,archived"],
- enrollments:["Enrollments","Manage enrollment record status.","name|Enrollment name|text|required;participant|Participant|text;program|Program|text;status|Status|select:pending,active,complete"],
  documents:["Documents","Manage account and compliance documents.","title|Document title|text|required;document_type|Document type|text;document_file|Upload document|file;status|Status|select:requested,received,approved"],
  reports:["Reports","Maintain generated reporting records.","name|Report name|text|required;report_type|Report type|text;period|Reporting period|text;status|Status|select:draft,ready,archived"],
  lab_accounts:["Lab Accounts","Manage connected laboratory accounts and setup.","name|Company / Account name|text|required;account_number|Lab account number|text;provider|Laboratory|text;status|Status|select:pending,active,inactive;setup_status|Setup status|text;order_number|Order number|text"],
@@ -188,6 +187,7 @@ function updateHeading(){
 }
 function switchPage(page,push=true){
  if(page==="clearinghouse")page="compliance";
+ if(page==="enrollments")page="programs";
  if(!CONFIG[page])page="dashboard";
  if(state.context==="nondot"&&["owner_operators","audits","return_to_duty"].includes(page))page=page==="owner_operators"?"employers":"dashboard";
  state.page=page;state.search="";state.statusFilter="";state.pageIndex=0;state.companyFilter=null;state.companyDraft=null;state.management=null;state.pendingManagement=null;const seq=++state.sequence;
@@ -1015,7 +1015,7 @@ function renderProgramManagement(record,mode,canWrite){
   return view?managementOverviewGroup(name,chosen.map(f=>[f.label,d[f.name]])):managementSection(name,chosen,record);
  }).join("");
  const related='<section class="program-related"><h2>Program management</h2><div class="program-related-links">'+
-  [["pools","Manage pools"],["enrollments","Enrollments"],["selections","Random selections"],
+  [["pools","Manage pools"],["selections","Random selections"],
    ["testing_orders","Testing orders"],["reports","Reports"]].map(([page,title])=>
    '<button type="button" data-program-related="'+page+'">'+navIcon(page)+'<span>'+esc(title)+'</span><span aria-hidden="true">›</span></button>').join("")+
   '</div></section>';
@@ -2960,7 +2960,7 @@ function startApp(){
  void updateAccountMenu();
  const search=new URLSearchParams(location.search);
  const desired=search.get("page")||"dashboard";
- switchPage(desired==="clearinghouse"?"compliance":CONFIG[desired]?desired:"dashboard",false);
+ switchPage(["enrollments"].includes(desired)?"programs":desired==="clearinghouse"?"compliance":CONFIG[desired]?desired:"dashboard",false);
  const action=search.get("manage"),id=search.get("record");
  if(MANAGEMENT_ACTIONS.has(action)){
   const apply=()=>{if(state.page===desired)openManagement(action,id,false)};
