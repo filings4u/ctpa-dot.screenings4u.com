@@ -855,6 +855,106 @@ async function prepareProgramManagement(){
   guide.textContent="Reference unavailable: "+error.message;
  }
 }
+
+let programAction=null;
+async function hydrateProgramEnrollments(){
+ const m=state.management,seq=state.sequence;
+ if(state.page!=="programs"||!m?.id)return;
+ const holder=$("programEnrollments");if(!holder)return;
+ try{
+  const key=cacheKey("enrollments"),cached=state.cache.get(key);
+  let records=cached?.records||[];
+  if(!cached||Date.now()-cached.time>30000){
+   const result=await api("list",{tenant_id:state.tenantId,operating_context:state.context,kind:"enrollments"});
+   records=result.records||[];
+   state.cache.set(key,{records,time:Date.now()});
+  }
+  if(seq!==state.sequence||state.management!==m)return;
+  const prog=(state.cache.get(cacheKey())?.records||[]).find(r=>r.id===m.id);
+  const enrollments=records.filter(r=>r.data?.program_id===m.id||
+   (prog?.data?.name&&r.data?.program===prog.data.name&&r.data?.company_id));
+  holder.innerHTML=enrollments.length?enrollments.map(r=>
+   '<div class="program-enrollment-row"><span><strong>'+esc(r.data?.participant||r.data?.name||"Company")+'</strong>'+
+   '<small>'+esc(r.data?.status||"active")+'</small></span>'+
+   '<button type="button" data-program-unenroll="'+esc(r.id)+'">Remove</button></div>').join(""):
+   '<p class="program-enrollment-empty">No companies enrolled yet.</p>';
+  const count=$("programEnrollmentCount");if(count)count.textContent=String(enrollments.length);
+ }catch(error){holder.textContent="Unable to load enrollments: "+error.message}
+}
+async function openProgramEnrollment(){
+ const m=state.management,prog=(state.cache.get(cacheKey())?.records||[]).find(r=>r.id===m?.id);
+ if(!prog)return;
+ const companies=[];
+ try{
+  for(const kind of state.context==="dot"?["employers","owner_operators"]:["employers"]){
+   const key=cacheKey(kind),cached=state.cache.get(key);
+   let records=cached?.records||[];
+   if(!cached||Date.now()-cached.time>30000){
+    const res=await api("list",{tenant_id:state.tenantId,operating_context:state.context,kind});
+    records=res.records||[];state.cache.set(key,{records,time:Date.now()});
+   }
+   companies.push(...records.filter(r=>r.operating_context===state.context));
+  }
+ }catch(error){message(error.message,true);return}
+ programAction={action:"add",programId:prog.id};
+ $("modalTitle").textContent="Enroll company in program";
+ $("modalDescription").textContent=prog.data?.name||"Testing program";
+ $("recordFields").innerHTML='<div class="company-modal-sections"><section class="company-modal-section"><h3>Program enrollment</h3>'+
+  '<div class="company-modal-grid"><label class="company-modal-field span-all"><span>Company *</span>'+
+  '<select name="company_id" required class="program-enrollment-select"><option value="">Select company</option>'+
+  companies.map(r=>'<option value="'+esc(r.id)+'">'+esc(r.data?.legal_name||"Company")+'</option>').join("")+
+  '</select></label><label class="company-modal-field span-all"><span>Status</span>'+
+  '<select name="status" class="program-enrollment-select"><option value="active">Active</option>'+
+  '<option value="pending">Pending</option></select></label></div></section></div>';
+ $("recordForm").dataset.mode="program-enroll-add";
+ $("saveRecord").hidden=false;$("saveRecord").disabled=false;$("saveRecord").className="btn primary";
+ $("saveRecord").textContent="Enroll company";$("formMessage").textContent="";
+ $("modal").hidden=false;document.body.classList.add("modal-open");
+ $("recordFields").querySelector("select")?.focus({preventScroll:true});
+}
+function removeProgramEnrollment(id){
+ const m=state.management;
+ const row=(state.cache.get(cacheKey("enrollments"))?.records||[]).find(r=>r.id===id);
+ if(!m?.id||!row)return message("Enrollment unavailable. Refresh the program.",true);
+ programAction={action:"remove",programId:m.id,id};
+ $("modalTitle").textContent="Remove company enrollment";
+ $("modalDescription").textContent="The enrollment will be archived; historical program records remain intact.";
+ $("recordFields").innerHTML='<div class="company-remove-confirm"><strong>'+esc(row.data?.participant||row.data?.name||"Enrollment")+'</strong></div>';
+ $("recordForm").dataset.mode="program-enroll-remove";
+ $("saveRecord").hidden=false;$("saveRecord").disabled=false;$("saveRecord").className="btn danger";
+ $("saveRecord").textContent="Remove enrollment";$("formMessage").textContent="";
+ $("modal").hidden=false;document.body.classList.add("modal-open");
+}
+async function submitProgramEnrollment(){
+ const op=programAction,button=$("saveRecord"),m=state.management;
+ if(!op||!m?.id||op.programId!==m.id)return;
+ button.disabled=true;
+ try{
+  if(op.action==="add"){
+   const form=$("recordForm");if(!form.reportValidity()){button.disabled=false;return}
+   const d=Object.fromEntries(new FormData(form).entries());
+   const companies=[];
+   for(const kind of state.context==="dot"?["employers","owner_operators"]:["employers"])
+    companies.push(...(state.cache.get(cacheKey(kind))?.records||[]));
+   const company=companies.find(r=>r.id===d.company_id);
+   if(!company)throw Error("Choose a company in this workspace.");
+   const current=(state.cache.get(cacheKey("enrollments"))?.records||[]);
+   if(current.some(r=>r.data?.program_id===m.id&&r.data?.company_id===company.id))
+    throw Error("This company is already enrolled in the program.");
+   const program=(state.cache.get(cacheKey())?.records||[]).find(r=>r.id===m.id);
+   await api("save",{tenant_id:state.tenantId,operating_context:state.context,
+    kind:"enrollments",data:{name:(company.data?.legal_name||"Company")+" · "+(program?.data?.name||"Program"),
+     company_id:company.id,program_id:m.id,participant:company.data?.legal_name||"",
+     program:program?.data?.name||"",status:d.status||"active"}});
+  }else{
+   await api("archive",{tenant_id:state.tenantId,operating_context:state.context,
+    kind:"enrollments",id:op.id});
+  }
+  state.cache.delete(cacheKey("enrollments"));closeModal();programAction=null;
+  message(op.action==="add"?"Company enrolled in program.":"Enrollment removed.");
+  void hydrateProgramEnrollments();
+ }catch(error){$("formMessage").textContent=error.message;button.disabled=false}
+}
 function renderProgramManagement(record,mode,canWrite){
  const view=mode==="view",d=record?.data||{},title=d.name||"New program";
  const head='<div class="program-head"><span class="program-head-icon">'+navIcon("programs")+'</span><div><strong>'+
@@ -870,15 +970,20 @@ function renderProgramManagement(record,mode,canWrite){
    ["testing_orders","Testing orders"],["reports","Reports"]].map(([page,title])=>
    '<button type="button" data-program-related="'+page+'">'+navIcon(page)+'<span>'+esc(title)+'</span><span aria-hidden="true">›</span></button>').join("")+
   '</div></section>';
+ const enrollmentPanel=record?'<section class="program-enrollments"><div class="program-enrollments-heading">'+
+  '<h2>Enrolled companies <span id="programEnrollmentCount"></span></h2>'+
+  (canWrite?'<button type="button" data-program-enroll-add>+ Enroll company</button>':"")+
+  '</div><div id="programEnrollments" class="program-enrollment-list">Loading enrollments…</div></section>':"";
  const assigned=view?managementOverviewGroup("Assigned company",[["Company",d.employer||"Unassigned"]]):
   '<section class="management-section"><header class="management-section-header"><h2>Assigned company</h2></header>'+
   '<div class="manage-form-grid"><label class="manage-field"><span>Company</span><select name="company_selection" id="programCompany" disabled>'+
   '<option value="">Loading companies…</option></select><small>Only companies in this workspace can be assigned.</small></label></div></section>';
  if(view){
   $("pageContent").innerHTML='<div class="program-management">'+head+'<div class="program-management-grid">'+
-   '<div class="program-primary">'+sections+assigned+'</div>'+related+'</div>'+
+   '<div class="program-primary">'+sections+assigned+enrollmentPanel+'</div>'+related+'</div>'+
    '<footer class="program-actions"><button type="button" class="btn secondary" data-back-list>Back to Programs</button>'+
    (canWrite?'<button class="btn primary" type="button" data-manage-edit="'+esc(record.id)+'">Edit program</button>':"")+'</footer></div>';
+  if(record)void hydrateProgramEnrollments();
   return;
  }
  $("pageContent").innerHTML='<div class="program-management">'+head+'<form id="managementForm"><div class="program-management-grid">'+
@@ -894,6 +999,7 @@ function renderProgramManagement(record,mode,canWrite){
   const agency=$("manage-dot_agency");if(agency)agency.closest(".manage-field")?.remove();
  }
  $("managementForm").querySelector('input[name="name"]')?.focus({preventScroll:true});
+ if(record)void hydrateProgramEnrollments();
  void prepareProgramManagement();
 }
 function renderManagementPage(){
@@ -1183,6 +1289,7 @@ async function saveRecord(event){
  event.preventDefault();
  const mode=$("recordForm").dataset.mode;
  if(mode==="company-related-add"||mode==="company-related-remove"){await submitCompanyAction();return}
+ if(mode==="program-enroll-add"||mode==="program-enroll-remove"){await submitProgramEnrollment();return}
  if(mode==="archive"){await performArchive();return}
  if(mode==="profile"){await saveProfile();return}
  if(mode==="view"){closeModal();return}
@@ -1350,6 +1457,8 @@ function bindEvents(){
    }
    return;
   }
+  if(target.closest("[data-program-enroll-add]")){void openProgramEnrollment();return}
+  if(target.closest("[data-program-unenroll]")){removeProgramEnrollment(target.closest("[data-program-unenroll]").dataset.programUnenroll);return}
   if(target.closest("[data-program-related]")){
    const page=target.closest("[data-program-related]").dataset.programRelated;
    if(CONFIG[page])switchPage(page);
