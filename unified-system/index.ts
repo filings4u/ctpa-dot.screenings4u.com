@@ -282,7 +282,13 @@ Deno.serve(async request=>{
    allowedTags:["p","h1","h2","h3","h4","div","span","br","strong","b","em","i","u","s","ul","ol","li","blockquote","a","hr","table","thead","tbody","tr","th","td","font"],
    allowedAttributes:{"a":["href","title"],"p":["style"],"div":["style"],"span":["style"],"h1":["style"],"h2":["style"],"h3":["style"],"h4":["style"],"font":["color","face","size"]},
    allowedSchemes:["https","http","mailto"],allowProtocolRelative:false,
-   allowedStyles:{"*":{"text-align":[/^(left|right|center|justify)$/],"color":[/^#[a-f0-9]{3,8}$/i,/^rgb\\(\\d{1,3},\\s*\\d{1,3},\\s*\\d{1,3}\\)$/],"background-color":[/^#[a-f0-9]{3,8}$/i,/^rgb\\(\\d{1,3},\\s*\\d{1,3},\\s*\\d{1,3}\\)$/],"font-family":[/^(Arial|Georgia|Verdana|Tahoma|Times New Roman|Trebuchet MS|Courier New)(,\\s*(serif|sans-serif|monospace))?$/i],"font-size":[/^(1[0-9]|[2-4][0-9])px$/i]}}
+   allowedStyles:{"*":{
+    "text-align":[/^(left|right|center|justify)$/],
+    "color":[/^#[a-f0-9]{3,8}$/i,/^rgb\(\d{1,3},\s*\d{1,3},\s*\d{1,3}\)$/i],
+    "background-color":[/^#[a-f0-9]{3,8}$/i,/^rgb\(\d{1,3},\s*\d{1,3},\s*\d{1,3}\)$/i],
+    "font-family":[/^(Arial|Georgia|Verdana|Tahoma|Times New Roman|Trebuchet MS|Courier New)(,\s*(serif|sans-serif|monospace))?$/i],
+    "font-size":[/^([1-4]\d|[5-7]\d)px$/i]
+   }}
   });
   const policyById=async(id:unknown)=>{
    if(!uuid(id))return null;
@@ -404,7 +410,7 @@ Deno.serve(async request=>{
    if(!canWrite)return respond({error:"Not authorized to upload logos"},403);
    const mime=text(body.mime_type,60),filename=text(body.filename,140);
    if(!["image/png","image/jpeg","image/webp"].includes(mime))return respond({error:"Choose a PNG, JPG or WebP logo"},400);
-   if(!/^[a-z0-9][a-z0-9 ._()\\-]{0,139}$/i.test(filename))return respond({error:"Invalid logo filename"},400);
+   if(!/^[a-z0-9][a-z0-9 ._()-]{0,139}$/i.test(filename))return respond({error:"Invalid logo filename"},400);
    const encoded=typeof body.base64==="string"?body.base64:"";
    if(!encoded||encoded.length>1450000||!/^[A-Za-z0-9+/]+={0,2}$/.test(encoded))
     return respond({error:"Logo must be 1 MB or smaller"},413);
@@ -437,7 +443,7 @@ Deno.serve(async request=>{
     return respond({error:"Invalid policy category"},400);
    if(!["draft","active","archived"].includes(status))return respond({error:"Invalid policy status"},400);
    const effective=text(input.effective_date,10);
-   if(effective&&(!/^\\d{4}-\\d{2}-\\d{2}$/.test(effective)||!Number.isFinite(Date.parse(effective+"T12:00:00Z"))))
+   if(effective&&(!/^\d{4}-\d{2}-\d{2}$/.test(effective)||!Number.isFinite(Date.parse(effective+"T12:00:00Z"))))
     return respond({error:"Invalid effective date"},400);
    const raw=typeof input.html==="string"?input.html:"";
    if(raw.length>90000)return respond({error:"Policy content is too large"},413);
@@ -449,7 +455,7 @@ Deno.serve(async request=>{
    const old=existing?.data||{};
    const changes=old.html!==html||old.version!==version||old.name!==name;
    const logoUrl=text(input.logo_url,1100)||text(old.logo_url,1100);
-   const logoPrefix=(Deno.env.get("SUPABASE_URL")||"").replace(/\\/$/,"")+"/storage/v1/object/public/ctpa-policy-logos/"+tenantId+"/";
+   const logoPrefix=(Deno.env.get("SUPABASE_URL")||"").replace(/\/$/,"")+"/storage/v1/object/public/ctpa-policy-logos/"+tenantId+"/";
    if(logoUrl&&!logoUrl.startsWith(logoPrefix))return respond({error:"Upload your logo using the policy editor"},400);
    const safe={
     ...old,name,version,category,status,effective_date:effective,html,logo_url:logoUrl,
@@ -474,7 +480,7 @@ Deno.serve(async request=>{
    const company=await policyCompany(body.company_id);
    if(!company)return respond({error:"Choose a valid employer or owner-operator recipient"},404);
    const email=text(company.data?.contact_email||company.data?.primary_contact_email||company.data?.email,200).toLowerCase();
-   if(!email||!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email))
+   if(!email||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
     return respond({error:"Add a valid primary contact email to the associated employer before sending"},409);
    const history=Array.isArray(data.sent_history)?data.sent_history:[];
    if(action==="policy_delivery_details")
