@@ -448,7 +448,9 @@ function bindEvents(){
  });
  $("pageBreadcrumbs").addEventListener("click",e=>{
   const page=e.target.closest("[data-page]")?.dataset.page;
-  if(page==="dashboard")switchPage(page);
+  if(!page||!CONFIG[page])return;
+  if(page===state.page&&state.management)leaveManagement();
+  else switchPage(page);
  });
  $("sidebarNavigation").addEventListener("click",e=>{
   const groupButton=e.target.closest("[data-nav-group]");
