@@ -1079,8 +1079,7 @@ async function preparePoolManagement(){
    r.data?.legal_name===data.employer);
   if(matchProgram)program.value=matchProgram.id;
   if(matchCompany)company.value=matchCompany.id;
-  if(!m.id){program.disabled=false;company.disabled=false;}
-  // Existing pool selectors are enabled only after the server confirms the pool is unlocked.
+  if(!m.id||$("managementForm")?.dataset.poolUnlocked==="true"){program.disabled=false;company.disabled=false;}
   const updateAgency=()=>{
    const chosen=programs.find(r=>r.id===program.value);
    const agency=$("manage-dot_agency");
@@ -1210,7 +1209,7 @@ async function refreshPoolLock(){
    if(warning)warning.innerHTML='<span class="program-lock-symbol" aria-hidden="true">✓</span>'+
     '<span><strong>Pool editable</strong><small>No employees are currently enrolled in this pool.</small></span>';
    if(editButton)editButton.disabled=false;
-   if(form){form.querySelectorAll("input,select,textarea").forEach(el=>el.disabled=false);
+   if(form){form.dataset.poolUnlocked="true";form.querySelectorAll("input,select,textarea").forEach(el=>el.disabled=false);
     if(saveButton)saveButton.disabled=false;}
   }
  }catch(error){
