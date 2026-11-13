@@ -70,7 +70,7 @@ Deno.serve(async req=>{
  if(s.cancel_at_period_end||remote.cancel_at_period_end)return send({error:"Cancellation is already scheduled"},409);
  if(!["active","trialing"].includes(remote.status))return send({error:"This subscription is not eligible for end-of-period cancellation"},409);
  // Determine the actual Stripe period before scheduling or displaying retention deadlines.
- const period=Number(remote.current_period_end||0);
+ const period=Number(remote.current_period_end||Math.max(0,...(remote.items?.data||[]).map((item:any)=>Number(item.current_period_end||0))));
  if(!Number.isSafeInteger(period)||period*1000<=Date.now())return send({error:"Stripe has not confirmed a future paid-through date. Contact support."},409);
  const changed=await stripe("subscriptions/"+encodeURIComponent(remote.id),new URLSearchParams({cancel_at_period_end:"true"}));
  if(!changed.cancel_at_period_end)return send({error:"Stripe did not confirm scheduled cancellation"},502);
