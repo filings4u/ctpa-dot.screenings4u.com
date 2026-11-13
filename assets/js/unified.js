@@ -25,7 +25,7 @@ const openNavGroups=new Set((()=>{
  catch{return []}
 })());
 function saveNavGroups(){try{sessionStorage.setItem(NAV_STORAGE_KEY,JSON.stringify([...openNavGroups]))}catch{}}
-const navGroupForPage=id=>GROUPS.find(group=>group[1].includes(id))?.[0]||null;
+const navGroupForPage=id=>GROUPS.find(group=>group[1].includes(id==="employer_import"?"employers":id))?.[0]||null;
 const companyAccountTypes=[["dot_employer","DOT Employer"],["owner_operator","Owner-Operator"],["nondot_employer","NON-DOT Employer"]];
 const accountTypeLabel=(value)=>companyAccountTypes.find(([id])=>id===value)?.[1]||"DOT Employer";
 const CONFIG={
@@ -72,6 +72,7 @@ const CONFIG={
  staff:["Staff Directory","Manage your C/TPA staff, roles, reporting structure, and work schedules."],
  integrations:["Integrations","Request and manage approved Enterprise integrations."],
  audit_history:["Login Activity","Read-only account sign-ins and sign-outs."],
+ employer_import:["Import Employers","Review a CSV before adding employer accounts."],
  branding:["Branding","Configure C/TPA branded portal appearance."],
  collection_sites:["Collection Sites","Manage your collection locations."],
 };
@@ -142,7 +143,7 @@ function setupSidebarToggle(){
 function renderNav(){
  const nav=$("sidebarNavigation");
  const top=SIDEBAR_TOP.map(([id,name])=>'<button type="button" class="nav-item nav-top-link'+
- (state.page===id?" active":"")+'" data-page="'+id+'" '+(state.page===id?'aria-current="page"':"")+
+ ((state.page===id||(state.page==="employer_import"&&id==="employers"))?" active":"")+'" data-page="'+id+'" '+(state.page===id?'aria-current="page"':"")+
  '><span class="symbol" aria-hidden="true">'+navIcon(id)+'</span><span>'+esc(name)+'</span></button>').join("");
  const activeGroup=navGroupForPage(state.page);
  if(activeGroup)openNavGroups.add(activeGroup);
@@ -153,7 +154,7 @@ function renderNav(){
    '<button type="button" class="nav-group-toggle" data-nav-group="'+esc(title)+'" aria-controls="nav-group-'+index+
    '" aria-expanded="'+String(expanded)+'"><span>'+esc(title)+'</span><span class="group-indicator" aria-hidden="true">'+(expanded?"−":"+")+'</span></button>'+
    '<div class="nav-group-links" id="nav-group-'+index+'"'+(expanded?"":' hidden')+'>'+
-   modules.filter(id=>!(state.context==="nondot"&&["owner_operators","audits","return_to_duty"].includes(id))).map(id=>'<button type="button" class="nav-item nav-child'+(state.page===id?" active":"")+
+   modules.filter(id=>!(state.context==="nondot"&&["owner_operators","audits","return_to_duty"].includes(id))).map(id=>'<button type="button" class="nav-item nav-child'+((state.page===id||(state.page==="employer_import"&&id==="employers"))?" active":"")+
     '" data-page="'+esc(id)+'"'+(state.page===id?' aria-current="page"':"")+
     '><span class="symbol" aria-hidden="true">'+navIcon(id)+'</span><span>'+esc(label(id))+'</span></button>').join("")+'</div></section>';
  }).join("");
@@ -182,6 +183,7 @@ function updateHeading(){
  const title=label(state.page);
  $("topTitle").textContent=title;$("pageTitle").textContent=title;
  updateBreadcrumbs();
+ if(state.page==="employer_import"){$("pageActions").innerHTML="";return}
  if(["reports","lab_supplies","lab_tracking","orders","price_list","services","billing","invoices","settlements","subscriptions","locations","messages","notifications","support","demo_sessions","staff","integrations","audit_history","branding","collection_sites"].includes(state.page)){$("pageActions").innerHTML=["branding","collection_sites"].includes(state.page)?'<button class="btn secondary" type="button" id="refreshPage">Refresh</button>':state.page==="lab_supplies"?'<button class="btn secondary" type="button" id="refreshPage">Refresh catalog</button>':state.page==="lab_tracking"?'<button class="btn secondary" type="button" id="refreshPage">Refresh tracking</button>':["orders","price_list","services","billing","invoices","settlements","subscriptions","locations","notifications","support","demo_sessions","staff","integrations","audit_history"].includes(state.page)?'<button class="btn secondary" type="button" id="refreshPage">Refresh</button><button class="btn secondary" type="button" id="exportPage">Export CSV</button>':"";return}
  $("pageActions").innerHTML=state.page==="results"?'<button class="btn secondary" type="button" id="refreshPage">Refresh</button>':state.page==="account"?"":state.page==="dashboard"||state.page==="lab_analytics"
   ?'<button class="btn secondary" type="button" id="refreshPage">Refresh</button>'
@@ -218,6 +220,7 @@ function switchPage(page,push=true){
  if(page==="demo_sessions"){void openDemoBooking();return}
  if(page==="staff"){void openStaffDirectory();return}
  if(page==="integrations"){void openIntegrationsV2();return}
+ if(page==="employer_import"){openEmployerCsv();return}
  if(page==="branding"||page==="collection_sites"){void openEnterpriseModule(page);return}
  if(page==="audit_history"){const tenantId=state.tenantId;window.WorkforceLoginActivity?.open({tenantId,supabase:state.supabase,active:()=>state.page==="audit_history"&&state.tenantId===tenantId});return}
  const stored=state.cache.get(cacheKey());
@@ -244,7 +247,7 @@ function openDemoBooking(){const tenantId=state.tenantId,context=state.context;i
 function openStaffDirectory(){const tenantId=state.tenantId,context=state.context;if(!window.WorkforceStaffV2){$("pageContent").textContent="Staff Directory unavailable. Refresh.";return}return window.WorkforceStaffV2.open({tenantId,context,supabase:state.supabase,active:()=>state.page==="staff"&&state.tenantId===tenantId})}
 function openIntegrationsV2(){const tenantId=state.tenantId,context=state.context;if(!window.WorkforceIntegrationsV2){$("pageContent").textContent="Integrations module unavailable. Refresh.";return}return window.WorkforceIntegrationsV2.open({tenantId,context,supabase:state.supabase,active:()=>state.page==="integrations"&&state.tenantId===tenantId})}
 function openEnterpriseModule(page){const tenantId=state.tenantId,context=state.context;if(!window.WorkforceEnterprisePages){$("pageContent").textContent="Enterprise module unavailable. Refresh.";return}return window.WorkforceEnterprisePages.open({tenantId,context,supabase:state.supabase,active:()=>state.page===page&&state.tenantId===tenantId},page)}
-function openEmployerCsv(){const tenantId=state.tenantId,context=state.context;if(!window.WorkforceEnterprisePages){$("pageContent").textContent="Import module unavailable. Refresh.";return}return window.WorkforceEnterprisePages.openImport({tenantId,context,supabase:state.supabase,active:()=>state.page==="employers"&&state.tenantId===tenantId})}
+function openEmployerCsv(){const tenantId=state.tenantId,context=state.context;if(!window.WorkforceEnterprisePages){$("pageContent").textContent="Import module unavailable. Refresh.";return}return window.WorkforceEnterprisePages.openImport({tenantId,context,supabase:state.supabase,active:()=>state.page==="employer_import"&&state.tenantId===tenantId})}
 function changeContext(next){
  if(!["dot","nondot"].includes(next)||next===state.context)return;
  state.context=next;sessionStorage.setItem("workforce_unified_context",next);
@@ -3745,7 +3748,7 @@ function bindEvents(){
  setupSidebarToggle();
  $("pageActions").addEventListener("click",e=>{
   if(e.target.closest("[data-back-list]")){leaveManagement();return}
-  if(e.target.closest("#importEmployers")){openEmployerCsv();return}
+  if(e.target.closest("#importEmployers")){switchPage("employer_import");return}
   if(e.target.closest("#newRecord")){openManagement("new");return}
   if(e.target.closest("#refreshPage")){void (state.page==="lab_analytics"?renderLabAnalytics(true):state.page==="lab_supplies"?openSupplyStore():state.page==="lab_tracking"?openTracking():state.page==="orders"?openHistoryPortal():state.page==="price_list"?openRatesPortal():state.page==="services"?openProviderServices():state.page==="billing"?openEmployerBilling():["invoices","settlements"].includes(state.page)?openWorkforceFinance(state.page):state.page==="subscriptions"?openSubscriptionsPortal():state.page==="locations"?openBusinessLocations():state.page==="messages"?openPrivateChat():state.page==="notifications"?openWorkforceNotices():state.page==="support"?openSupportPortal():state.page==="demo_sessions"?openDemoBooking():state.page==="staff"?openStaffDirectory():state.page==="integrations"?openIntegrationsV2():["branding","collection_sites"].includes(state.page)?openEnterpriseModule(state.page):state.page==="audit_history"?window.WorkforceLoginActivity?.refresh():loadRecords(state.sequence,true,true));return}
   if(e.target.closest("#exportPage")){if(state.page==="orders"){window.WorkforceOrderHistory?.exportCsv();return}if(state.page==="price_list"){window.WorkforceRateSheet?.exportCsv();return}if(state.page==="services"){window.WorkforceProviderServices?.exportCsv();return}if(state.page==="billing"){window.WorkforceEmployerInvoices?.exportCsv();return}if(["invoices","settlements"].includes(state.page)){window.WorkforceFinance?.exportCsv();return}if(state.page==="notifications"){window.WorkforceNotices?.exportCsv();return}if(state.page==="support"){window.WorkforceSupportV2?.exportCsv();return}if(state.page==="demo_sessions"){window.WorkforceDemoV2?.exportCsv();return}if(state.page==="staff"){window.WorkforceStaffV2?.exportCsv();return}if(state.page==="integrations"){window.WorkforceIntegrationsV2?.exportCsv();return}if(state.page==="audit_history"){window.WorkforceLoginActivity?.exportCsv();return}if(state.page==="subscriptions"){window.WorkforceSubscriptions?.exportCsv();return}if(state.page==="locations"){window.WorkforceLocations?.exportCsv();return}exportRecords();return}
