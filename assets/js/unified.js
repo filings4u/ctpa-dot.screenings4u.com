@@ -1810,8 +1810,8 @@ function renderPhysicalOrder(record,mode){
   '<form id="physicalOrderForm" class="management-editor">'+
   '<section class="management-section"><header class="management-section-header"><h2>Physical examination</h2></header>'+
   '<div class="physical-type-choice"><label><input type="radio" name="physical_type" value="DOT"'+(initial==="DOT"?" checked":"")+'> DOT Physical</label>'+
-  '<label><input type="radio" name="physical_type" value="NON_DOT"'+(initial==="NON_DOT"?" checked":" disabled")+'> NON-DOT Physical</label></div>'+
-  '<p class="physical-helper">Physical type follows the current DOT or NON-DOT workspace. Switch the workspace to order the other type.</p>'+
+  '<label><input type="radio" name="physical_type" value="NON_DOT"'+(initial==="NON_DOT"?" checked":"")+'> NON-DOT Physical</label></div>'+
+  '<p class="physical-helper">Choose DOT or NON-DOT. Selecting another type switches the matching workspace before you select an employer and employee.</p>'+
   '<div class="manage-form-grid"><label class="manage-field"><span>Examination type *</span><select name="exam_type" required>'+
   examOptions.map(([v,t])=>'<option value="'+esc(v)+'">'+esc(t)+'</option>').join("")+'</select></label>'+
   '<label class="manage-field"><span>Preferred appointment date</span><input name="requested_date" type="date"></label></div></section>'+
@@ -2482,7 +2482,8 @@ function bindEvents(){
  });
  $("pageContent").addEventListener("change",e=>{
   if(e.target.id==="selectionPool"){void selectionPreviewPool();return}
-  if(e.target.id==="drugCompany"){refreshDrugDonors();return}
+  if(e.target.name==="physical_type"&&e.target.closest("#physicalOrderForm")){const next=e.target.value==="DOT"?"dot":"nondot";if(next!==state.context){changeContext(next);openManagement("new");}return}
+ if(e.target.id==="drugCompany"){refreshDrugDonors();return}
   if(e.target.id==="testingDocCompany"){refreshTestingDocumentRelations();return}
   if(e.target.id==="testingDocFile"){$("testingDocFileName").textContent=e.target.files?.[0]?.name||"Choose a document to upload";return}
   if(e.target.id==="statusFilter"){
