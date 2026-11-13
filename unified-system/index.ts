@@ -317,7 +317,7 @@ Deno.serve(async request=>{
       (stages.indexOf(stage)>=4&&!followupDone)||
       (stages.indexOf(stage)>=6&&!testDone))
     return respond({error:"Complete the SAP and verified RTD test milestones before advancing this case"},409);
-   if(agency!=="FMCSA"&&testResult==="alcohol_below_002"&&violation==="verified_positive_drug")
+   if(testResult==="alcohol_below_002"&&violation==="verified_positive_drug")
     return respond({error:"A qualifying drug RTD test must be verified negative"},400);
    const minimum=Number(input.first_year_tests_required||6),months=Number(input.plan_months||12),done=Number(input.follow_up_completed||0);
    if(!Number.isSafeInteger(minimum)||minimum<6||minimum>120||
