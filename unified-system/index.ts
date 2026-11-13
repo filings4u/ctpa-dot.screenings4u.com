@@ -7,7 +7,7 @@ const ALLOWED = new Set([
  "reports","occupational_health","notifications","messages","locations",
  "invoices","billing","subscriptions","orders","price_list","services",
  "integrations","audits","audit_history","lab_accounts","lab_clients",
- "lab_orders","lab_tracking","lab_results","lab_documents","lab_billing",
+ "lab_tracking","lab_results","lab_documents","lab_billing",
  "lab_supplies","lab_analytics","lab_delivery","lab_alerts","lab_benefits",
  "lab_consortiums","policies","enrollments","return_to_duty",
  "staff","support","demo_sessions"
@@ -1303,7 +1303,7 @@ Deno.serve(async request=>{
    return respond({ok:true,tenant_id:tenantId,operating_context:context,records,limit:1000});
   }
   if(action==="lab_summary"){
-   const types=["lab_accounts","lab_orders","lab_tracking","lab_results","lab_documents","lab_supplies","lab_analytics"];
+   const types=["lab_accounts","lab_tracking","lab_results","lab_documents","lab_supplies","lab_analytics"];
    const counts=await Promise.all(types.map(async kind=>{
     const q=await collection.select("id",{count:"exact",head:true})
      .eq("tenant_id",tenantId).eq("kind",kind)
