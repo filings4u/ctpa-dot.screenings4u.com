@@ -1079,7 +1079,8 @@ async function preparePoolManagement(){
    r.data?.legal_name===data.employer);
   if(matchProgram)program.value=matchProgram.id;
   if(matchCompany)company.value=matchCompany.id;
-  program.disabled=false;company.disabled=false;
+  if(!m.id){program.disabled=false;company.disabled=false;}
+  // Existing pool selectors are enabled only after the server confirms the pool is unlocked.
   const updateAgency=()=>{
    const chosen=programs.find(r=>r.id===program.value);
    const agency=$("manage-dot_agency");
@@ -1178,6 +1179,7 @@ async function savePoolMember(){
   state.cache.delete(cacheKey("enrollments"));closeModal();poolAction=null;
   message(action.mode==="add"?"Member added to pool.":"Member removed from pool.");
   void hydratePoolRoster();
+  void refreshPoolLock();
  }catch(error){$("formMessage").textContent=error.message;button.disabled=false}
 }
 async function refreshPoolLock(){
