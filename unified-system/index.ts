@@ -84,7 +84,8 @@ Deno.serve(async request=>{
     .eq("tenant_id",tenantId).is("archived_at",null)
     .in("operating_context",[context,"shared"])
     .order("updated_at",{ascending:false}).limit(1000);
-   if(kind!=="all")query=query.eq("kind",kind);
+   if(kind==="all")query=query.in("kind",[...ALLOWED]);
+   else query=query.eq("kind",kind);
    const result=await query;
    if(result.error)throw result.error;
    return respond({ok:true,tenant_id:tenantId,operating_context:context,records:result.data||[],limit:1000});
