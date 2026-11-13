@@ -889,25 +889,80 @@ async function refreshCurrent({force=true}={}){
 }
 
 const CORE_SCRIPT_RE=/\/(?:config|dialogs|session-security|app|validation)\.js(?:\?|$)/;
-const loadedAssets=new Set([...document.querySelectorAll('script[src],link[rel="stylesheet"][href]')].map(n=>n.src||n.href));
+const moduleName=src=>new URL(src,location.origin).pathname;
+const loadedAssets=new Set([...document.querySelectorAll('script[src],link[rel="stylesheet"][href]')].map(n=>moduleName(n.src||n.href)));
+const pendingAssets=new Map();
 async function ensureAsset(src,type){
-  const u=new URL(src,location.origin).href;if(loadedAssets.has(u)||CORE_SCRIPT_RE.test(new URL(u).pathname))return;
-  if(type==='style'){await new Promise((resolve,reject)=>{const l=document.createElement('link');l.rel='stylesheet';l.href=u;l.onload=resolve;l.onerror=reject;document.head.appendChild(l)});loadedAssets.add(u);return;}
-  await new Promise((resolve,reject)=>{const x=document.createElement('script');x.src=u;x.async=false;x.onload=resolve;x.onerror=reject;document.head.appendChild(x)});loadedAssets.add(u);
+ const url=new URL(src,location.origin),key=url.pathname;
+ if(loadedAssets.has(key)||CORE_SCRIPT_RE.test(key))return;
+ if(pendingAssets.has(key))return pendingAssets.get(key);
+ const task=new Promise((resolve,reject)=>{
+   const el=document.createElement(type==='style'?'link':'script');
+   if(type==='style'){el.rel='stylesheet';el.href=url.href}
+   else {el.src=url.href;el.async=false}
+   el.onload=()=>{loadedAssets.add(key);resolve()};
+   el.onerror=()=>reject(new Error('Unable to load application asset '+key));
+   document.head.appendChild(el);
+ }).finally(()=>pendingAssets.delete(key));
+ pendingAssets.set(key,task);return task;
 }
-const HTML_PREFETCH=new Map();
-async function fetchPageDocument(url){
-  const u=new URL(url,location.href);u.hash='';const key=u.pathname+u.search;
-  if(HTML_PREFETCH.has(key))return HTML_PREFETCH.get(key);
-  const task=fetch(u.href,{credentials:'same-origin',cache:'force-cache'}).then(r=>{if(!r.ok)throw new Error('Unable to load page.');return r.text()}).then(t=>new DOMParser().parseFromString(t,'text/html')).catch(error=>{HTML_PREFETCH.delete(key);throw error});
-  HTML_PREFETCH.set(key,task);return task;
-}
+// This map covers authenticated application pages. Load only the module that
+// owns each page; never fetch another HTML document during SPA navigation.
+const PAGE_MODULES=Object.freeze({
+ 'attend_demo':['demos'],'billing':['account-billing'],'branding':['branding'],
+ 'compliance':['compliance'],'create_order':['store-orders'],'documents':['documents'],
+ 'employer_billing':['employer-billing'],'employer_form':['employer-form'],
+ 'employer_invoice_delete':['employer-invoice-pages'],'employer_invoice_form':['employer-invoice-pages'],
+ 'employer_invoice_send':['employer-invoice-pages'],'employer_invoice_view':['employer-invoice-pages'],
+ 'employer_remittance':['employer-invoice-pages'],'employers':['employers'],
+ 'enterprise_tools':['enterprise-tools'],'integration_connect':['ctpa-integrations'],
+ 'integration_workspace':['ctpa-integrations'],'integrations':['ctpa-integrations'],
+ 'lab_accounts':['lab-accounts'],'lab_services':['lab-services'],
+ 'legal_documents':['workforce-legal-documents'],'location_form':['locations'],
+ 'new_entrant_audits':['new-entrant-payment','new-entrant-audits','new-entrant-pdf','new-entrant-workflow'],
+ 'notifications':['live-chat'],'occupational_health':['occupational-health'],
+ 'order_history':['account-pages'],'order_services':['features'],
+ 'owner_operators':['owner-operators'],'people':['people'],'people_company':['people-company'],
+ 'people_form':['people-form'],'pool_detail':['pool-detail'],'pool_form':['pool-form'],
+ 'pools':['pools'],'price_list':['price-list'],'program_detail':['program-detail'],
+ 'program_form':['program-form'],'programs':['programs'],'report_archive':['report-archive'],
+ 'report_generate':['report-generate'],'report_view':['report-view'],'reports':['reports'],
+ 'result_detail':['result-detail'],'results_detail':['results-detail'],'results':['results'],
+ 'schedule_demo':['demos'],'screenings4u_notifications':['live-chat'],
+ 'selection_detail':['selection-detail'],'selections':['selections'],
+ 'staff_delete':['ctpa-staff'],'staff_form':['ctpa-staff'],'staff_invite':['ctpa-staff'],
+ 'staff_view':['ctpa-staff'],'subscription':['account-pages'],'support':['ui','support'],
+ 'testing_document_edit':['testing-document-edit'],'testing_documents':['testing-documents'],
+ 'testing_order':['testing-order'],'testing':['testing'],'users_roles':['ctpa-staff']
+});
+const SHARED_MODULE_PAGES=new Set([
+ 'dashboard','profile','account_settings','audit_history','locations','onboarding',
+ 'laboratory_overview','laboratory_accounts','laboratory_orders','laboratory_tracking',
+ 'laboratory_results','laboratory_delivery','laboratory_supplies','laboratory_alerts',
+ 'laboratory_documents','laboratory_billing','laboratory_analytics','laboratory_consortiums',
+ 'laboratory_services','laboratory_benefits','laboratory_clients'
+]);
+const PAGE_STYLES=Object.freeze({
+ 'legal_documents':['workforce-legal-documents'],
+ 'new_entrant_audits':['new-entrant-polish'],
+ 'occupational_health':['occupational-health'],
+ 'testing':['testing-page']
+});
+const ROUTE_ASSET_VERSION='20261113-fast-route2';
 async function prepareTarget(url){
-  const u=new URL(url,location.href),doc=await fetchPageDocument(u.href);
-  for(const l of [...doc.querySelectorAll('link[rel="stylesheet"][href]')])await ensureAsset(l.getAttribute('href'),'style');
-  for(const sc of [...doc.querySelectorAll('script[src]')])await ensureAsset(sc.getAttribute('src'),'script');
-  return {doc,u,targetPage:norm(doc.body?.dataset?.portalPage||u.pathname.split('/').pop()?.replace('.html','')||'dashboard')};
+ const u=new URL(url,location.href);
+ const p=norm(u.pathname.split('/').pop()?.replace('.html','')||'dashboard');
+ const scripts=p.startsWith('laboratory_')?['lab-services']:(PAGE_MODULES[p]||[]);
+ if(!scripts.length&&!SHARED_MODULE_PAGES.has(p)){
+   throw new Error('This page is not part of the unified C/TPA workspace.');
+ }
+ const styles=(PAGE_STYLES[p]||[]).map(name=>ensureAsset('/assets/css/'+name+'.css?v='+ROUTE_ASSET_VERSION,'style'));
+ await Promise.all(styles);
+ // Some modules depend on globals installed by earlier modules. Keep order.
+ for(const name of scripts)await ensureAsset('/assets/js/'+name+'.js?v='+ROUTE_ASSET_VERSION,'script');
+ return {u,targetPage:p};
 }
+
 function updateActiveNavigation(){
   const cur=page();document.querySelectorAll('.nav a,.mobile-nav-links a').forEach(a=>{const u=new URL(a.href,location.href),id=norm(u.pathname.split('/').pop()?.replace('.html','')||'');a.classList.toggle('active',a.dataset.workspace?a.dataset.workspace===workspace()?.surface:id===cur||(id==='people'&&cur==='people_company')||(id==='pools'&&['pool_detail','pool_form'].includes(cur))||(id==='locations'&&cur==='location_form')||(id==='users_roles'&&['staff_form','staff_view','staff_invite','staff_delete'].includes(cur)))});
   for(const group of document.querySelectorAll('.nav details.workforce-nav-group,.mobile-nav-links details.workforce-nav-group')){if(group.querySelector('a.active:not([data-workspace])'))group.open=true}
@@ -957,11 +1012,14 @@ async function navigatePortal(url,{replace=false,pop=false}={}){
  const prepare=prepareTarget(u.href);
  const cached=await getCachedPageData(targetPage,targetSearch);
  if(!stillCurrent())return;
- const dataRequest=cached===null?loadPageDataCached(targetPage,targetSearch,{force:false}):null;
+ // Modules such as Enterprise Tools and Order Creation must load before
+ // their data loaders execute; other pages may fetch in parallel.
+ const requiresModuleFirst=['enterprise_tools','create_order','price_list'].includes(targetPage);
+ const dataRequest=cached===null&&!requiresModuleFirst?loadPageDataCached(targetPage,targetSearch,{force:false}):null;
  await prepare;
  if(!stillCurrent())return;
  if(cached!==null){await render(window.portalCtx,cached);return}
- const data=await dataRequest;
+ const data=await (dataRequest||loadPageDataCached(targetPage,targetSearch,{force:false}));
  if(stillCurrent())await render(window.portalCtx,data);
 }
 
