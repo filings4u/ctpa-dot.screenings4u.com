@@ -9,9 +9,9 @@
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <link rel="preconnect" href="https://elpbnytpciqnbexiaebp.supabase.co" crossorigin>
 <title>Workforce C/TPA | Unified Portal</title>
-<link rel="stylesheet" href="/assets/css/unified.css?v=20261113-management1">
+<link rel="stylesheet" href="/assets/css/unified.css?v=20261113-sidebar2">
 <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script defer src="/assets/js/unified.js?v=20261113-management1"></script>
+<script defer src="/assets/js/unified.js?v=20261113-sidebar2"></script>
 </head>
 <body>
 <div id="workspaceSetup" class="signin" hidden>
@@ -29,12 +29,12 @@
 <div class="application" id="application" hidden>
  <aside class="sidebar" id="sidebar">
   <div class="brand"><img src="/images/logo2.png" alt="Workforce"></div>
-  <div class="workspace-label">Workforce C/TPA</div>
-  <div class="side-context" role="group" aria-label="Operating context">
-    <button type="button" class="context-option selected" data-context="dot">DOT</button>
-    <button type="button" class="context-option" data-context="nondot">NON-DOT</button>
+  <div class="workspace-label">WORKFORCE C/TPA</div>
+  <div class="side-context" role="group" aria-label="DOT or NON-DOT operating context">
+    <button type="button" class="context-option selected" data-context="dot" aria-pressed="true">DOT</button>
+    <button type="button" class="context-option" data-context="nondot" aria-pressed="false">NON-DOT</button>
   </div>
-  <nav class="sidebar-navigation" id="sidebarNavigation" aria-label="Portal pages"></nav>
+  <nav class="sidebar-navigation" id="sidebarNavigation" aria-label="C/TPA management pages"></nav>
   <div class="side-bottom"><span class="connection-indicator" aria-hidden="true"></span><span>Unified Workforce Portal</span></div>
  </aside>
  <div class="main-wrap">
