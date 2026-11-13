@@ -105,7 +105,7 @@ Deno.serve(async request=>{
    if(found.error)throw found.error;
    if(!found.data)return respond({error:"Document not found"},404);
    const bucket=text(found.data.data?.storage_bucket,100),path=text(found.data.data?.storage_path,1000);
-   if(!["workforce-documents","dot-documents","general-documents","business-documents","compliance-documents","testing-documents","workforce-private","workforce-employer-documents"].includes(bucket)||!path)
+   if(!["workforce-documents","dot-documents","general-documents","business-documents","compliance-documents","testing-documents","testing-private-documents","workforce-private","workforce-employer-documents"].includes(bucket)||!path)
     return respond({error:"This document has no downloadable file"},404);
    const signed=await db.storage.from(bucket).createSignedUrl(path,60);
    if(signed.error||!signed.data?.signedUrl)return respond({error:"Document file could not be opened"},404);
