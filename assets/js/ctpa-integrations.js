@@ -21,13 +21,13 @@ function renderWorkspace(d){const x=d.integration||{},c=d.connection||{},runs=d.
 function msg(text,bad=false){const e=document.getElementById('integrationMessage');if(e)e.innerHTML=`<div class="notice${bad?' bad':''}" style="margin-top:14px">${esc(text)}</div>`}
 async function bind(p,d){
  if(p==='integration_connect'){
-  const f=document.getElementById('integrationConnectForm');if(!f)return;f.addEventListener('submit',async ev=>{ev.preventDefault();const fd=new FormData(f),credentials={};for(const x of d.integration?.credential_schema||[]){const v=String(fd.get(x.key)||'').trim();if(v)credentials[x.key]=v}try{const r=await P().invoke('workforce-ctpa-integrations',{action:'save_connection',integration_id:d.integration.id,display_name:fd.get('display_name'),credentials});location.href='/integration-workspace.html?id='+encodeURIComponent(r.connection.id)}catch(e){msg(e.message||String(e),true)}})
+  const f=document.getElementById('integrationConnectForm');if(!f)return;f.addEventListener('submit',async ev=>{ev.preventDefault();const fd=new FormData(f),credentials={};for(const x of d.integration?.credential_schema||[]){const v=String(fd.get(x.key)||'').trim();if(v)credentials[x.key]=v}try{const r=await P().invoke('workforce-ctpa-integrations',{action:'save_connection',integration_id:d.integration.id,display_name:fd.get('display_name'),credentials});await window.Portal.navigate('/integration-workspace.html?id='+encodeURIComponent(r.connection.id))}catch(e){msg(e.message||String(e),true)}})
  }
  if(p==='integration_workspace'){
   const id=d.connection?.id;
   document.getElementById('testIntegration')?.addEventListener('click',async()=>{try{msg('Testing connection…');const r=await P().invoke('workforce-ctpa-integrations',{action:'test_connection',connection_id:id});msg(r.message||'Connection test complete.',!r.ok);setTimeout(()=>P().refresh(),600)}catch(e){msg(e.message||String(e),true)}});
   document.getElementById('runIntegrationSync')?.addEventListener('click',async()=>{try{const r=await P().invoke('workforce-ctpa-integrations',{action:'run_sync',connection_id:id,direction:'pull'});msg(r.message||'Sync queued.');setTimeout(()=>P().refresh(),600)}catch(e){msg(e.message||String(e),true)}});
-  document.getElementById('disconnectIntegration')?.addEventListener('click',async()=>{if(!confirm('Disconnect this integration?'))return;try{await P().invoke('workforce-ctpa-integrations',{action:'disconnect',connection_id:id});location.href='/integrations.html'}catch(e){msg(e.message||String(e),true)}})
+  document.getElementById('disconnectIntegration')?.addEventListener('click',async()=>{if(!confirm('Disconnect this integration?'))return;try{await P().invoke('workforce-ctpa-integrations',{action:'disconnect',connection_id:id});await window.Portal.navigate('/integrations.html')}catch(e){msg(e.message||String(e),true)}})
  }
 }
 window.CtpaIntegrations={renderCatalog,renderConnect,renderWorkspace,bind};

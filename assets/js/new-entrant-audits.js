@@ -52,7 +52,7 @@ async function startAudit(serviceMode='self_service'){
  try{
   const r=await invoke({action:'start',service_mode:serviceMode,owner_operator_id:owner,
    audit_notice_date:$('#auditNoticeDate')?.value||null,audit_due_date:$('#auditDueDate')?.value||null});
-  location.href='/new-entrant-audits.html?id='+encodeURIComponent(r.audit.id);
+  await window.Portal.navigate('/new-entrant-audits.html?id='+encodeURIComponent(r.audit.id));
  }catch(e){alert(e.message||'Unable to start audit.');b.disabled=false;b.textContent=label}
 }
 async function saveItem(card){const id=card.dataset.itemId,msg=$('.audit-item-msg',card),status=$('[data-status]',card).value,notes=$('[data-notes]',card).value;msg.textContent='Saving…';try{await invoke({action:'update_item',audit_id:new URLSearchParams(location.search).get('id'),item_id:id,status,notes});msg.textContent='Saved';setTimeout(()=>msg.textContent='',1200)}catch(e){msg.textContent=e.message||'Save failed'}}
