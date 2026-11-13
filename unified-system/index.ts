@@ -517,7 +517,7 @@ Deno.serve(async request=>{
     customer_first_name:first,customer_last_name:last,customer_phone:phone,
     subtotal:totalCents/100,tax:0,total:totalCents/100,currency:"usd",
     status:"pending",payment_status:"unpaid",source:"admin",
-    fulfillment_type:"physical",fulfillment_status:"pending",
+    fulfillment_type:"other",fulfillment_status:"pending",
     company_name:company?text(company.data?.legal_name,170):"C/TPA organization",
     notes:text(body.notes,1200),
     metadata:{portal_source:"ctpa_unified_supplies",tenant_id:tenantId,operating_context:context,
