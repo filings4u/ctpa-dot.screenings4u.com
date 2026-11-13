@@ -275,6 +275,57 @@ Deno.serve(async request=>{
      if((duplicate.count||0)>0)return respond({error:"This company is already enrolled in the program"},409);
     }
    }
+   if(kind==="pools"){
+    clean.program_type=context==="dot"?"DOT":"NON-DOT";
+    if(context==="nondot")clean.dot_agency="";
+    for(const key of ["drug_testing_rate","alcohol_testing_rate"]){
+     if(clean[key]===""||clean[key]===null)continue;
+     const rate=Number(clean[key]);
+     if(!Number.isFinite(rate)||rate<0||rate>100)
+      return respond({error:"Annual random selection rates must be between 0 and 100 percent"},400);
+     clean[key]=rate;
+    }
+    if(!uuid(clean.program_id))return respond({error:"Select a program from this workspace"},400);
+    const prog=await collection.select("id,data").eq("id",clean.program_id).eq("tenant_id",tenantId)
+     .eq("kind","programs").eq("operating_context",context).is("archived_at",null).maybeSingle();
+    if(prog.error)throw prog.error;
+    if(!prog.data)return respond({error:"Selected program is not available"},400);
+    clean.program=prog.data.data?.name||"";
+    if(clean.company_id){
+     if(!uuid(clean.company_id))return respond({error:"Invalid employer"},400);
+     const company=await collection.select("id,data").eq("id",clean.company_id)
+      .eq("tenant_id",tenantId).in("kind",context==="dot"?["employers","owner_operators"]:["employers"])
+      .eq("operating_context",context).is("archived_at",null).maybeSingle();
+     if(company.error)throw company.error;
+     if(!company.data)return respond({error:"Employer does not belong to this workspace"},400);
+     clean.employer=company.data.data?.legal_name||"";
+    }else{clean.company_id="";clean.employer=""}
+   }
+   if(kind==="enrollments"&&clean.membership_type==="pool"){
+    if(!uuid(clean.pool_id)||!uuid(clean.person_id))
+     return respond({error:"Choose a valid pool and person"},400);
+    const [pool,person]=await Promise.all([
+     collection.select("id,data").eq("id",clean.pool_id).eq("tenant_id",tenantId)
+      .eq("kind","pools").eq("operating_context",context).is("archived_at",null).maybeSingle(),
+     collection.select("id,data").eq("id",clean.person_id).eq("tenant_id",tenantId)
+      .eq("kind","people").in("operating_context",[context,"shared"]).is("archived_at",null).maybeSingle()
+    ]);
+    if(pool.error)throw pool.error;
+    if(person.error)throw person.error;
+    if(!pool.data||!person.data)return respond({error:"Pool or person is unavailable in this workspace"},400);
+    if(clean.eligibility_status&&!["eligible","ineligible"].includes(clean.eligibility_status))
+     return respond({error:"Invalid member eligibility"},400);
+    clean.participant=[person.data.data?.first_name,person.data.data?.last_name].filter(Boolean).join(" ");
+    clean.employer=person.data.data?.employer||"";
+    if(!body.id){
+     const duplicate=await collection.select("id",{count:"exact",head:true})
+      .eq("tenant_id",tenantId).eq("kind","enrollments").eq("operating_context",context)
+      .eq("data->>membership_type","pool").eq("data->>pool_id",clean.pool_id)
+      .eq("data->>person_id",clean.person_id).is("archived_at",null);
+     if(duplicate.error)throw duplicate.error;
+     if((duplicate.count||0)>0)return respond({error:"This person already belongs to the pool"},409);
+    }
+   }
    const id=body.id;
    // New company account classification determines both its module and workspace.
    // This is enforced server-side, regardless of the selected frontend tab.
