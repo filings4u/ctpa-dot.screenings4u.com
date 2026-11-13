@@ -116,8 +116,12 @@ Deno.serve(async request=>{
    if(found.error)throw found.error;
    if(!found.data)return respond({error:"Document not found"},404);
    const bucket=text(found.data.data?.storage_bucket,100),path=text(found.data.data?.storage_path,1000);
-   if(!["workforce-documents","dot-documents","general-documents","business-documents","compliance-documents","testing-documents","testing-private-documents","workforce-private","workforce-employer-documents"].includes(bucket)||!path)
-    return respond({error:"This document has no downloadable file"},404);
+   const legacy=typeof found.data.data?._legacy_table==="string"&&
+    typeof found.data.data?._legacy_id==="string";
+   const legacyAllowed=["dot-documents","general-documents","business-documents","compliance-documents","testing-documents","testing-private-documents","workforce-private","workforce-employer-documents","workforce-documents"].includes(bucket);
+   const portalAllowed=bucket==="workforce-documents"&&path.startsWith(tenantId+"/"+kind+"/");
+   if(!path||!(legacy?legacyAllowed:portalAllowed))
+    return respond({error:"This document has no authorized downloadable file"},404);
    const signed=await db.storage.from(bucket).createSignedUrl(path,60);
    if(signed.error||!signed.data?.signedUrl)return respond({error:"Document file could not be opened"},404);
    return respond({ok:true,url:signed.data.signedUrl,expires_in:60});
@@ -132,16 +136,50 @@ Deno.serve(async request=>{
     return respond({error:"Unsupported document type"},400);
    if(!base64||base64.length>11200000||!/^[A-Za-z0-9+/]+={0,2}$/.test(base64))
     return respond({error:"Document must be 8 MB or smaller"},413);
+   const input=payload(body.document_data);
+   const formFields=kind==="documents"?["title","document_type","status"]:
+    kind==="testing_documents"?["title","document_type","order_reference","status"]:
+    ["title","account","status"];
+   if(!input||typeof input.title!=="string"||input.title.trim().length<2)
+    return respond({error:"Document title is required"},400);
+   const clean=Object.fromEntries(Object.entries(input).filter(([k,v])=>
+    formFields.includes(k)&&(typeof v==="string"||typeof v==="number"||typeof v==="boolean")));
+   const requestedContext=body.record_context==="shared"?"shared":context;
+   if(requestedContext==="shared"&&role==="editor")return respond({error:"Shared documents require an administrator"},403);
+   let existing:null|{id:string,data:Record<string,unknown>,operating_context:string}=null;
+   if(body.record_id){
+    if(!uuid(body.record_id))return respond({error:"Invalid document record"},400);
+    const found=await collection.select("id,data,operating_context").eq("id",body.record_id)
+     .eq("tenant_id",tenantId).eq("kind",kind)
+     .in("operating_context",[context,"shared"]).is("archived_at",null).maybeSingle();
+    if(found.error)throw found.error;
+    if(!found.data)return respond({error:"Document record not found"},404);
+    if(found.data.operating_context==="shared"&&role==="editor")
+     return respond({error:"Shared documents require an administrator"},403);
+    existing=found.data as typeof existing;
+   }
    let bytes:Uint8Array;
-   try{
-    const binary=atob(base64);bytes=Uint8Array.from(binary,c=>c.charCodeAt(0));
-   }catch{return respond({error:"Invalid file encoding"},400)}
+   try{const binary=atob(base64);bytes=Uint8Array.from(binary,c=>c.charCodeAt(0))}
+   catch{return respond({error:"Invalid file encoding"},400)}
    if(bytes.byteLength>8*1024*1024)return respond({error:"Document must be 8 MB or smaller"},413);
    const safeName=filename.replace(/[^a-zA-Z0-9._-]+/g,"_");
    const path=tenantId+"/"+kind+"/"+crypto.randomUUID()+"/"+safeName;
    const upload=await db.storage.from("workforce-documents").upload(path,bytes,{contentType:mimetype,upsert:false});
    if(upload.error)throw upload.error;
-   return respond({ok:true,storage_bucket:"workforce-documents",storage_path:path,file_name:filename,mime_type:mimetype,size_bytes:bytes.byteLength});
+   const fileMeta={storage_bucket:"workforce-documents",storage_path:path,
+    file_name:filename,mime_type:mimetype,size_bytes:bytes.byteLength};
+   const data={...(existing?.data||{}),...clean,...fileMeta};
+   const saved=existing?
+    await collection.update({data,updated_by:user.id,updated_at:new Date().toISOString()})
+     .eq("id",existing.id).eq("tenant_id",tenantId).eq("kind",kind)
+     .eq("operating_context",existing.operating_context).is("archived_at",null).select("id").single():
+    await collection.insert({tenant_id:tenantId,kind,operating_context:requestedContext,data,
+     created_by:user.id,updated_by:user.id}).select("id").single();
+   if(saved.error||!saved.data){
+    await db.storage.from("workforce-documents").remove([path]);
+    throw saved.error||new Error("Unable to save document record");
+   }
+   return respond({ok:true,id:saved.data.id,file_name:filename});
   }
   if(!canWrite)return respond({error:"Your role is read only"},403);
   if(action==="save"){
@@ -155,7 +193,7 @@ Deno.serve(async request=>{
    // Never accept tenant, privilege, or actor fields from the record payload.
    const clean=Object.fromEntries(Object.entries(data).filter(([k,v])=>
     /^[a-z][a-z0-9_]{0,63}$/.test(k)&&
-    !["tenant_id","user_id","role","permissions","created_by","updated_by","operating_context"].includes(k)&&
+    !["tenant_id","user_id","role","permissions","created_by","updated_by","operating_context","storage_bucket","storage_path","file_name","mime_type","size_bytes"].includes(k)&&
     (v===null||typeof v==="string"||typeof v==="number"||typeof v==="boolean")));
    if(!Object.keys(clean).length)return respond({error:"Nothing to save"},400);
    const id=body.id;
