@@ -35,7 +35,7 @@ const CONFIG={
  people:["People","Manage individual profiles and company affiliations.","first_name|First name|text|required;last_name|Last name|text|required;employee_number|Employee number|text;job_title|Position / Title|text;email|Email address|email;phone|Phone number|tel;status|Status|select:active,inactive;relationship|Company role|select:staff,contact,worker"],
  programs:["Programs","Manage regulatory testing programs, employers and enrollment.","name|Program name|text|required;program_type|Program type|select:DOT,NON-DOT;dot_agency|DOT agency|select:FMCSA,FAA,FRA,FTA,PHMSA,USCG;regulatory_authority|Regulatory authority|text;testing_panel|Testing panel|text;testing_method|Testing method|select:urine,oral fluid,blood,breath,hair;drug_random_rate|Annual random drug rate (%)|number;alcohol_random_rate|Annual random alcohol rate (%)|number;testing_frequency|Selection frequency|select:monthly,quarterly,semiannual,annual;effective_date|Effective date|date;status|Status|select:active,draft,inactive;regulatory_category|Regulatory category|text;notes|Program notes|textarea"],
  pools:["Pools","Manage random testing pools, eligibility and program assignments.","name|Pool name|text|required;pool_type|Pool type|select:consortium,employer;dot_agency|DOT agency|select:FMCSA,FAA,FRA,FTA,PHMSA,USCG;drug_testing_rate|Annual drug selection rate (%)|number;alcohol_testing_rate|Annual alcohol selection rate (%)|number;selection_schedule|Selection schedule|select:monthly,quarterly,semiannual,annual;effective_date|Effective date|date;status|Status|select:active,draft,inactive;notes|Internal notes|textarea"],
- selections:["Selections","Review and record randomized selection activity.","name|Selection reference|text|required;pool|Pool|text;selection_date|Selection date|date;status|Status|select:scheduled,selected,completed;notes|Notes|textarea"],
+ selections:["Selections","Secure random selection records and results.","name|Selection reference|text|required;pool_name|Pool name|text;selection_date|Selection date|date;status|Status|select:locked,completed"],
  testing_orders:["Testing Orders","Create and manage testing requests.","name|Order reference|text|required;employee_name|Employee / donor|text;employer|Employer|text;test_type|Test type|text;reason|Testing reason|text;status|Status|select:draft,ordered,scheduled,completed,cancelled"],
  testing_documents:["Testing Documents","Manage testing-related documents.","title|Document title|text|required;document_type|Document type|text;order_reference|Order reference|text;document_file|Upload document|file;status|Status|select:pending,complete"],
  results:["Results","Track confidential test result metadata.","name|Result reference|text|required;order_reference|Order reference|text;status|Status|select:pending,received,reviewed;reported_at|Date reported|date;notes|Notes|textarea"],
@@ -1189,6 +1189,126 @@ function renderPoolManagement(record,mode,canWrite){
  void preparePoolManagement();
  $("managementForm").querySelector('input[name="name"]')?.focus({preventScroll:true});
 }
+
+let selectionPreview=null,selectionRunRequest=null,selectionRequestSeq=0;
+async function selectionPools(){
+ const m=state.management,seq=state.sequence;
+ try{
+  const refs=await poolReferenceRecords(["pools"]);
+  if(state.management!==m||seq!==state.sequence)return;
+  const select=$("selectionPool");
+  if(!select)return;
+  const pools=(refs.pools||[]).filter(r=>r.operating_context===state.context&&r.data?.status==="active");
+  select.innerHTML='<option value="">Choose an active pool</option>'+pools.map(r=>'<option value="'+esc(r.id)+'">'+esc(r.data?.name||"Pool")+'</option>').join("");
+  select.disabled=false;$("selectionHint").textContent=pools.length?"Choose a pool to review eligible members.":"No active pools. Create a pool and enroll members first.";
+ }catch(e){$("selectionHint").textContent=e.message}
+}
+async function selectionPreviewPool(){
+ const id=$("selectionPool")?.value,token=++selectionRequestSeq;
+ selectionPreview=null;$("selectionReview").disabled=true;
+ const el=$("selectionPopulation");el.textContent=id?"Loading eligible population…":"Choose a pool.";
+ if(!id)return;
+ try{
+  const r=await api("selection_preview",{tenant_id:state.tenantId,operating_context:state.context,pool_id:id});
+  if(token!==selectionRequestSeq||state.page!=="selections"||state.management?.action!=="new")return;
+  selectionPreview=r;
+  el.innerHTML='<div class="selection-stats"><div><small>Eligible members</small><strong>'+r.population+'</strong></div>'+
+   '<div><small>Annual drug rate</small><strong>'+Number(r.rates?.drug||0)+'%</strong></div>'+
+   '<div><small>Annual alcohol rate</small><strong>'+Number(r.rates?.alcohol||0)+'%</strong></div></div>'+
+   '<p class="selection-hint">Counts for this draw must be reviewed against previous selections and annual testing requirements.</p>';
+  $("selectionDrug").max=r.population;$("selectionAlcohol").max=r.population;
+  $("selectionDrug").value=Math.min(r.population,Math.ceil(r.population*Number(r.rates?.drug||0)/100));
+  $("selectionAlcohol").value=Math.min(r.population,Math.ceil(r.population*Number(r.rates?.alcohol||0)/100));
+  $("selectionReview").disabled=!r.population;
+ }catch(e){if(token===selectionRequestSeq)el.innerHTML='<p class="selection-error">'+esc(e.message)+'</p>'}
+}
+function selectionList(records){
+ const q=state.search.toLowerCase(),status=state.statusFilter;
+ const visible=records.filter(r=>[r.data?.name,r.data?.pool_name,r.data?.selection_date].some(x=>String(x||"").toLowerCase().includes(q))&&(!status||r.data?.status===status));
+ const rows=visible.map(r=>{const d=r.data||{};
+  return '<button type="button" class="selection-event" data-view="'+esc(r.id)+'">'+
+   '<span class="selection-event-icon">'+navIcon("selections")+'</span>'+
+   '<span class="selection-event-name"><strong>'+esc(d.pool_name||"Pool unavailable")+'</strong><small>'+
+   esc(d.selection_date?new Date(d.selection_date).toLocaleDateString():"—")+' · '+esc(d.name||"Selection event")+'</small></span>'+
+   '<span><small>Population</small><strong>'+esc(d.population_size??"—")+'</strong></span>'+
+   '<span><small>Drug / Alcohol</small><strong>'+esc(d.drug_selection_count??"—")+' / '+esc(d.alcohol_selection_count??"—")+'</strong></span>'+
+   '<span class="mgmt-status pending">'+esc(statusLabel(d.status))+'</span><span class="selection-link">View</span></button>';
+ }).join("");
+ $("pageContent").innerHTML='<div class="selection-workspace"><div class="selection-stats selection-overview">'+
+  '<div><small>Selection events</small><strong>'+records.length+'</strong></div>'+
+  '<div><small>Locked records</small><strong>'+records.filter(x=>x.data?.status==="locked").length+'</strong></div>'+
+  '<div><small>Selected members</small><strong>'+records.reduce((n,x)=>n+(Array.isArray(x.data?.selection_members)?x.data.selection_members.length:0),0)+'</strong></div></div>'+
+  '<section class="selection-history"><div class="directory-toolbar"><div class="directory-search">'+
+  '<input id="recordSearch" type="search" aria-label="Search selections" placeholder="Search selections" value="'+esc(state.search)+'"></div>'+
+  '<select id="statusFilter"><option value="">All statuses</option>'+
+  ['locked','completed','scheduled'].map(st=>'<option value="'+st+'"'+(status===st?" selected":"")+'>'+esc(statusLabel(st))+'</option>').join("")+'</select>'+
+  '<span class="directory-total">'+visible.length+' events</span></div>'+
+  (rows||'<div class="directory-empty"><h2>No selection events</h2><p>Run a selection from an active pool.</p></div>')+'</section></div>';
+}
+function renderSelections(record){
+ const d=record?.data||{};
+ const head='<div class="program-head"><span class="program-head-icon">'+navIcon("selections")+'</span>'+
+  '<div><strong>'+esc(record?d.pool_name||d.name||"Selection event":"Run random selection")+'</strong>'+
+  '<small>'+esc(record?"Locked selection audit record":"Cryptographically randomized eligible pool members")+'</small></div>'+
+  (record?'<span class="mgmt-status pending">'+esc(statusLabel(d.status))+'</span>':"")+'</div>';
+ if(record){
+  const selected=Array.isArray(d.selection_members)?d.selection_members:[];
+  const details=managementOverviewGroup("Selection details",[
+   ["Pool",d.pool_name||"Unavailable"],["Date",d.selection_date?new Date(d.selection_date).toLocaleString():"—"],
+   ["Eligible population",d.population_size],["Drug selections",d.drug_selection_count],
+   ["Alcohol selections",d.alcohol_selection_count],
+   ["Annual drug rate",d.drug_required_rate==null?"—":d.drug_required_rate+"%"],
+   ["Annual alcohol rate",d.alcohol_required_rate==null?"—":d.alcohol_required_rate+"%"],
+   ["Randomization version",d.randomization_version],["Locked at",d.locked_at?new Date(d.locked_at).toLocaleString():"—"]]);
+  $("pageContent").innerHTML='<div class="selection-workspace selection-detail">'+head+details+
+   '<section class="selection-members"><h2>Selected members ('+selected.length+')</h2>'+
+   (selected.map(m=>'<div class="selection-member"><div><strong>'+esc(m.name||"Member")+'</strong>'+
+    '<small>'+esc(m.employer||"")+'</small></div><span>'+esc(statusLabel(m.test_type||"Selected"))+'</span>'+
+    (m.person_id?'<button type="button" data-selection-person="'+esc(m.person_id)+'">View profile</button>':"")+'</div>').join("")||
+    '<p class="selection-hint">No selected member details are recorded for this event.</p>')+'</section>'+
+   '<footer class="program-actions"><button type="button" class="btn secondary" data-back-list>Back to Selections</button></footer></div>';
+  return;
+ }
+ $("pageContent").innerHTML='<div class="selection-workspace">'+head+
+  '<section class="selection-setup"><h2>Pool and eligible population</h2><label><span>Active pool *</span>'+
+  '<select id="selectionPool" disabled><option value="">Loading pools…</option></select></label>'+
+  '<p class="selection-hint" id="selectionHint">Loading active pools…</p><div id="selectionPopulation">Choose a pool.</div></section>'+
+  '<section class="selection-setup"><h2>Selections for this draw</h2><div class="selection-counts">'+
+  '<label><span>Drug selections</span><input type="number" min="0" step="1" id="selectionDrug" value="0"></label>'+
+  '<label><span>Alcohol selections</span><input type="number" min="0" step="1" id="selectionAlcohol" value="0"></label></div>'+
+  '<p class="selection-hint">Annual rate percentages are references. Review the draw counts and prior selections before running.</p></section>'+
+  '<footer class="program-actions"><button type="button" class="btn secondary" data-back-list>Cancel</button>'+
+  '<button type="button" class="btn primary" id="selectionReview" disabled>Review selection</button></footer></div>';
+ void selectionPools();
+}
+function confirmSelection(){
+ if(!selectionPreview)return;
+ const drug=Number($("selectionDrug").value),alcohol=Number($("selectionAlcohol").value),population=selectionPreview.population;
+ if(!Number.isInteger(drug)||!Number.isInteger(alcohol)||drug<0||alcohol<0||drug>population||alcohol>population||drug+alcohol===0){
+  message("Enter valid selection counts within the eligible population.",true);return;
+ }
+ selectionRunRequest={pool_id:selectionPreview.pool_id,drug_count:drug,alcohol_count:alcohol,request_id:crypto.randomUUID()};
+ $("modalTitle").textContent="Confirm random selection";
+ $("modalDescription").textContent="This creates an immutable audit record.";
+ $("recordFields").innerHTML='<div class="selection-confirm"><strong>'+esc(selectionPreview.pool_name)+'</strong>'+
+  '<p>Eligible population: '+population+'</p><p>Drug: '+drug+' · Alcohol: '+alcohol+'</p>'+
+  '<p>Once executed, selected members cannot be changed.</p></div>';
+ $("recordForm").dataset.mode="selection-run";$("saveRecord").hidden=false;$("saveRecord").disabled=false;
+ $("saveRecord").className="btn primary";$("saveRecord").textContent="Run secure selection";
+ $("formMessage").textContent="";$("modal").hidden=false;document.body.classList.add("modal-open");
+}
+async function runSelection(){
+ if(!selectionRunRequest||state.page!=="selections")return;
+ const button=$("saveRecord");button.disabled=true;
+ try{
+  const result=await api("selection_run",{tenant_id:state.tenantId,operating_context:state.context,...selectionRunRequest});
+  closeModal();selectionRunRequest=null;selectionPreview=null;
+  state.cache.delete(cacheKey());
+  await loadRecords(state.sequence,true);
+  openManagement("view",result.id);
+  message(result.reused?"Existing event opened.":"Selection completed and locked.");
+ }catch(error){$("formMessage").textContent=error.message;button.disabled=false}
+}
 function renderManagementPage(){
  const m=state.management;
  if(!m||m.section!==state.page)return;
@@ -1221,6 +1341,7 @@ function renderManagementPage(){
   renderPoolManagement(record,m.action,canWrite);
   return;
  }
+ if(state.page==="selections"){renderSelections(record);return;}
  if(m.action==="view"){
   const d=record.data||{};
   const sections=isEmployer?[
@@ -1449,6 +1570,7 @@ function recordStatus(record){
 }
 function showRecords(records){
  if(state.page==="dashboard"){renderDashboard(records);return}
+ if(state.page==="selections"){selectionList(records);return}
  const count=records.length,query=state.search.trim().toLowerCase();
  const statuses=[...new Set(records.map(r=>String(r.data?.status||"").trim()).filter(Boolean))].sort();
  const visible=records.filter(r=>(!query||Object.values(r.data||{}).some(v=>String(v??"").toLowerCase().includes(query)))&&
@@ -1507,6 +1629,7 @@ async function saveRecord(event){
  if(mode==="company-related-add"||mode==="company-related-remove"){await submitCompanyAction();return}
  if(mode==="program-enroll-add"||mode==="program-enroll-remove"){await submitProgramEnrollment();return}
  if(mode==="pool-add-member"||mode==="pool-remove-member"){await savePoolMember();return}
+ if(mode==="selection-run"){await runSelection();return}
  if(mode==="archive"){await performArchive();return}
  if(mode==="profile"){await saveProfile();return}
  if(mode==="view"){closeModal();return}
@@ -1672,6 +1795,14 @@ function bindEvents(){
     if(state.cache.get(cacheKey()))openManagement("view",id);
     else state.pendingManagement={action:"view",id,section:destination};
    }
+   return;
+  }
+  if(target.closest("#selectionReview")){confirmSelection();return}
+  if(target.closest("[data-selection-person]")){
+   const id=target.closest("[data-selection-person]").dataset.selectionPerson;
+   switchPage("people");
+   if(state.cache.get(cacheKey()))openManagement("view",id);
+   else state.pendingManagement={action:"view",id,section:"people"};
    return;
   }
   if(target.closest("[data-pool-add]")){void openPoolAddMember();return}
