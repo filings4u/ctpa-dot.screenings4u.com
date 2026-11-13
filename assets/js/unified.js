@@ -1025,6 +1025,27 @@ async function submitManagement(form,continueEditing=false){
   if(Object.hasOwn(data,"client"))data.client=state.companyDraft.companyName;
  }
  delete data.record_context;
+ if(state.page==="programs"){
+  const selector=form.querySelector("#programCompany");
+  if(!selector||selector.disabled){
+   $("managementError").textContent="Company options are still loading. Try again.";
+   button.disabled=false;return;
+  }
+  const selected=data.company_selection||"";delete data.company_selection;
+  const companies=[];
+  for(const kind of state.context==="dot"?["employers","owner_operators"]:["employers"])
+   companies.push(...(state.cache.get(cacheKey(kind))?.records||[]));
+  const company=selected?companies.find(r=>r.id===selected&&r.operating_context===state.context):null;
+  if(selected&&!company){
+   $("managementError").textContent="Select a company from this workspace.";
+   button.disabled=false;return;
+  }
+  data.company_id=company?.id||"";
+  data.employer=company?.data?.legal_name||"";
+  data.program_type=state.context==="dot"?"DOT":"NON-DOT";
+  if(state.context==="nondot")data.dot_agency="";
+  if(!data.status)data.status="active";
+ }
  if(state.page==="people"){
   const selected=data.company_selection||"";
   const companyControl=form.querySelector("#personCompanySelect");
@@ -1319,6 +1340,18 @@ function bindEvents(){
     switchPage(destination);
     if(state.cache.get(cacheKey()))openManagement("view",id);
     else state.pendingManagement={action:"view",id,section:destination};
+   }
+   return;
+  }
+  if(target.closest("[data-program-apply-rule]")){
+   const agency=target.closest("[data-program-apply-rule]").dataset.programApplyRule;
+   const rule=state.programRules?.find(r=>r.dot_agency===agency);
+   if(rule){
+    for(const [name,value] of [["drug_random_rate",rule.drug_rate],["alcohol_random_rate",rule.alcohol_rate]]){
+     const field=document.getElementById("manage-"+name);
+     if(field&&value!==null&&value!==undefined)field.value=String(value);
+    }
+    message("Regulatory reference rates applied. Review before saving.");
    }
    return;
   }
