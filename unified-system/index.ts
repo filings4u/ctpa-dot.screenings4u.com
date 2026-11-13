@@ -787,16 +787,29 @@ Deno.serve(async request=>{
      clean.order_reference=String(order.data.data?.name||"");
     }else clean.order_reference="";
    }
-   if(kind==="people"&&typeof clean.company_id==="string"&&clean.company_id){
-    if(!uuid(clean.company_id))return respond({error:"Invalid company association"},400);
-    const linked=await collection.select("id,kind,operating_context,data")
+   if(kind==="people"){
+    // A person exists only in the context of an authorized employer or owner-operator.
+    // Company ownership is checked for BOTH create and edit, not merely in the UI.
+    if(body.record_context==="shared")return respond({error:"People must belong to a DOT or NON-DOT company, not a shared workspace"},400);
+    if(!uuid(clean.company_id))return respond({error:"Choose the employer or owner-operator associated with this person"},400);
+    const company=await collection.select("id,kind,operating_context,data")
      .eq("id",clean.company_id).eq("tenant_id",tenantId)
      .in("kind",context==="dot"?["employers","owner_operators"]:["employers"])
      .eq("operating_context",context).is("archived_at",null).maybeSingle();
-    if(linked.error)throw linked.error;
-    if(!linked.data)return respond({error:"This company is not available in your current workspace"},400);
-    clean.employer=linked.data.data?.legal_name||"";
-    clean.relationship=clean.relationship==="contact"?"contact":"staff";
+    if(company.error)throw company.error;
+    if(!company.data)return respond({error:"The selected company is not available in this workspace"},400);
+    if(!text(clean.first_name,120)||!text(clean.last_name,120))
+     return respond({error:"First and last names are required"},400);
+    const type=text(clean.relationship,24);
+    if(!["employee","contact","staff"].includes(type))
+     return respond({error:"Select Employee, Company Contact or Staff"},400);
+    if(clean.status&&!["active","inactive"].includes(String(clean.status)))
+     return respond({error:"Invalid person status"},400);
+    clean.employer=text(company.data.data?.legal_name,180);
+    clean.company_id=company.data.id;
+    clean.relationship=type;
+    clean.status=clean.status||"active";
+    allowedContext=context;
    }
    if(kind==="pools"&&uuid(body.id)){
     const status=await poolMemberCount(body.id);
@@ -953,6 +966,13 @@ Deno.serve(async request=>{
    if(body.kind==="selections")return respond({error:"Selection audit records cannot be archived"},403);
    if(body.kind==="testing_orders")return respond({error:"Submitted testing orders must be managed by Testing Operations"},403);
    if(body.kind==="results")return respond({error:"Official result records cannot be archived by the C/TPA"},403);
+   if(["employers","owner_operators"].includes(String(body.kind))){
+    const people=await collection.select("id",{count:"exact",head:true})
+     .eq("tenant_id",tenantId).eq("kind","people").eq("operating_context",context)
+     .eq("data->>company_id",body.id).is("archived_at",null);
+    if(people.error)throw people.error;
+    if((people.count||0)>0)return respond({error:"Reassign or archive the linked people before archiving this company"},409);
+   }
    if(body.kind==="pools"){
     const status=await poolMemberCount(body.id);
     if(!status)return respond({error:"Pool not found in this workspace"},404);
