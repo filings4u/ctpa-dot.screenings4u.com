@@ -262,8 +262,8 @@ function shell(ctx){
   if(fontReset)fontReset.onclick=()=>{portalFontSize=applyFontSize(FONT_DEFAULT)};
   const supportShortcut=$('#supportShortcut');
   if(supportShortcut)supportShortcut.onclick=()=>{
-    if(current!=='support')supportCtxWrite({page_url:location.href,page_title:document.title,page_id:current,captured_at:new Date().toISOString(),opened_from:'top_support'});
-    if(current!=='support')location.href='/support.html';
+    if(page()!=='support')supportCtxWrite({page_url:location.href,page_title:document.title,page_id:page(),captured_at:new Date().toISOString(),opened_from:'top_support'});
+    if(page()!=='support')navigatePortal('/support.html').catch(err=>showNavigationError(err));
   };
   $('#logout').onclick=async()=>{try{if(C.kind==='ctpa')await invoke('workforce-ctpa-admin',{action:'log_portal_event',event_type:'auth.logout',summary:'User signed out',resource_type:'user',resource_id:window.portalCtx?.user?.id||null,user_agent:navigator.userAgent})}catch(_){}W.clear();await clearPageCache();await sb.auth.signOut({scope:'local'});location.replace('/login.html')};
 }
@@ -855,64 +855,94 @@ async function prepareTarget(url){
 function updateActiveNavigation(){
   const cur=page();document.querySelectorAll('.nav a,.mobile-nav-links a').forEach(a=>{const u=new URL(a.href,location.href),id=norm(u.pathname.split('/').pop()?.replace('.html','')||'');a.classList.toggle('active',a.dataset.workspace?a.dataset.workspace===workspace()?.surface:id===cur||(id==='people'&&cur==='people_company')||(id==='pools'&&['pool_detail','pool_form'].includes(cur))||(id==='locations'&&cur==='location_form')||(id==='users_roles'&&['staff_form','staff_view','staff_invite','staff_delete'].includes(cur)))});
 }
+function showNavigationError(error){
+ const el=document.getElementById('error');
+ if(el)el.innerHTML='<div class="notice" role="alert">'+esc(error?.message||'Unable to load this page. Please try again.')+'</div>';
+ console.warn('Portal navigation error',error);
+}
+function refreshWorkspaceNavigation(ctx){
+ NAV=buildNavigation(ctx);
+ const surface=workspace()?.surface==='nondot'?'NON-DOT':'DOT';
+ const links=NAV.map(x=>`<a href="${esc(x.href||('/'+x.id+'.html'))}" ${x.switchSurface?`data-workspace="${esc(x.switchSurface)}" `:''}><span class="ico">${esc(x.icon||'•')}</span><span>${esc(x.label||pretty(x.id))}</span></a>`).join('');
+ const sidebar=document.querySelector('.side .nav'),mobile=document.querySelector('.mobile-nav-links');
+ if(sidebar){sidebar.innerHTML='<div class="nav-title">'+esc(surface+' Workspace')+'</div>'+links;organizePortalNavigation()}
+ if(mobile)mobile.innerHTML=links;
+}
+function updatePortalChrome(){
+ const active=page(),name=workspace()?.surface==='nondot'?'NON-DOT':'DOT';
+ const label=name+' Workspace',title=cfgPage(active).label;
+ document.title=title+' | '+label;
+ const slots=[['.top-eyebrow',label],['.crumb',title],['.hero-kicker',label],['.hero h1',title],['.mobile-nav-head strong',label],['.mobile-nav-current',title],['.side .nav-title',label]];
+ for(const [sel,val] of slots){const el=document.querySelector(sel);if(el)el.textContent=val}
+ const support=document.getElementById('supportShortcut');
+ if(support){support.classList.toggle('active',active==='support');support.setAttribute('aria-current',active==='support'?'page':'false')}
+ updateActiveNavigation();
+ if(active!=='support')supportCtxWrite({page_url:location.href,page_title:document.title,page_id:active,captured_at:new Date().toISOString()});
+}
 async function navigatePortal(url,{replace=false,pop=false}={}){
-  const u=new URL(url,location.href);
-  if(u.origin!==location.origin||!u.pathname.endsWith('.html')){location.href=u.href;return}
-  const prepared=await prepareTarget(u.href);
-  const targetPage=prepared.targetPage,targetSearch=u.search;
-  if(workspace()?.surface==='nondot'){
-    try{window.portalCtx.nondotVerified=await nondotWorkspaceAccess();}
-    catch{window.portalCtx.nondotVerified=false;}
-  }
-  if(!pageAccess(window.portalCtx,targetPage).allowed){
-    if(!pop){if(replace)history.replaceState({s4u:true},'',u.pathname+u.search+u.hash);else history.pushState({s4u:true},'',u.pathname+u.search+u.hash)}
-    document.body.dataset.portalPage=targetPage;
-    shell(window.portalCtx);
-    await render(window.portalCtx);
-    return;
-  }
-  const cached=await getCachedPageData(targetPage,targetSearch);
-  if(!pop){if(replace)history.replaceState({s4u:true},'',u.pathname+u.search+u.hash);else history.pushState({s4u:true},'',u.pathname+u.search+u.hash)}
-  document.body.dataset.portalPage=targetPage;
-  shell(window.portalCtx);updateActiveNavigation();
-  if(cached!==null){await render(window.portalCtx,cached);loadPageDataCached(targetPage,targetSearch,{force:true}).then(d=>{if(page()===targetPage&&location.search===targetSearch)render(window.portalCtx,d)}).catch(console.warn);return}
-  // Keep navigation chrome responsive; no spinner. Usually this request has already started on hover.
-  const d=await loadPageDataCached(targetPage,targetSearch,{force:false});
-  if(page()===targetPage)await render(window.portalCtx,d);
+ const u=new URL(url,location.href);
+ if(u.origin!==location.origin||!u.pathname.endsWith('.html'))throw Error('This destination is outside the C/TPA application.');
+ const pathPage=norm(u.pathname.split('/').pop()?.replace('.html','')||'dashboard');
+ // Internal C/TPA modules are already bundled into the application. Do not
+ // download HTML, reinitialize auth, or rebuild the entire screen on each click.
+ const prepared=(pathPage==='dashboard'||isNonDotPage(pathPage)||['profile','account_settings'].includes(pathPage))
+  ?{targetPage:pathPage}:await prepareTarget(u.href);
+ const targetPage=prepared.targetPage,targetSearch=u.search;
+ if(!pop){if(replace)history.replaceState({s4u:true},'',u.pathname+u.search+u.hash);else history.pushState({s4u:true},'',u.pathname+u.search+u.hash)}
+ document.body.dataset.portalPage=targetPage;
+ updatePortalChrome();
+ const error=document.getElementById('error');if(error)error.textContent='';
+ const currentSurface=workspace()?.surface;
+ const cache=await getCachedPageData(targetPage,targetSearch);
+ if(cache!==null){await render(window.portalCtx,cache);return}
+ const data=await loadPageDataCached(targetPage,targetSearch,{force:false});
+ if(page()===targetPage&&workspace()?.surface===currentSurface)await render(window.portalCtx,data);
 }
 async function switchOperatingWorkspace(desired){
  if(!['dot','nondot'].includes(desired))throw Error('Unknown workspace');
+ if(desired===workspace()?.surface){await navigatePortal('/dashboard.html');return}
  const session=await getSession();
  if(!session?.access_token)throw Error('Sign in required');
- const response=await fetch(C.workforceUrl+'/functions/v1/workforce-ctpa-unified-workspaces',{
-  method:'POST',cache:'no-store',headers:{'Content-Type':'application/json',apikey:C.workforceKey,Authorization:'Bearer '+session.access_token},body:'{}'
- });
- const data=await response.json().catch(()=>({}));
- if(!response.ok)throw Error(data.error||'Unable to verify workspace');
- const current=workspace();
- const rows=Array.isArray(data.workspaces)?data.workspaces:[];
- // DOT and NON-DOT C/TPA rows have distinct legacy IDs. They belong to the same
- // combined subscription when the server verifies their shared organization.
+ const headers={'Content-Type':'application/json',apikey:C.workforceKey,Authorization:'Bearer '+session.access_token};
+ const response=await fetch(C.workforceUrl+'/functions/v1/workforce-ctpa-unified-workspaces',{method:'POST',cache:'no-store',headers,body:'{}'});
+ const result=await response.json().catch(()=>({}));
+ if(!response.ok)throw Error(result.error||'Unable to verify combined C/TPA access');
+ const current=workspace(),rows=Array.isArray(result.workspaces)?result.workspaces:[];
  const parent=rows.find(x=>x.ctpa_id===current?.ctpa_id&&x.subscription_id===current?.subscription_id);
  const orgId=current?.organization_id||parent?.organization_id;
- if(!orgId)throw Error('Unable to identify the current C/TPA organization. Please select your account again.');
- const available=rows.find(x=>x.operating_context===desired&&x.organization_id===orgId);
- if(!available)throw Error('This C/TPA organization does not have an authorized '+(desired==='dot'?'DOT':'NON-DOT')+' workspace.');
- W.set({...current,...available,surface:desired,ctpa_id:available.ctpa_id,subscription_id:available.subscription_id,organization_id:available.organization_id,combined_subscription_id:available.combined_subscription_id||current.combined_subscription_id,combined_plan_name:available.plan_name||current.combined_plan_name,plan_name:available.plan_name||current.plan_name});
- location.assign('/dashboard.html');
+ const target=rows.find(x=>x.operating_context===desired&&x.organization_id===orgId);
+ if(!target)throw Error('This organization does not have an available '+(desired==='dot'?'DOT':'NON-DOT')+' operating context.');
+ // Independently validate the target tenant before changing browser state.
+ const isNondot=desired==='nondot';
+ const endpoint=isNondot?'/functions/v1/nondot-workforce-session-context':'/functions/v1/ctpa-dot/session?forceFunctionRegion=ca-central-1';
+ const verifiedResponse=await fetch(C.workforceUrl+endpoint,{method:'POST',cache:'no-store',headers,
+  body:JSON.stringify(isNondot?{portal_code:'ctpa_workforce',ctpa_id:target.ctpa_id,subscription_id:target.subscription_id}:{ctpa_id:target.ctpa_id,subscription_id:target.subscription_id,page:'dashboard'})});
+ const verified=await verifiedResponse.json().catch(()=>({}));
+ if(!verifiedResponse.ok||verified.error||verified.has_access===false||verified.ctpa?.id!==target.ctpa_id||verified.subscription?.id!==target.subscription_id)
+  throw Error(verified.error||'Unable to verify this C/TPA operating context');
+ if(isNondot&&verified.portal_code!=='ctpa_workforce')throw Error('The selected NON-DOT account could not be verified.');
+ W.set({...current,...target,surface:desired,ctpa_id:target.ctpa_id,subscription_id:target.subscription_id,
+  organization_id:target.organization_id,combined_subscription_id:target.combined_subscription_id||current.combined_subscription_id,
+  combined_plan_name:target.plan_name||current.combined_plan_name,plan_name:target.plan_name||current.plan_name,
+  membership_id:verified.membership?.id||current.membership_id});
+ window.portalCtx={...verified,nondotVerified:isNondot};
+ window.S4UCTPAVerifiedContext=window.portalCtx;
+ refreshWorkspaceNavigation(window.portalCtx);
+ startRealtime(window.portalCtx);
+ await navigatePortal('/dashboard.html');
 }
 function installFastNavigation(){
   document.addEventListener('submit',async e=>{const form=e.target;if(form?.id!=='workforce-profile-form')return;e.preventDefault();const status=document.getElementById('workforce-profile-status'),button=form.querySelector('button[type="submit"]');if(button)button.disabled=true;try{const data=new FormData(form);const first_name=String(data.get('first_name')||'').trim(),last_name=String(data.get('last_name')||'').trim();const {error}=await sb.auth.updateUser({data:{first_name,last_name}});if(error)throw error;if(status)status.textContent='Profile saved.';}catch(err){if(status)status.textContent=err.message||'Unable to save profile.';}finally{if(button)button.disabled=false;}},true);
   document.addEventListener('click',e=>{const a=e.target.closest?.('a[data-workspace]');if(!a||!a.dataset.workspace)return;
   const desired=a.dataset.workspace;
-  if(desired===workspace()?.surface){e.preventDefault();if(page()!=='dashboard')navigatePortal('/dashboard.html').catch(()=>location.assign('/dashboard.html'));return;}
+  if(desired===workspace()?.surface){e.preventDefault();navigatePortal('/dashboard.html').catch(showNavigationError);return;}
   e.preventDefault();e.stopImmediatePropagation();
-  switchOperatingWorkspace(desired).catch(err=>{console.warn('Unable to change workspace',err);const panel=document.querySelector('#error');if(panel)panel.innerHTML='<div class="notice" role="alert">'+esc(err?.message||'Unable to switch workspace. Please try again.')+'</div>';});
+  switchOperatingWorkspace(desired).catch(err=>{console.warn('Unable to change workspace',err);showNavigationError(err);});
  },true);
- document.addEventListener('click',e=>{const a=e.target.closest?.('a[href]');if(!a||e.defaultPrevented||e.button!==0||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey||a.target||a.hasAttribute('download'))return;const u=new URL(a.href,location.href);if(u.origin!==location.origin||!u.pathname.endsWith('.html')||u.pathname==='/workforce-context.html')return;e.preventDefault();navigatePortal(u.href).catch(err=>{console.warn('Soft navigation fallback',err);location.href=u.href})},true);
+ document.addEventListener('click',e=>{const a=e.target.closest?.('a[href]');if(!a||e.defaultPrevented||e.button!==0||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey||a.target||a.hasAttribute('download'))return;const u=new URL(a.href,location.href);if(u.origin!==location.origin||!u.pathname.endsWith('.html')||u.pathname==='/workforce-context.html')return;e.preventDefault();navigatePortal(u.href).catch(showNavigationError)},true);
   // Deliberately avoid preloading pages or backend calls on hover/touch.
   // Only the destination selected by the user should request its data.
-  addEventListener('popstate',()=>navigatePortal(location.href,{pop:true}).catch(()=>location.reload()));
+  addEventListener('popstate',()=>navigatePortal(location.href,{pop:true}).catch(showNavigationError));
 }
 async function init(){
   try{
@@ -932,7 +962,6 @@ async function init(){
     if(cached!==null){await render(ctx,cached);loadPageDataCached(p,search,{force:true}).then(d=>{if(page()===p&&location.search===search)render(ctx,d)}).catch(console.warn)}
     else {const d=await loadPageDataCached(p,search,{force:false});await render(ctx,d)}
 
-    void syncNondotNavigation(ctx);
     startRealtime(ctx);
   }
   catch(e){if(e?.status===401||e?.message==='AUTH_REQUIRED'){W.clear();await clearPageCache();try{await sb.auth.signOut({scope:'local'})}catch{};location.replace('/login.html');return}if(e?.status===402)return;document.body.className='login-page';document.body.innerHTML=`<main class="login-card"><img class="login-logo" src="images/logo.png"><h1>Portal unavailable</h1><p>${esc(e.message||String(e))}</p><a class="btn primary" href="/workspace.html">Choose C/TPA Account</a></main>`}
