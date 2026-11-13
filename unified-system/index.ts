@@ -84,6 +84,42 @@ Deno.serve(async request=>{
   const canWrite=["owner","admin","editor"].includes(role);
   const context=body.operating_context==="nondot"?"nondot":"dot";
   const companyKind=(kind:string)=>kind==="employers"||kind==="owner_operators";
+  // A program is read-only while any active person is enrolled directly or through its pools.
+  // Counts are derived from current records, so removing the final membership unlocks it.
+  const programEmployeeCount=async(programId:string)=>{
+   const program=await collection.select("id,data").eq("id",programId)
+    .eq("tenant_id",tenantId).eq("kind","programs").eq("operating_context",context)
+    .is("archived_at",null).maybeSingle();
+   if(program.error)throw program.error;
+   if(!program.data)return null;
+   const legacyId=program.data.data?._legacy_id||"";
+   const pools=await collection.select("id,data").eq("tenant_id",tenantId).eq("kind","pools")
+    .eq("operating_context",context).is("archived_at",null).limit(1000);
+   if(pools.error)throw pools.error;
+   const linked=(pools.data||[]).filter((p:any)=>
+    p.data?.program_id===programId||(legacyId&&p.data?._legacy_program_id===legacyId));
+   const poolIds=linked.map((p:any)=>p.id);
+   const records=await collection.select("id,data").eq("tenant_id",tenantId)
+    .eq("kind","enrollments").eq("operating_context",context)
+    .is("archived_at",null).limit(1000);
+   if(records.error)throw records.error;
+   const personIds=new Set<string>();
+   for(const enrollment of records.data||[]){
+    const d=enrollment.data||{};
+    if(!uuid(d.person_id)||d.status==="inactive"||d.status==="removed")continue;
+    if(d.program_id===programId||
+       (d.membership_type==="pool"&&poolIds.includes(d.pool_id))){
+      personIds.add(d.person_id);
+    }
+   }
+   return {program_id:programId,employee_count:personIds.size,locked:personIds.size>0};
+  };
+  if(action==="program_lock_status"){
+   if(!uuid(body.program_id))return respond({error:"Invalid program"},400);
+   const result=await programEmployeeCount(body.program_id);
+   if(!result)return respond({error:"Program not found in this workspace"},404);
+   return respond({ok:true,...result});
+  }
   if(action==="program_rules"){
    const result=await db.from("regulatory_rules")
     .select("dot_agency,rule_name,effective_date,end_date,drug_rate,alcohol_rate,version")
@@ -335,6 +371,12 @@ Deno.serve(async request=>{
     clean.employer=linked.data.data?.legal_name||"";
     clean.relationship=clean.relationship==="contact"?"contact":"staff";
    }
+   if(kind==="programs"&&uuid(body.id)){
+    const status=await programEmployeeCount(body.id);
+    if(!status)return respond({error:"Program not found in this workspace"},404);
+    if(status.locked)return respond({error:"Program is locked while "+status.employee_count+
+      " employee(s) are enrolled. Remove every employee from the program's pools to edit it."},423);
+   }
    if(kind==="programs"){
     // Program context is server-owned; a client cannot move DOT programs to NON-DOT.
     clean.program_type=context==="dot"?"DOT":"NON-DOT";
@@ -476,6 +518,11 @@ Deno.serve(async request=>{
    if(body.kind==="owner_operators"&&context==="nondot")
     return respond({error:"Owner-Operators belong to the DOT workspace"},403);
    if(body.kind==="selections")return respond({error:"Selection audit records cannot be archived"},403);
+   if(body.kind==="programs"){
+    const status=await programEmployeeCount(body.id);
+    if(!status)return respond({error:"Program not found in this workspace"},404);
+    if(status.locked)return respond({error:"Cannot archive a program while employees remain enrolled"},423);
+   }
    const q=await collection.select("id,operating_context").eq("id",body.id).eq("tenant_id",tenantId)
     .eq("kind",body.kind).is("archived_at",null).maybeSingle();
    if(q.error)throw q.error;
