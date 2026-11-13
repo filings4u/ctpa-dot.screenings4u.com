@@ -427,7 +427,7 @@ Deno.serve(async request=>{
     .is("archived_at",null).order("created_at",{ascending:false}).limit(500);
    if(q.error)throw q.error;
    return respond({ok:true,records:(q.data||[]).filter((r:any)=>r.data?.source==="ctpa_lab_account_request"||
-     r.data?.source==="ctpa_lab_account_manual")});
+     r.data?.source==="ctpa_lab_account_manual"||r.data?.source==="testing_ops_issued")});
   }
   if(action==="lab_account_request"){
    if(!canWrite)return respond({error:"Your account cannot create lab account requests"},403);
