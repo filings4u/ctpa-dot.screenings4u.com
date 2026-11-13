@@ -410,6 +410,76 @@ Deno.serve(async request=>{
   // Generate read-only company reports directly from the unified authorized record store.
   // Report values are never accepted from the browser, and official test documents
   // remain exclusively available through their existing secure delivery workflow.
+
+  // Native employer lab account ledger. Account numbers cannot be self-issued by C/TPA.
+  // Testing Operations fulfillment is a separate staff-authorized workflow.
+  const getLabCompany=async(id:unknown,operatingContext=context)=>{
+   if(!uuid(id))return null;
+   const q=await collection.select("id,kind,data").eq("id",id).eq("tenant_id",tenantId)
+    .in("kind",operatingContext==="dot"?["employers","owner_operators"]:["employers"])
+    .eq("operating_context",operatingContext).is("archived_at",null).maybeSingle();
+   if(q.error)throw q.error;
+   return q.data||null;
+  };
+  if(action==="lab_accounts_list"){
+   const q=await collection.select("id,kind,operating_context,data,created_at,updated_at")
+    .eq("tenant_id",tenantId).eq("kind","lab_accounts").eq("operating_context",context)
+    .is("archived_at",null).order("created_at",{ascending:false}).limit(500);
+   if(q.error)throw q.error;
+   return respond({ok:true,records:(q.data||[]).filter((r:any)=>r.data?.source==="ctpa_lab_account_request"||
+     r.data?.source==="ctpa_lab_account_manual")});
+  }
+  if(action==="lab_account_request"){
+   if(!canWrite)return respond({error:"Your account cannot create lab account requests"},403);
+   const input=payload(body.data);
+   if(!input)return respond({error:"Account details required"},400);
+   const company=await getLabCompany(input.company_id);
+   if(!company)return respond({error:"Choose an employer or owner-operator in this workspace"},400);
+   const service=text(input.service,40);
+   if(!["urine_drug","breath_alcohol","urine_drug_and_alcohol"].includes(service))
+    return respond({error:"Choose a valid drug or alcohol service"},400);
+   const provider=text(input.provider,100),notes=text(input.notes,1500);
+   const price=Number(input.resale_price);
+   if(!Number.isFinite(price)||price<0||price>1000000||!/^\\d+(?:\\.\\d{1,2})?$/.test(String(input.resale_price)))
+    return respond({error:"Enter a valid C/TPA selling price"},400);
+   const record={
+    name:"Lab Account Request - "+text(company.data?.legal_name,150),
+    company_id:company.id,company_name:text(company.data?.legal_name,180),service,
+    context,provider,notes,resale_price:Number(price.toFixed(2)),
+    source:"ctpa_lab_account_request",status:"requested",fulfillment_status:"pending_processing",
+    account_number:"",issued_by_testing:false,ready_for_orders:false,
+    requested_at:new Date().toISOString(),order_reference:"LAB-"+crypto.randomUUID().slice(0,12).toUpperCase()
+   };
+   const inserted=await collection.insert({tenant_id:tenantId,kind:"lab_accounts",operating_context:context,
+    data:record,created_by:user.id,updated_by:user.id}).select("id").single();
+   if(inserted.error)throw inserted.error;
+   return respond({ok:true,id:inserted.data.id,order_reference:record.order_reference,status:"requested",
+    message:"Request saved for Testing Operations review. Purchase and provisioning are not yet confirmed."});
+  }
+  if(action==="lab_account_record"){
+   if(!canWrite)return respond({error:"You cannot record account information"},403);
+   const input=payload(body.data);
+   if(!input)return respond({error:"Account details required"},400);
+   const company=await getLabCompany(input.company_id);
+   if(!company)return respond({error:"Choose a company in this workspace"},400);
+   const service=text(input.service,40),number=text(input.account_number,100);
+   if(!["urine_drug","breath_alcohol","urine_drug_and_alcohol"].includes(service)||
+    !/^[A-Za-z0-9][A-Za-z0-9._\\/-]{2,99}$/.test(number))
+    return respond({error:"Enter the service and a valid lab account number"},400);
+   const price=Number(input.resale_price||0);
+   if(!Number.isFinite(price)||price<0||price>1000000)return respond({error:"Invalid selling price"},400);
+   const data={name:"Recorded lab account - "+text(company.data?.legal_name,100),
+    company_id:company.id,company_name:text(company.data?.legal_name,180),
+    service,context,account_number:number,provider:text(input.provider,100),
+    notes:text(input.notes,1500),resale_price:Number(price.toFixed(2)),
+    source:"ctpa_lab_account_manual",status:"unverified",fulfillment_status:"unverified",
+    issued_by_testing:false,ready_for_orders:false,recorded_at:new Date().toISOString()};
+   const inserted=await collection.insert({tenant_id:tenantId,kind:"lab_accounts",operating_context:context,
+    data,created_by:user.id,updated_by:user.id}).select("id").single();
+   if(inserted.error)throw inserted.error;
+   return respond({ok:true,id:inserted.data.id,verified:false});
+  }
+
   if(action==="reports_generate"){
    const companyId=text(body.company_id,60),reportType=text(body.report_type,40);
    const allowedTypes=["overview","people","programs","pools","selections","testing","results","compliance","occupational"];
@@ -1119,6 +1189,15 @@ Deno.serve(async request=>{
    const kind=text(body.kind,64);
    if(kind!=="all"&&!ALLOWED.has(kind))return respond({error:"Unknown application module"},400);
 
+   if(kind==="lab_accounts"){
+    const q=await collection.select("id,kind,operating_context,data,created_at,updated_at")
+     .eq("tenant_id",tenantId).eq("kind","lab_accounts")
+     .in("operating_context",[context,"shared"]).is("archived_at",null)
+     .order("created_at",{ascending:false}).limit(500);
+    if(q.error)throw q.error;
+    return respond({ok:true,records:(q.data||[]).filter((r:any)=>r.operating_context===context&&
+      ["ctpa_lab_account_request","ctpa_lab_account_manual","testing_ops_issued"].includes(r.data?.source))});
+   }
    if(kind==="documents"){
     const docs=await collection.select("id,kind,operating_context,data,created_at,updated_at")
      .eq("tenant_id",tenantId).eq("kind","documents").eq("operating_context",context)
@@ -1341,6 +1420,7 @@ Deno.serve(async request=>{
    if(kind==="return_to_duty")return respond({error:"Use the secure native RTD workflow"},403);
    if(kind==="policies")return respond({error:"Use the native policy editor"},403);
    if(kind==="reports")return respond({error:"Reports are generated from live company data, not manually created"},403);
+   if(kind==="lab_accounts")return respond({error:"Use the controlled lab account request or record workflow"},403);
    if(kind==="documents")return respond({error:"Use private document upload; generic records are disabled"},403);
    const data=payload(body.data);
    if(!data||Object.keys(data).length>40||JSON.stringify(data).length>60000)
