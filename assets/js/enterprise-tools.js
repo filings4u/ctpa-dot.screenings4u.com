@@ -4,7 +4,7 @@ const LABELS={catalog:'Enterprise Features',policy:'Policy Builder',enrollment:'
 const ESC=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const text=v=>String(v??'').replaceAll('_',' ').replace(/\b\w/g,c=>c.toUpperCase());
 const fmt=v=>v?new Date(v).toLocaleDateString():'—';
-const activeTool=()=>{const t=new URLSearchParams(location.search).get('tool')||'policy';return Object.hasOwn(LABELS,t)?t:'policy'};
+const activeTool=()=>{const t=new URLSearchParams(location.search).get('tool')||'catalog';return Object.hasOwn(LABELS,t)?t:'catalog'};
 async function call(body={}){
  const w=window.S4UCTPAWorkspace?.read();
  const {data:{session},error}=await window.S4UGetSupabaseClient().auth.getSession();
