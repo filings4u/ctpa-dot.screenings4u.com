@@ -185,7 +185,7 @@ function updateHeading(){
  updateBreadcrumbs();
  $("pageActions").innerHTML=state.page==="results"?'<button class="btn secondary" type="button" id="refreshPage">Refresh</button>':state.page==="account"?"":state.page==="dashboard"||state.page==="lab_analytics"
   ?'<button class="btn secondary" type="button" id="refreshPage">Refresh</button>'
-  :'<button class="btn secondary" type="button" id="refreshPage">Refresh</button><button class="btn secondary" type="button" id="exportPage">Export CSV</button><button class="btn primary" type="button" id="newRecord">'+(state.page==="selections"?"Run Selection":state.page==="testing_orders"?"Order a Test":state.page==="testing_documents"?"Upload Document":state.page==="occupational_health"?"Order Physical":state.page==="compliance"?"Add Compliance Record":"Add "+esc(title))+'</button>';
+  :'<button class="btn secondary" type="button" id="refreshPage">Refresh</button><button class="btn secondary" type="button" id="exportPage">Export CSV</button><button class="btn primary" type="button" id="newRecord">'+(state.page==="selections"?"Run Selection":state.page==="testing_orders"?"Order a Test":state.page==="testing_documents"?"Upload Document":state.page==="occupational_health"?"Order Physical":state.page==="compliance"?"Add Compliance Record":state.page==="audits"?"Start New Entrant Audit":"Add "+esc(title))+'</button>';
 }
 function switchPage(page,push=true){
  if(!CONFIG[page])page="dashboard";
@@ -1989,6 +1989,194 @@ async function hydrateComplianceCompanies(record){
  }catch(error){if(state.management===m&&$("managementError"))$("managementError").textContent="Unable to load company and employee options: "+error.message}
 }
 
+
+let auditCatalog=null;
+async function getAuditChecklist(){
+ if(auditCatalog)return auditCatalog;
+ const res=await api("audit_catalog",{tenant_id:state.tenantId,operating_context:"dot"});
+ auditCatalog=res.items||[];
+ return auditCatalog;
+}
+function auditList(records){
+ const q=state.search.toLowerCase(),status=state.statusFilter;
+ const visible=records.filter(r=>(!q||[r.data?.name,r.data?.carrier,r.data?.dot_number].some(v=>String(v||"").toLowerCase().includes(q)))&&(!status||r.data?.status===status));
+ const rows=visible.map(r=>{
+  const d=r.data||{},completed=Object.values(d.checklist||{}).filter(x=>x?.status==="reviewed"||x?.status==="not_applicable").length;
+  return '<button type="button" class="audit-list-row" data-view="'+esc(r.id)+'"><span class="results-row-icon">'+navIcon("audits")+'</span>'+
+   '<span class="audit-list-name"><strong>'+esc(d.name||"New Entrant Audit")+'</strong><small>'+esc(d.carrier||"Carrier not linked")+' · USDOT '+esc(d.dot_number||"Not provided")+'</small></span>'+
+   '<span class="audit-list-progress">'+completed+'/22 items</span><span class="mgmt-status '+statusClass(d.status)+'">'+esc(statusLabel(d.status||"draft"))+'</span>'+
+   '<span class="results-row-view">Open</span></button>';
+ }).join("");
+ $("pageContent").innerHTML='<div class="results-workspace audit-workspace"><section class="results-intro"><span class="results-intro-icon">'+navIcon("audits")+'</span><div>'+
+  '<strong>FMCSA New Entrant Safety Audit preparation</strong><p>Prepare carrier records with an independent 22-item checklist, evidence uploads, review notes and progress tracking. FMCSA determines official audit outcomes.</p></div></section>'+
+  '<section class="results-list"><div class="directory-toolbar"><div class="directory-search"><input id="recordSearch" aria-label="Search audits" type="search" placeholder="Search carrier or audit" value="'+esc(state.search)+'"></div>'+
+  '<select id="statusFilter" aria-label="Filter audit status"><option value="">All statuses</option>'+
+  ["draft","in_progress","ready","submitted","completed"].map(v=>'<option value="'+v+'"'+(status===v?" selected":"")+'>'+esc(statusLabel(v))+'</option>').join("")+'</select>'+
+  '<span class="directory-total">'+visible.length+' audits</span></div>'+
+  (rows||'<div class="directory-empty"><div class="directory-empty-icon">'+navIcon("audits")+'</div><h2>No New Entrant Audits</h2><p>Select a DOT carrier to prepare its safety audit.</p>'+
+   (["owner","admin","editor"].includes(activeWorkspace()?.role||"")?'<button type="button" class="btn primary" data-create="1">Start New Entrant Audit</button>':"")+'</div>')+
+  '</section></div>';
+}
+function renderAuditManagement(record,mode,canWrite){
+ const data=record?.data||{},view=mode==="view",name=data.name||"New Entrant Audit";
+ const header='<div class="program-head"><span class="program-head-icon">'+navIcon("audits")+'</span><div><strong>'+esc(name)+'</strong>'+
+  '<small>'+esc(data.carrier||"DOT carrier not selected")+'</small></div>'+
+  (record?recordStatus(record):'<span class="mgmt-status pending">New audit</span>')+'</div>';
+ const editForm='<section class="management-section"><header class="management-section-header"><h2>Carrier and audit details</h2></header>'+
+  '<div class="manage-form-grid"><label class="manage-field"><span>DOT carrier / owner-operator *</span><select id="auditCompany" name="company_id" required disabled><option value="">Loading carriers…</option></select></label>'+
+  '<label class="manage-field"><span>Audit title</span><input name="name" maxlength="180" value="'+esc(data.name||"")+'" placeholder="New Entrant Audit"></label>'+
+  '<label class="manage-field"><span>FMCSA notice date</span><input name="notice_date" type="date" value="'+esc(data.notice_date||"")+'"></label>'+
+  '<label class="manage-field"><span>Audit due date</span><input name="due_date" type="date" value="'+esc(data.due_date||"")+'"></label>'+
+  '<label class="manage-field"><span>Preparation status</span><select name="status">'+
+  ["draft","in_progress","ready","submitted","completed"].map(v=>'<option value="'+v+'"'+(data.status===v?" selected":"")+'>'+esc(statusLabel(v))+'</option>').join("")+'</select></label>'+
+  '<label class="manage-field audit-notes"><span>Internal preparation notes</span><textarea name="notes" rows="4" maxlength="5000">'+esc(data.notes||"")+'</textarea></label></div>'+
+  '<p id="auditFormError" class="manage-form-error" role="alert"></p>'+
+  '<footer class="management-editor-actions"><button type="button" class="btn secondary" data-back-list>Cancel</button>'+
+  '<button type="submit" class="btn primary" id="auditSave" disabled>'+(record?"Save Audit Details":"Create Audit")+'</button></footer></section>';
+ let html='<div class="audit-workspace audit-editor">'+header;
+ if(!view){
+  html+='<form id="auditForm">'+editForm+'</form></div>';
+  $("pageContent").innerHTML=html;
+  void hydrateAuditCarrier(record);
+  return;
+ }
+ const percent=Number(data.readiness_percent)||0;
+ html+='<div class="audit-summary-grid"><div><small>Carrier</small><strong>'+esc(data.carrier||"Unassigned")+'</strong></div>'+
+  '<div><small>USDOT number</small><strong>'+esc(data.dot_number||"Not supplied")+'</strong></div>'+
+  '<div><small>Due date</small><strong>'+esc(data.due_date||"Not set")+'</strong></div>'+
+  '<div><small>Preparation</small><strong id="auditPercent">'+percent+'%</strong></div></div>'+
+  '<div class="audit-progress"><div class="audit-progress-fill" id="auditProgressBar" style="width:'+percent+'%"></div></div>'+
+  '<div class="audit-disclaimer">This is an internal audit-preparation workspace. Completing the checklist does not constitute FMCSA audit approval.</div>'+
+  '<section class="audit-checklist-shell"><div class="audit-checklist-head"><div><h2>Audit preparation checklist</h2>'+
+  '<p>Review each requirement, record evidence and notes, and mark the item status.</p></div>'+
+  (canWrite?'<button type="button" class="btn secondary" data-manage-edit="'+esc(record.id)+'">Edit Audit Details</button>':"")+'</div>'+
+  '<div id="auditChecklistContent" class="audit-checklist-content"><p class="audit-loading">Loading FMCSA checklist…</p></div></section>'+
+  '<section class="official-result-section"><h2>Internal notes</h2><p class="compliance-note">'+esc(data.notes||"No preparation notes recorded.")+'</p></section>'+
+  '<footer class="program-actions"><button type="button" class="btn secondary" data-back-list>Back to New Entrant Audits</button></footer></div>';
+ $("pageContent").innerHTML=html;
+ void renderAuditChecklistItems(record,canWrite);
+}
+async function hydrateAuditCarrier(record){
+ const m=state.management,seq=state.sequence;
+ try{
+  const kinds=["employers","owner_operators"];
+  const responses=await Promise.all(kinds.map(async kind=>{
+   const key=cacheKey(kind),cached=state.cache.get(key);
+   if(cached&&Date.now()-cached.time<30000)return cached.records;
+   const r=await api("list",{tenant_id:state.tenantId,operating_context:"dot",kind});
+   state.cache.set(key,{records:r.records||[],time:Date.now()});return r.records||[];
+  }));
+  if(m!==state.management||seq!==state.sequence)return;
+  const select=$("auditCompany"),save=$("auditSave");if(!select||!save)return;
+  const companies=responses.flat();
+  select.innerHTML='<option value="">Select DOT carrier</option>'+
+   companies.map(r=>'<option value="'+esc(r.id)+'">'+esc(r.data?.legal_name||"Carrier")+'</option>').join("");
+  if(record?.data?.company_id&&companies.some(c=>c.id===record.data.company_id))select.value=record.data.company_id;
+  else if(record?.data?.carrier){
+   const matched=companies.find(c=>c.data?.legal_name===record.data.carrier);
+   if(matched)select.value=matched.id;
+  }
+  select.disabled=!companies.length;save.disabled=!companies.length;
+  if(!companies.length)$("auditFormError").textContent="Create a DOT employer or owner-operator before starting an audit.";
+ }catch(err){if(state.management===m&&$("auditFormError"))$("auditFormError").textContent=err.message}
+}
+async function saveAudit(form){
+ const button=$("auditSave"),error=$("auditFormError");
+ if(!form.reportValidity()||!button||button.disabled)return;
+ button.disabled=true;error.textContent="";
+ const d=Object.fromEntries(new FormData(form).entries());
+ try{
+  const r=await api("audit_save",{tenant_id:state.tenantId,operating_context:"dot",
+   id:state.management?.id||null,company_id:d.company_id,name:d.name,notice_date:d.notice_date,
+   due_date:d.due_date,status:d.status,notes:d.notes});
+  state.cache.delete(cacheKey());
+  state.management=null;
+  void loadRecords();
+  message("New Entrant Audit saved.");
+ }catch(err){error.textContent=err.message;button.disabled=false}
+}
+async function renderAuditChecklistItems(record,canWrite){
+ const m=state.management;
+ try{
+  const catalog=await getAuditChecklist();
+  if(m!==state.management||!$("auditChecklistContent"))return;
+  const groups=[...new Set(catalog.map(x=>x.section))];
+  const statusOpts=["missing","requested","received","reviewed","not_applicable"];
+  $("auditChecklistContent").innerHTML=groups.map(section=>{
+   const rows=catalog.filter(x=>x.section===section);
+   return '<section class="audit-checklist-group"><h3>'+esc(rows[0].section_title)+' <small>'+rows.length+' items</small></h3>'+
+   rows.map(x=>{
+    const entry=record.data?.checklist?.[x.code]||{},files=entry.documents||[];
+    const current=entry.status||"missing";
+    return '<article class="audit-checklist-item" data-audit-item="'+esc(x.code)+'">'+
+     '<div class="audit-item-heading"><div><strong>'+esc(x.title)+'</strong>'+
+     '<small>'+esc(x.citation)+(x.conditional?" · If applicable":" · Required")+'</small></div>'+
+     '<span class="mgmt-status '+statusClass(current)+'">'+esc(statusLabel(current))+'</span></div>'+
+     '<div class="audit-item-details"><label>Status <select data-audit-status="'+esc(x.code)+'"'+(!canWrite?" disabled":"")+'>'+
+     statusOpts.filter(v=>v!=="not_applicable"||x.conditional).map(v=>
+       '<option value="'+v+'"'+(current===v?" selected":"")+'>'+esc(statusLabel(v))+'</option>').join("")+
+     '</select></label><label>Reviewer notes<textarea data-audit-notes="'+esc(x.code)+'" rows="2" maxlength="1600"'+(!canWrite?" disabled":"")+'>'+esc(entry.notes||"")+'</textarea></label></div>'+
+     '<div class="audit-item-actions">'+(canWrite?'<button type="button" class="btn secondary" data-audit-item-save="'+esc(x.code)+'">Save Item</button>'+
+     '<label class="audit-file-upload">Attach PDF or image<input type="file" accept=".pdf,.png,.jpg,.jpeg,.webp" data-audit-upload="'+esc(x.code)+'"></label>':"")+
+     '</div><div class="audit-files">'+files.map((file,i)=>'<button type="button" class="btn secondary btn-sm" data-audit-download="'+esc(x.code)+'" data-audit-index="'+i+'">'+esc(file.name||"Evidence")+'</button>').join("")+
+     '</div></article>';
+   }).join("")+'</section>';
+  }).join("");
+ }catch(err){if(m===state.management&&$("auditChecklistContent"))$("auditChecklistContent").textContent="Unable to load the checklist: "+err.message}
+}
+async function saveAuditItem(code,button){
+ const item=button.closest("[data-audit-item]");if(!item)return;
+ const status=item.querySelector("[data-audit-status]")?.value;
+ const notes=item.querySelector("[data-audit-notes]")?.value||"";
+ button.disabled=true;
+ try{
+  const r=await api("audit_item_update",{tenant_id:state.tenantId,operating_context:"dot",
+   audit_id:state.management?.id,item_code:code,status,notes});
+  const cached=state.cache.get(cacheKey());
+  const record=cached?.records.find(x=>x.id===state.management?.id);
+  if(record){
+   record.data.checklist=record.data.checklist||{};
+   record.data.checklist[code]={...record.data.checklist[code],status,notes};
+   record.data.readiness_percent=r.readiness_percent;
+  }
+  const badge=item.querySelector(".mgmt-status");if(badge){badge.className="mgmt-status "+statusClass(status);badge.textContent=statusLabel(status)}
+  if($("auditPercent"))$("auditPercent").textContent=r.readiness_percent+"%";
+  if($("auditProgressBar"))$("auditProgressBar").style.width=r.readiness_percent+"%";
+  message("Checklist item saved.");
+ }catch(err){message(err.message,true)}finally{button.disabled=false}
+}
+async function uploadAuditEvidence(input){
+ const code=input.dataset.auditUpload,file=input.files?.[0];if(!file)return;
+ if(file.size>8*1024*1024){message("Evidence must be 8 MB or less.",true);input.value="";return}
+ if(!["application/pdf","image/png","image/jpeg","image/webp"].includes(file.type)){message("Choose a PDF or image.",true);input.value="";return}
+ input.disabled=true;
+ try{
+  const encoded=await new Promise((resolve,reject)=>{
+   const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(",")[1]||"");
+   reader.onerror=()=>reject(Error("Unable to read evidence file."));reader.readAsDataURL(file);
+  });
+  await api("audit_document_upload",{tenant_id:state.tenantId,operating_context:"dot",
+   audit_id:state.management?.id,item_code:code,filename:file.name,mime_type:file.type,base64:encoded});
+  state.cache.delete(cacheKey());
+  const r=await api("list",{tenant_id:state.tenantId,operating_context:"dot",kind:"audits"});
+  state.cache.set(cacheKey(),{records:r.records||[],time:Date.now()});
+  const record=r.records?.find(x=>x.id===state.management?.id);
+  if(record)void renderAuditChecklistItems(record,true);
+  message("Evidence uploaded securely.");
+ }catch(err){message(err.message,true)}finally{input.disabled=false;input.value=""}
+}
+async function downloadAuditEvidence(button){
+ try{
+  const r=await api("audit_document_link",{tenant_id:state.tenantId,operating_context:"dot",
+   audit_id:state.management?.id,item_code:button.dataset.auditDownload,
+   document_index:Number(button.dataset.auditIndex)});
+  if(!r.url?.startsWith("https://"))throw Error("Attachment URL unavailable.");
+  const blob=await fetch(r.url,{cache:"no-store"}).then(response=>{if(!response.ok)throw Error("Attachment download failed");return response.blob()});
+  const url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download=r.name||"audit-evidence";
+  document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);
+ }catch(err){message(err.message,true)}
+}
+
 function renderManagementPage(){
  const m=state.management;
  if(!m||m.section!==state.page)return;
@@ -2014,6 +2202,7 @@ function renderManagementPage(){
   return;
  }
  if(state.page==="compliance"){renderComplianceManagement(record,m.action,canWrite);return;}
+ if(state.page==="audits"){renderAuditManagement(record,m.action,canWrite);return;}
  if(state.page==="programs"){
   renderProgramManagement(record,m.action,canWrite);
   return;
@@ -2304,6 +2493,7 @@ function showRecords(records){
  if(state.page==="results"){resultsManagementList(records);return}
  if(state.page==="people"){peopleCompanyList(records);return}
  if(state.page==="compliance"){complianceDirectory(records);return}
+ if(state.page==="audits"){auditList(records);return}
  if(state.page==="occupational_health"){physicalOrderList(records);return}
  const count=records.length,query=state.search.trim().toLowerCase();
  const statuses=[...new Set(records.map(r=>String(r.data?.status||"").trim()).filter(Boolean))].sort();
@@ -2535,6 +2725,9 @@ function bindEvents(){
    }
    return;
   }
+  const auditSave=target.closest("[data-audit-item-save]"),auditDownload=target.closest("[data-audit-download]");
+  if(auditSave){void saveAuditItem(auditSave.dataset.auditItemSave,auditSave);return}
+  if(auditDownload){void downloadAuditEvidence(auditDownload);return}
   if(target.closest("[data-result-document]")){void officialResultFile(target.closest("[data-result-document]").dataset.resultDocument);return}
   if(target.closest("[data-result-send]")){confirmOfficialResultSend();return}
   if(target.closest("#selectionReview")){confirmSelection();return}
@@ -2647,7 +2840,8 @@ function bindEvents(){
   else if(target.closest("[data-manage-edit]"))openManagement("edit",target.closest("[data-manage-edit]").dataset.manageEdit);
  });
  $("pageContent").addEventListener("change",e=>{
-  if(e.target.id==="selectionPool"){void selectionPreviewPool();return}
+  if(e.target.matches("[data-audit-upload]")){void uploadAuditEvidence(e.target);return}
+ if(e.target.id==="selectionPool"){void selectionPreviewPool();return}
   if(e.target.name==="physical_type"&&e.target.closest("#physicalOrderForm")){const next=e.target.value==="DOT"?"dot":"nondot";if(next!==state.context){changeContext(next);openManagement("new");}return}
  if(e.target.id==="drugCompany"){refreshDrugDonors();return}
   if(e.target.id==="testingDocCompany"){refreshTestingDocumentRelations();return}
@@ -2666,7 +2860,7 @@ function bindEvents(){
  });
  $("recordFields").addEventListener("click",e=>{const b=e.target.closest("[data-modal-download]");if(b)void openDocumentFile(b.dataset.modalDownload)});
  $("recordForm").addEventListener("submit",saveRecord);
- $("pageContent").addEventListener("submit",e=>{if(e.target.id==="testingDocForm"){e.preventDefault();void submitTestingDocument(e.target);return}if(e.target.id==="drugOrderForm"){e.preventDefault();void submitDrugOrder(e.target);return}if(e.target.id==="physicalOrderForm"){e.preventDefault();void submitPhysicalOrder(e.target);return}if(e.target.id==="managementForm"){e.preventDefault();void submitManagement(e.target)}});
+ $("pageContent").addEventListener("submit",e=>{if(e.target.id==="testingDocForm"){e.preventDefault();void submitTestingDocument(e.target);return}if(e.target.id==="drugOrderForm"){e.preventDefault();void submitDrugOrder(e.target);return}if(e.target.id==="physicalOrderForm"){e.preventDefault();void submitPhysicalOrder(e.target);return}if(e.target.id==="auditForm"){e.preventDefault();void saveAudit(e.target);return}if(e.target.id==="managementForm"){e.preventDefault();void submitManagement(e.target)}});
  for(const id of ["modalClose","cancelModal","modalDismiss"])$(id).addEventListener("click",closeModal);
  document.addEventListener("keydown",e=>{if(e.key==="Escape"){if(!$("modal").hidden)closeModal();$("accountDropdown").hidden=true;$("accountTrigger").setAttribute("aria-expanded","false")}});
  const setFont=n=>{state.font=Math.max(13,Math.min(21,n));document.documentElement.style.fontSize=state.font+"px";localStorage.setItem("workforce_unified_font",String(state.font))};
