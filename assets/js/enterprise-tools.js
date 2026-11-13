@@ -40,10 +40,22 @@ function render(d){
  const table='<div class="panel"><div class="panel-head"><div><h2>'+ESC(LABELS[selected])+'</h2><p>'+ESC(list.length)+' records in the selected operating context</p></div></div><div class="table-wrap"><table><thead><tr>'+headers.map(h=>'<th>'+ESC(h)+'</th>').join('')+'</tr></thead><tbody>'+rowsFor(selected,list,employers)+(list.length?'':'<tr><td colspan="'+headers.length+'">No records available for this context.</td></tr>')+'</tbody></table></div></div>';
  const employerOptions=employers.map(x=>'<option value="'+ESC(x.id)+'">'+ESC(x.legal_name||'Employer')+'</option>').join('');
  const form=selected==='policy'&&d.can_manage?'<section class="panel" style="margin-top:20px"><div class="panel-head"><div><h2>Create a policy draft</h2><p>Drafts are saved to this C/TPA account for review and approval.</p></div></div><form id="ctpa-policy-form"><div class="form-grid"><label>Employer<select name="employer_id" required><option value="">Choose employer</option>'+employerOptions+'</select></label><label>Policy title<input name="title" required maxlength="180" placeholder="Drug and alcohol testing policy"></label></div><label>Policy instructions<textarea name="instructions" required rows="6" minlength="20" maxlength="4000" placeholder="Enter scope, testing requirements, roles, procedures, and review requirements"></textarea></label><div style="display:flex;align-items:center;gap:12px;margin-top:12px"><button class="btn primary" type="submit">Save policy draft</button><span id="ctpa-policy-status" role="status" aria-live="polite"></span></div></form></section>':'';
+ const enrollmentForm=selected==='enrollment'&&d.can_manage?'<section class="panel" style="margin-top:20px"><div class="panel-head"><div><h2>Issue an enrollment document</h2><p>Records are issued into the selected C/TPA account with a unique tracking number.</p></div></div><form id="ctpa-enrollment-form"><div class="form-grid"><label>Employer<select name="employer_id" required><option value="">Choose employer</option>'+employerOptions+'</select></label><label>Document type<select name="document_type" required><option value="enrollment_agreement">Enrollment agreement</option><option value="participation_certificate">Participation certificate</option><option value="program_enrollment">Program enrollment</option><option value="employer_authorization">Employer authorization</option></select></label></div><label>Document title<input name="title" maxlength="180" required placeholder="Enrollment confirmation"></label><div style="display:flex;align-items:center;gap:12px;margin-top:12px"><button type="submit" class="btn primary">Issue document record</button><span id="ctpa-enrollment-status" role="status" aria-live="polite"></span></div></form></section>':'';
  const details=selected==='clearinghouse'?'<p class="notice">FMCSA Clearinghouse records and designations apply to the DOT operating context. No Clearinghouse action is submitted automatically.</p>':selected==='rtd'?'<p class="notice">Return-to-duty and follow-up testing plans are displayed for authorized managed employers. Sensitive records remain subject to additional permissions.</p>':'';
- return tabs+details+table+form;
+ return tabs+details+table+form+enrollmentForm;
 }
 function bind(){
+ const enrollment=document.getElementById('ctpa-enrollment-form');
+ if(enrollment)enrollment.addEventListener('submit',async e=>{
+  e.preventDefault();const button=enrollment.querySelector('[type=submit]'),status=document.getElementById('ctpa-enrollment-status');
+  button.disabled=true;
+  try{
+   const fd=new FormData(enrollment);
+   await call({action:'issue_enrollment',tool:'enrollment',employer_id:String(fd.get('employer_id')||''),title:String(fd.get('title')||''),document_type:String(fd.get('document_type')||'')});
+   if(status)status.textContent='Enrollment record issued.';
+   await window.Portal.refresh();
+  }catch(error){if(status)status.textContent=error?.message||'Unable to issue enrollment.';button.disabled=false;}
+ });
  const form=document.getElementById('ctpa-policy-form');if(!form)return;
  form.addEventListener('submit',async e=>{
   e.preventDefault();const button=form.querySelector('[type=submit]'),status=document.getElementById('ctpa-policy-status');button.disabled=true;
