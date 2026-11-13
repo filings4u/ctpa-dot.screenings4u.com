@@ -62,10 +62,29 @@ function render(d){
  const workers=Array.isArray(d.employees)?d.employees:[];
  const workerOptions=workers.map(e=>'<option value="'+ESC(e.id)+'" data-employer="'+ESC(e.employer_id)+'">'+ESC([e.first_name,e.last_name].filter(Boolean).join(' ')||'Employee')+'</option>').join('');
  const rtdForm=selected==='rtd'&&d.can_manage?'<section class="panel" style="margin-top:20px"><div class="panel-head"><div><h2>Create a follow-up testing plan draft</h2><p>Enter the documented plan requirements. Drafts do not authorize return to safety-sensitive work.</p></div></div><form id="ctpa-rtd-form"><div class="form-grid"><label>Employer<select required name="employer_id"><option value="">Choose employer</option>'+employerOptions+'</select></label><label>Employee<select required name="employee_id"><option value="">Choose employee</option>'+workerOptions+'</select></label><label>Test type<select name="test_type"><option value="drug">Drug</option><option value="alcohol">Alcohol</option><option value="both">Drug and alcohol</option></select></label><label>First 12 months, number of tests<input type="number" name="first_12_month_test_count" min="6" max="60" value="6" required></label><label>Plan duration (months)<input type="number" name="total_plan_months" min="12" max="60" value="12" required></label></div><label>Documented instructions<textarea name="instructions" maxlength="1500" rows="4"></textarea></label><div style="display:flex;gap:12px;align-items:center;margin-top:12px"><button class="btn primary" type="submit">Save plan draft</button><span id="ctpa-rtd-status" role="status"></span></div></form></section>':'';
+ const search=selected==='sites'?'<section class="panel" style="margin-bottom:14px"><label>Search collection locations<input id="ctpa-site-search" type="search" placeholder="Search site, city, state, or service" autocomplete="off"></label></section>':'';
  const details=selected==='clearinghouse'?'<p class="notice">FMCSA Clearinghouse records and designations apply to the DOT operating context. No Clearinghouse action is submitted automatically.</p>':selected==='rtd'?'<p class="notice">Return-to-duty and follow-up testing plans are displayed for authorized managed employers. Sensitive records remain subject to additional permissions.</p>':'';
- return tabs+details+table+form+enrollmentForm+clearinghouseForm+rtdForm;
+ return tabs+search+details+table+form+enrollmentForm+clearinghouseForm+rtdForm;
 }
 function bind(){
+ const siteSearch=document.getElementById('ctpa-site-search');
+ if(siteSearch)siteSearch.addEventListener('input',()=>{
+  const q=siteSearch.value.trim().toLowerCase();
+  for(const row of document.querySelectorAll('.panel .table-wrap tbody tr'))row.hidden=!!q&&!row.textContent.toLowerCase().includes(q);
+ });
+ const rtd=document.getElementById('ctpa-rtd-form');
+ if(rtd){
+  const employer=rtd.querySelector('[name=employer_id]'),employee=rtd.querySelector('[name=employee_id]');
+  const updateWorkers=()=>{
+   for(const option of employee.options){
+    const employerId=option.dataset.employer;
+    option.disabled=!!employerId&&employerId!==employer.value;
+    option.hidden=option.disabled;
+   }
+   if(employee.selectedOptions[0]?.disabled)employee.value='';
+  };
+  employer.addEventListener('change',updateWorkers);updateWorkers();
+ }
  const bindAction=(id,tool,action,fields)=>{
   const form=document.getElementById(id);if(!form)return;
   form.addEventListener('submit',async event=>{
