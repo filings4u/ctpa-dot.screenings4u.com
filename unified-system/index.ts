@@ -951,6 +951,19 @@ Deno.serve(async request=>{
    const requestedDate=text(body.requested_date,10);
    if(requestedDate&&!/^\d{4}-\d{2}-\d{2}$/.test(requestedDate))
     return respond({error:"Invalid requested date"},400);
+   let labAccount:null|{id:string;number:string;provider:string}=null;
+   if(body.lab_account_id){
+    if(!uuid(body.lab_account_id))return respond({error:"Invalid laboratory account"},400);
+    const account=await collection.select("id,data").eq("tenant_id",tenantId)
+     .eq("id",body.lab_account_id).eq("kind","lab_accounts")
+     .eq("operating_context",context).is("archived_at",null).maybeSingle();
+    if(account.error)throw account.error;
+    const a=account.data?.data;
+    if(!a||a.company_id!==companyId||a.issued_by_testing!==true||
+      a.ready_for_orders!==true||a.status!=="issued"||!text(a.account_number,100))
+      return respond({error:"Select an active Testing Operations-issued lab account belonging to this employer"},403);
+    labAccount={id:account.data.id,number:text(a.account_number,100),provider:text(a.provider,100)};
+   }
    const existing=await collection.select("id,data").eq("tenant_id",tenantId)
     .eq("kind","testing_orders").eq("data->>request_id",existingId).is("archived_at",null).limit(1);
    if(existing.error)throw existing.error;
@@ -965,6 +978,7 @@ Deno.serve(async request=>{
     employee:donorName,donor_email:text(person.data.data.email,180),donor_phone:text(person.data.data.phone,60),
     test_type:testType,reason,testing_reason:reason,specimen_type:specimen,panel_name:panel,
     dot_agency:context==="dot"?agency:"",status:"awaiting_schedule",priority,
+    lab_account_id:labAccount?.id||null,lab_account_number:labAccount?.number||null,lab_provider:labAccount?.provider||null,
     requested_date:requestedDate,notes:text(body.notes,2000),operating_context:context,
     submitted_at:now,processing_portal:"testing-portal.screenings4u.com"
    };
@@ -982,7 +996,9 @@ Deno.serve(async request=>{
     priority,status:"awaiting_schedule",notes:orderData.notes||null,created_by:user.id,
     metadata:{source:"workforce_ctpa_unified",tenant_id:tenantId,
       ctpa_order_id:result.data.id,request_id:existingId,company_id:companyId,person_id:personId,
-      requested_date:requestedDate,operating_context:context,payment_status:"not_collected"}
+      requested_date:requestedDate,operating_context:context,payment_status:"not_collected",
+      lab_account_id:labAccount?.id||null,lab_account_number:labAccount?.number||null,
+      lab_provider:labAccount?.provider||null}
    }).select("id,case_number,status").single();
    if(caseResult.error){
     await collection.delete().eq("id",result.data.id).eq("tenant_id",tenantId).eq("kind","testing_orders");
