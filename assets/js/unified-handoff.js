@@ -3,35 +3,50 @@
 const SELECTOR="https://workforceapps.screenings4u.com/selector.html";
 const SUPABASE_URL="https://elpbnytpciqnbexiaebp.supabase.co";
 const KEY="sb_publishable_xVI6Mjkk1bNVMGHZCPuK6w_8FSHKdkC";
-const status=document.getElementById("handoffStatus");
-const setStatus=value=>{if(status)status.textContent=value};
-const params=new URL(location.href).searchParams,code=params.get("code")||"";
+const code=new URLSearchParams(location.search).get("code")||"";
+// Remove one-time handoff credentials from the browser address immediately.
 history.replaceState(null,"","/auth-handoff.html");
+if(!/^[0-9a-f]{64}$/i.test(code)){location.replace(SELECTOR);return}
+const loadSupabase=()=>{
+ if(window.supabase?.createClient)return Promise.resolve(window.supabase);
+ return new Promise((resolve,reject)=>{
+  const script=document.createElement("script");
+  script.src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2";
+  script.async=true;
+  script.onload=()=>window.supabase?.createClient?resolve(window.supabase):reject(new Error("Authentication library unavailable"));
+  script.onerror=()=>reject(new Error("Authentication library unavailable"));
+  document.head.appendChild(script);
+ });
+};
 try{
- if(!/^[0-9a-f]{64}$/i.test(code))throw new Error("The Workforce portal link is missing or expired.");
- if(!window.supabase?.createClient)throw new Error("Sign-in library unavailable.");
- // The central selector issues this short-lived, single-use authentication code.
- // No legacy C/TPA organization, workspace or subscription service is called.
- const response=await fetch(SUPABASE_URL+"/functions/v1/portal-session-handoff",{
+ // Start independent network work in parallel rather than waiting for the
+ // Supabase SDK download before redeeming the one-time selector code.
+ const sdkPromise=loadSupabase();
+ const redeemPromise=fetch(SUPABASE_URL+"/functions/v1/portal-session-handoff",{
   method:"POST",cache:"no-store",
   headers:{"Content-Type":"application/json",apikey:KEY},
   body:JSON.stringify({action:"redeem",code})
+ }).then(async response=>{
+  const data=await response.json().catch(()=>({}));
+  if(!response.ok||!data.token_hash)throw new Error(data.error||"Workforce handoff expired");
+  if(!["ctpa_dot","ctpa_workforce"].includes(data.target_portal))throw new Error("Incorrect portal target");
+  return data;
  });
- const result=await response.json().catch(()=>({}));
- if(!response.ok||!result.token_hash)throw new Error(result.error||"Unable to complete Workforce sign-in.");
- const validTarget=["ctpa_dot","ctpa_workforce"].includes(result.target_portal);
- if(!validTarget)throw new Error("The selected portal is not Workforce C/TPA.");
- const client=window.supabase.createClient(SUPABASE_URL,KEY,{
-  auth:{storageKey:"s4u_ctpa_dot_auth",persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}
+ const [sdk,result]=await Promise.all([sdkPromise,redeemPromise]);
+ const client=sdk.createClient(SUPABASE_URL,KEY,{
+  auth:{storageKey:"s4u_ctpa_dot_auth",persistSession:true,autoRefreshToken:true,detectSessionInUrl:false}
  });
- setStatus("Confirming your existing Workforce account…");
  const verified=await client.auth.verifyOtp({token_hash:result.token_hash,type:"magiclink"});
- if(verified.error||!verified.data?.session)throw new Error("Workforce sign-in could not be verified.");
- const next=new URL("/unified.html?page=dashboard",location.origin);
- if(result.target_surface==="workforce")next.searchParams.set("context","nondot");
- else next.searchParams.set("context","dot");
+ if(verified.error||!verified.data?.session)throw verified.error||new Error("Sign-in verification failed");
+ const next=new URL("/unified.html",location.origin);
+ next.searchParams.set("page","dashboard");
+ next.searchParams.set("context",result.target_surface==="workforce"||result.target_portal==="ctpa_workforce"?"nondot":"dot");
  location.replace(next.href);
 }catch(error){
- setStatus(error?.message||"Your portal session could not be transferred. Return to the Workforce selector.");
+ console.error("Workforce C/TPA handoff failed",error);
+ const failure=document.getElementById("handoffFailure");
+ if(failure)failure.style.display="block";
+ // Never expose credentials or a token hash on the error screen.
+ setTimeout(()=>location.replace(SELECTOR),900);
 }
 })();
