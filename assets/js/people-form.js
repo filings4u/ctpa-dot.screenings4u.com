@@ -25,7 +25,7 @@ function render(d){
     <div class="field driver-field"><label>CDL state</label><input name="cdl_state" maxlength="2" value="${esc(person?.cdl_state||'')}"></div>
   </div><div id="personFormError" class="employer-modal-error" hidden></div><div class="modal-actions"><a class="btn ghost" href="/people.html">Cancel</a><button class="btn primary" type="submit">${person?'Save Changes':'Add Person'}</button></div></form></section>`;
 }
-async function save(){const form=$('#personForm');if(!form.reportValidity())return;const err=$('#personFormError'),button=form.querySelector('button[type="submit"]');button.disabled=true;err.hidden=true;try{const v=Object.fromEntries(new FormData(form).entries());v.dot_covered=v.dot_covered==='true';v.safety_sensitive=v.safety_sensitive==='true';if(!v.id)delete v.id;await window.Portal.invoke('workforce-ctpa-employees-programs',{action:'save_employee',employee:v});location.href='/people.html'}catch(x){err.textContent=x.message||String(x);err.hidden=false;button.disabled=false}}
+async function save(){const form=$('#personForm');if(!form.reportValidity())return;const err=$('#personFormError'),button=form.querySelector('button[type="submit"]');button.disabled=true;err.hidden=true;try{const v=Object.fromEntries(new FormData(form).entries());v.dot_covered=v.dot_covered==='true';v.safety_sensitive=v.safety_sensitive==='true';if(!v.id)delete v.id;await window.Portal.invoke('workforce-ctpa-employees-programs',{action:'save_employee',employee:v});await window.Portal.navigate('/people.html')}catch(x){err.textContent=x.message||String(x);err.hidden=false;button.disabled=false}}
 function bind(){const form=$('#personForm');form?.addEventListener('submit',e=>{e.preventDefault();save()});}
 window.CtpaPeopleForm={render,bind};
 })();

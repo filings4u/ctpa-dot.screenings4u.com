@@ -17,7 +17,7 @@ function render(d){
 }
 function bind(){
  const form=$('#poolForm');if(!form||!form.querySelector('button[type=submit]'))return;
- form.onsubmit=async e=>{e.preventDefault();const btn=form.querySelector('button[type=submit]'),err=$('#poolFormError');btn.disabled=true;btn.textContent='Saving…';err.textContent='';try{const pool=Object.fromEntries(new FormData(form).entries());pool.id=id();const r=await window.Portal.invoke('workforce-ctpa-pools',{action:'save_pool',pool});location.href=`/pool-detail.html?id=${encodeURIComponent(r.pool.id)}`}catch(x){err.textContent=x.message||String(x);btn.disabled=false;btn.textContent='Save Pool Configuration'}};
+ form.onsubmit=async e=>{e.preventDefault();const btn=form.querySelector('button[type=submit]'),err=$('#poolFormError');btn.disabled=true;btn.textContent='Saving…';err.textContent='';try{const pool=Object.fromEntries(new FormData(form).entries());pool.id=id();const r=await window.Portal.invoke('workforce-ctpa-pools',{action:'save_pool',pool});await window.Portal.navigate(`/pool-detail.html?id=${encodeURIComponent(r.pool.id)}`)}catch(x){err.textContent=x.message||String(x);btn.disabled=false;btn.textContent='Save Pool Configuration'}};
 }
 window.CtpaPoolForm={render,bind};
 })();

@@ -6,7 +6,7 @@ let pageData={};
 const $=s=>document.querySelector(s);
 function option(value,label,selected){return '<option value="'+esc(value)+'"'+(String(selected||'')===String(value)?' selected':'')+'>'+esc(label)+'</option>'}
 function notify(message){if(window.S4UDialog?.alert)window.S4UDialog.alert(message);else alert(message)}
-async function refresh(){if(window.Portal?.refresh)await window.Portal.refresh();else location.reload()}
+async function refresh(){if(window.Portal?.refresh)await window.Portal.refresh();}
 function form(d,current){
  const employers=d.employers||[],employees=d.employees||[],record=current||{};
  const employerOptions=employers.map(x=>option(x.id,x.legal_name,x.id===record.employer_id?x.id:record.employer_id)).join('');
