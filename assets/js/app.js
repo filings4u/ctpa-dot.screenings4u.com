@@ -620,27 +620,27 @@ function wireManagementActions(p,d,ctx){
     return;
   }
   if(p==='people'&&C.kind==='ctpa'){addAction('Add Person',()=>{navigatePortal('/people-form.html').catch(showNavigationError)});return;}
-  if(p==='people')addAction(C.surface==='dot'?'Add Covered Worker':'Add Employee',()=>{
+  if(p==='people')addAction(workspace()?.surface==='dot'?'Add Covered Worker':'Add Employee',()=>{
     const fields=[];
     if(C.kind==='ctpa')fields.push({name:'employer_id',label:'Client Employer',type:'select',required:true,options:(d.employers||[]).map(x=>({value:x.id,label:x.legal_name||x.dba_name||x.id}))});
     fields.push({name:'first_name',label:'First name',required:true},{name:'last_name',label:'Last name',required:true},{name:'employee_number',label:'Employee number'},{name:'email',label:'Email',type:'email'});
-    if(C.surface==='dot'){
+    if(workspace()?.surface==='dot'){
       fields.push({name:'dot_agency',label:'DOT Agency',type:'select',value:'FMCSA',options:['FMCSA','FAA','FRA','FTA','PHMSA','USCG'].map(x=>({value:x,label:x}))});
       fields.push({name:'dot_position_id',label:'Safety-sensitive / covered position',type:'select',required:true,options:[{value:'',label:'Choose position'},...(d.position_catalog||[]).map(x=>({value:x.id,label:`${x.agency_code} — ${x.title}`}))]});
       fields.push({name:'cdl_number',label:'CDL number (when required)'},{name:'cdl_state',label:'CDL state'});
     } else fields.push({name:'job_title',label:'Job title'});
     modal('Add Covered Worker',fields,async v=>{
-      if(C.kind==='ctpa')return invoke('workforce-ctpa-employees-programs',{action:'save_employee',employee:{...v,dot_covered:C.surface==='dot',employment_status:'active',safety_sensitive:C.surface==='dot'}});
-      return invoke('workforce-employer-management',{action:'save_employee',employee:{...v,dot_covered:C.surface==='dot',employment_status:'active',safety_sensitive:C.surface==='dot'}});
+      if(C.kind==='ctpa')return invoke('workforce-ctpa-employees-programs',{action:'save_employee',employee:{...v,dot_covered:workspace()?.surface==='dot',employment_status:'active',safety_sensitive:workspace()?.surface==='dot'}});
+      return invoke('workforce-employer-management',{action:'save_employee',employee:{...v,dot_covered:workspace()?.surface==='dot',employment_status:'active',safety_sensitive:workspace()?.surface==='dot'}});
     });
   });
   if(p==='programs')addAction('Add Program',()=>{
     const fields=[];
     if(C.kind==='ctpa')fields.push({name:'employer_id',label:'Client Employer',type:'select',required:true,options:(d.employers||[]).map(x=>({value:x.id,label:x.legal_name||x.dba_name||x.id}))});
     fields.push({name:'name',label:'Program name',required:true},{name:'testing_method',label:'Testing method'},{name:'effective_date',label:'Effective date',type:'date',value:new Date().toISOString().slice(0,10)});
-    if(C.surface==='dot')fields.push({name:'dot_agency',label:'DOT Agency',type:'select',value:'FMCSA',options:['FMCSA','FAA','FRA','FTA','PHMSA','USCG'].map(x=>({value:x,label:x}))});
+    if(workspace()?.surface==='dot')fields.push({name:'dot_agency',label:'DOT Agency',type:'select',value:'FMCSA',options:['FMCSA','FAA','FRA','FTA','PHMSA','USCG'].map(x=>({value:x,label:x}))});
     modal('Add Program',fields,async v=>{
-      const program={...v,program_type:C.surface==='dot'?'DOT':'NON_DOT',status:'active'};
+      const program={...v,program_type:workspace()?.surface==='dot'?'DOT':'NON_DOT',status:'active'};
       if(C.kind==='ctpa')return invoke('workforce-ctpa-employees-programs',{action:'save_program',program});
       return invoke('workforce-employer-management',{action:'save_program',program});
     });
@@ -648,8 +648,8 @@ function wireManagementActions(p,d,ctx){
   if(p==='pools'&&!window.PortalPools)addAction('Add Pool',()=>{
     const fields=[];
     if(C.kind==='ctpa')fields.push({name:'employer_id',label:'Client Employer',type:'select',options:(d.employers||[]).map(x=>({value:x.id,label:x.legal_name||x.id}))});
-    fields.push({name:'name',label:'Pool name',required:true},{name:'pool_type',label:'Pool type',type:'select',value:C.kind==='ctpa'?'consortium':'employer',options:[{value:'employer',label:'Employer Pool'},{value:'consortium',label:'Consortium'}]},{name:'program_type',label:'Program type',type:'select',value:C.surface==='dot'?'DOT':'NON_DOT',options:[{value:'DOT',label:'DOT'},{value:'NON_DOT',label:'NON-DOT'}]});
-    if(C.surface==='dot')fields.push({name:'dot_agency',label:'DOT Agency',type:'select',value:'FMCSA',options:['FMCSA','FAA','FRA','FTA','PHMSA','USCG'].map(x=>({value:x,label:x}))});
+    fields.push({name:'name',label:'Pool name',required:true},{name:'pool_type',label:'Pool type',type:'select',value:C.kind==='ctpa'?'consortium':'employer',options:[{value:'employer',label:'Employer Pool'},{value:'consortium',label:'Consortium'}]},{name:'program_type',label:'Program type',type:'select',value:workspace()?.surface==='dot'?'DOT':'NON_DOT',options:[{value:'DOT',label:'DOT'},{value:'NON_DOT',label:'NON-DOT'}]});
+    if(workspace()?.surface==='dot')fields.push({name:'dot_agency',label:'DOT Agency',type:'select',value:'FMCSA',options:['FMCSA','FAA','FRA','FTA','PHMSA','USCG'].map(x=>({value:x,label:x}))});
     modal('Add Pool',fields,async v=>{
       if(C.kind==='ctpa')return invoke('workforce-ctpa-pools',{action:'save_pool',pool:v});
       return invoke('workforce-employer-pools',{action:'save_pool',pool:v});
