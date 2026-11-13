@@ -135,7 +135,7 @@ function updateHeading(){
 }
 function switchPage(page,push=true){
  if(!CONFIG[page])page="dashboard";
- state.page=page;state.search="";const seq=++state.sequence;
+ state.page=page;state.search="";state.management=null;const seq=++state.sequence;
  if(push)history.pushState(null,"","/unified.html?page="+encodeURIComponent(page));
  $("sidebar").classList.remove("open");renderNav();updateHeading();message("");
  if(page==="account"){void renderAccount();return}
@@ -155,8 +155,11 @@ async function loadRecords(sequence=state.sequence,refresh=false){
   const result=await api("list",{tenant_id:tenant,operating_context:context,kind});
   state.cache.set(key,{records:result.records||[],time:Date.now()});
   if(sequence===state.sequence&&key===cacheKey()){
-   showRecords(result.records||[]);
-   if(refresh)message("Records are up to date.");
+   if(state.pendingManagement?.section===state.page){
+    const pending=state.pendingManagement;state.pendingManagement=null;
+    openManagement(pending.action,pending.id,false);
+   }else if(state.management)renderManagementPage();else showRecords(result.records||[]);
+   if(refresh&&!state.management)message("Records are up to date.");
   }
  }catch(error){if(sequence===state.sequence&&key===cacheKey()){
   const old=state.cache.get(key);
@@ -193,6 +196,93 @@ function renderDashboard(records){
  '<section class="panel"><h2>Management workspaces</h2><div class="management-shortcuts">'+
  [["employers","Employers"],["people","People"],["programs","Programs"],["testing_orders","Testing Orders"],["documents","Documents"],["invoices","Invoices"],["support","Support"]].map(([key,name])=>
  '<button type="button" class="management-shortcut" data-goto="'+key+'"><strong>'+name+'</strong><span>Open management page</span></button>').join("")+'</div></section>';
+}
+
+const MANAGEMENT_ACTIONS=new Set(["new","view","edit"]);
+function managementUrl(action,id=null,section=state.page){
+ const u=new URL("/unified.html",location.origin);
+ u.searchParams.set("page",section);u.searchParams.set("manage",action);
+ if(id)u.searchParams.set("record",id);
+ return u.pathname+u.search;
+}
+function openManagement(action,id=null,push=true){
+ if(!MANAGEMENT_ACTIONS.has(action)||!CONFIG[state.page]||["dashboard","account"].includes(state.page))return;
+ const records=state.cache.get(cacheKey())?.records||[];
+ const record=id?records.find(r=>r.id===id):null;
+ if(action!=="new"&&!record){message("Record not available. Refresh the management page.",true);return}
+ if(action==="new"&&!["owner","admin","editor"].includes(activeWorkspace()?.role||"")){message("Your account is read-only.",true);return}
+ if(action==="edit"&&!["owner","admin","editor"].includes(activeWorkspace()?.role||"")){message("You cannot edit this record.",true);return}
+ state.editing=record||null;
+ state.management={action,id,section:state.page,context:state.context};
+ if(push)history.pushState({management:true},"",managementUrl(action,id));
+ renderManagementPage();
+}
+function managementField(f,value=""){
+ const required=f.required?" required":"";
+ let control="";
+ const name=esc(f.name),v=esc(value);
+ if(f.type==="textarea")control='<textarea id="manage-'+name+'" name="'+name+'" rows="4"'+required+'>'+v+'</textarea>';
+ else if(f.type.startsWith("select:")){
+  const values=f.type.slice(7).split(",");
+  control='<select id="manage-'+name+'" name="'+name+'"'+required+'>'+
+  '<option value="">Choose an option</option>'+values.map(item=>'<option value="'+esc(item)+'"'+(String(value)===item?' selected':'')+'>'+esc(item.replaceAll("_"," "))+'</option>').join("")+'</select>';
+ }else control='<input id="manage-'+name+'" name="'+name+'" type="'+esc(f.type)+'" value="'+v+'"'+required+(f.type==="number"?' step="any"':"")+' maxlength="4000">';
+ return '<label class="manage-field" for="manage-'+name+'"><span>'+esc(f.label)+(f.required?' <span class="required-mark">*</span>':'')+'</span>'+control+'</label>';
+}
+function renderManagementPage(){
+ const m=state.management;
+ if(!m||m.section!==state.page)return;
+ const record=m.id?(state.cache.get(cacheKey())?.records||[]).find(r=>r.id===m.id):null;
+ if(m.action!=="new"&&!record){
+  $("pageContent").innerHTML='<section class="panel"><h2>Record unavailable</h2><p>Reload the management list to review this record.</p><button class="btn secondary" data-back-list type="button">Back to '+esc(label(state.page))+'</button></section>';
+  return;
+ }
+ const title=m.action==="new"?"Add "+label(state.page):m.action==="edit"?"Edit "+label(state.page):"View "+label(state.page);
+ $("pageTitle").textContent=title;$("topTitle").textContent=title;
+ $("pageSummary").textContent=m.action==="view"?"Review the full record and its account information.":"Complete and manage the record for your C/TPA company.";
+ $("pageActions").innerHTML='<button class="btn secondary" type="button" data-back-list>Back to '+esc(label(state.page))+'</button>';
+ const overview='<div class="manage-breadcrumb"><button type="button" data-back-list>'+esc(label(state.page))+'</button><span>/</span><strong>'+esc(title)+'</strong></div>';
+ const detail=record?'<div class="record-management-meta"><span>Record ID: '+esc(record.id)+'</span><span>Context: '+esc(record.operating_context.toUpperCase())+'</span><span>Updated: '+esc(new Date(record.updated_at).toLocaleString())+'</span></div>':'';
+ if(m.action==="view"){
+  const rows=Object.entries(record?.data||{});
+  $("pageContent").innerHTML=overview+'<section class="panel manage-panel"><div class="manage-section-head"><h2>'+esc(recordTitle(record))+'</h2><span class="pill">'+esc(record.operating_context.toUpperCase())+'</span></div>'+
+   '<dl class="manage-details">'+rows.map(([key,value])=>'<div><dt>'+esc(fields(state.page).find(f=>f.name===key)?.label||key.replaceAll("_"," "))+'</dt><dd>'+esc(value??"—")+'</dd></div>').join("")+'</dl>'+detail+
+   '<div class="manage-actions"><button type="button" class="btn secondary" data-back-list>Back to List</button>'+
+   (["owner","admin","editor"].includes(activeWorkspace()?.role||"")?'<button type="button" class="btn primary" data-manage-edit="'+esc(record.id)+'">Edit Record</button>':'')+'</div></section>';
+  return;
+ }
+ const inputs=fields(state.page).map(f=>managementField(f,record?.data?.[f.name]??"")).join("");
+ const shared=!record&&["owner","admin"].includes(activeWorkspace()?.role||"");
+ const context=record?.operating_context||state.context;
+ $("pageContent").innerHTML=overview+'<section class="panel manage-panel"><div class="manage-section-head"><div><h2>'+esc(title)+'</h2><p>Manage company records in one portal.</p></div><span class="pill">'+esc(state.context.toUpperCase())+'</span></div>'+
+  '<form id="managementForm"><div class="manage-form-grid">'+inputs+'<label class="manage-field manage-context"><span>Record context</span><select name="record_context"'+(record?' disabled':'')+'>'+
+  '<option value="'+esc(context)+'">'+esc(context.toUpperCase())+'</option>'+(shared?'<option value="shared">Shared: DOT and NON-DOT</option>':'')+'</select></label></div>'+
+  detail+'<p class="manage-form-error" id="managementError" role="alert"></p><div class="manage-actions">'+
+  '<button type="button" class="btn secondary" data-back-list>Cancel</button><button type="submit" class="btn primary" id="managementSave">'+
+  (record?"Save Changes":"Create Record")+'</button></div></form></section>';
+ $("managementForm").querySelector("input,select,textarea")?.focus({preventScroll:true});
+}
+function leaveManagement(push=true){
+ state.management=null;state.editing=null;
+ if(push)history.pushState({},"","/unified.html?page="+encodeURIComponent(state.page));
+ updateHeading();const stored=state.cache.get(cacheKey());
+ if(stored)showRecords(stored.records);else void loadRecords();
+}
+async function submitManagement(form){
+ const m=state.management;
+ if(!m||!form.reportValidity())return;
+ const button=$("managementSave");button.disabled=true;
+ const data=Object.fromEntries(new FormData(form).entries()),recordContext=data.record_context||state.context;
+ delete data.record_context;
+ for(const f of fields(state.page))if(f.type==="number"&&data[f.name]!=="")data[f.name]=Number(data[f.name]);
+ $("managementError").textContent="";
+ try{
+  await api("save",{tenant_id:state.tenantId,operating_context:state.context,
+   kind:state.page,record_context:recordContext,id:m.id||null,data});
+  state.cache.delete(cacheKey());leaveManagement();
+  message(m.action==="new"?"Record created successfully.":"Record updated successfully.");
+  void loadRecords();
+ }catch(error){$("managementError").textContent=error.message;button.disabled=false}
 }
 function showRecords(records){
  if(state.page==="dashboard"){renderDashboard(records);return}
@@ -347,8 +437,15 @@ async function updateAccountMenu(){
 function startApp(){
  showView("application");
  void updateAccountMenu();
- const desired=new URLSearchParams(location.search).get("page")||"dashboard";
+ const search=new URLSearchParams(location.search);
+ const desired=search.get("page")||"dashboard";
  switchPage(CONFIG[desired]?desired:"dashboard",false);
+ const action=search.get("manage"),id=search.get("record");
+ if(MANAGEMENT_ACTIONS.has(action)){
+  const apply=()=>{if(state.page===desired)openManagement(action,id,false)};
+  const cached=state.cache.get(cacheKey());
+  if(cached||action==="new")apply();else state.pendingManagement={action,id,section:state.page};
+ }
 }
 async function initializeWorkspaces(){
  const r=await api("bootstrap");
@@ -396,17 +493,19 @@ function bindEvents(){
   }
  });
  $("menuToggle").addEventListener("click",()=>$("sidebar").classList.toggle("open"));
- $("pageActions").addEventListener("click",e=>{if(e.target.closest("#newRecord"))openRecord();if(e.target.closest("#refreshPage"))void loadRecords(state.sequence,true);if(e.target.closest("#exportPage"))exportRecords()});
+ $("pageActions").addEventListener("click",e=>{if(e.target.closest("#newRecord"))openManagement("new");if(e.target.closest("#refreshPage"))void loadRecords(state.sequence,true);if(e.target.closest("#exportPage"))exportRecords()});
  $("pageContent").addEventListener("click",e=>{
   const target=e.target;
   const view=target.closest("[data-view]"),edit=target.closest("[data-edit]"),archive=target.closest("[data-archive]"),create=target.closest("[data-create]"),goto=target.closest("[data-goto]"),retry=target.closest("#retryLoad");
-  if(view)viewRecord(view.dataset.view);
-  else if(edit)openRecord(edit.dataset.edit);
+  if(view)openManagement("view",view.dataset.view);
+  else if(edit)openManagement("edit",edit.dataset.edit);
   else if(archive)archiveRecord(archive.dataset.archive);
-  else if(create)openRecord();
+  else if(create)openManagement("new");
   else if(goto)switchPage(goto.dataset.goto);
   else if(retry)void loadRecords();
   else if(target.closest("#editProfile"))void editProfile();
+  else if(target.closest("[data-back-list]"))leaveManagement();
+  else if(target.closest("[data-manage-edit]"))openManagement("edit",target.closest("[data-manage-edit]").dataset.manageEdit);
  });
  $("pageContent").addEventListener("input",e=>{
   if(e.target.id!=="recordSearch")return;
@@ -416,13 +515,23 @@ function bindEvents(){
   const input=$("recordSearch");input.focus();input.setSelectionRange(position,position);
  });
  $("recordForm").addEventListener("submit",saveRecord);
+ $("pageContent").addEventListener("submit",e=>{if(e.target.id==="managementForm"){e.preventDefault();void submitManagement(e.target)}});
  for(const id of ["modalClose","cancelModal","modalDismiss"])$(id).addEventListener("click",closeModal);
  document.addEventListener("keydown",e=>{if(e.key==="Escape"){if(!$("modal").hidden)closeModal();$("accountDropdown").hidden=true;$("accountTrigger").setAttribute("aria-expanded","false")}});
  const setFont=n=>{state.font=Math.max(13,Math.min(21,n));document.documentElement.style.fontSize=state.font+"px";localStorage.setItem("workforce_unified_font",String(state.font))};
  $("fontDown").addEventListener("click",()=>setFont(state.font-1));
  $("fontUp").addEventListener("click",()=>setFont(state.font+1));
  $("fontReset").addEventListener("click",()=>setFont(16));
- addEventListener("popstate",()=>{const desired=new URLSearchParams(location.search).get("page")||"dashboard";switchPage(desired,false)});
+ addEventListener("popstate",()=>{
+  const params=new URLSearchParams(location.search),desired=params.get("page")||"dashboard";
+  const action=params.get("manage"),id=params.get("record");
+  if(desired!==state.page)switchPage(desired,false);
+  if(MANAGEMENT_ACTIONS.has(action)){
+   const cached=state.cache.get(cacheKey());
+   if(cached||action==="new")openManagement(action,id,false);
+   else state.pendingManagement={action,id,section:state.page};
+  }else if(state.management)leaveManagement(false);
+});
  addEventListener("focus",()=>{if(!$("application").hidden&&state.cache.get(cacheKey())&&Date.now()-state.cache.get(cacheKey()).time>60000)void loadRecords(state.sequence,true)});
 }
 async function init(){
