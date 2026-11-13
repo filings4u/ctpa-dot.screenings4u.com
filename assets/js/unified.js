@@ -179,7 +179,7 @@ function updateHeading(){
  const title=label(state.page);
  $("topTitle").textContent=title;$("pageTitle").textContent=title;
  updateBreadcrumbs();
- if(["reports","lab_supplies"].includes(state.page)){$("pageActions").innerHTML=state.page==="lab_supplies"?'<button class="btn secondary" type="button" id="refreshPage">Refresh catalog</button>':"";return}
+ if(["reports","lab_supplies","lab_tracking"].includes(state.page)){$("pageActions").innerHTML=state.page==="lab_supplies"?'<button class="btn secondary" type="button" id="refreshPage">Refresh catalog</button>':state.page==="lab_tracking"?'<button class="btn secondary" type="button" id="refreshPage">Refresh tracking</button>':"";return}
  $("pageActions").innerHTML=state.page==="results"?'<button class="btn secondary" type="button" id="refreshPage">Refresh</button>':state.page==="account"?"":state.page==="dashboard"||state.page==="lab_analytics"
   ?'<button class="btn secondary" type="button" id="refreshPage">Refresh</button>'
   :'<button class="btn secondary" type="button" id="refreshPage">Refresh</button><button class="btn secondary" type="button" id="exportPage">Export CSV</button><button class="btn primary" type="button" id="newRecord">'+(state.page==="selections"?"Run Selection":state.page==="testing_orders"?"Order a Test":state.page==="testing_documents"?"Upload Document":state.page==="occupational_health"?"Order Physical":state.page==="compliance"?"Add Compliance Record":state.page==="audits"?"Start New Entrant Audit":state.page==="return_to_duty"?"Create RTD Case":state.page==="policies"?"Create Policy":state.page==="documents"?"Upload Private Document":state.page==="lab_accounts"?"Request Lab Account":"Add "+esc(title))+'</button>';
@@ -199,6 +199,7 @@ function switchPage(page,push=true){
  if(page==="lab_analytics"){void renderLabAnalytics();return}
  if(page==="reports"){reportBuilder();return}
  if(page==="lab_supplies"){void openSupplyStore();return}
+ if(page==="lab_tracking"){void openTracking();return}
  const stored=state.cache.get(cacheKey());
  if(stored){showRecords(stored.records);if(Date.now()-stored.time>30000)void loadRecords(seq,true)}
  else {$("pageContent").innerHTML='<section class="panel"><div class="loading-line"><span class="spinner"></span>Loading authorized records…</div></section>';void loadRecords(seq,false)}
@@ -2971,6 +2972,39 @@ async function saveLabAccount(form){
 }
 
 
+
+const trackState={rows:[],search:"",status:"all",busy:false};
+async function trackApi(action,extra={}){
+ const {data:{session}}=await state.supabase.auth.getSession();
+ if(!session?.access_token)throw Error("Sign in required");
+ const r=await fetch(BASE+"/functions/v1/workforce-ctpa-tracking",{method:"POST",headers:{"Content-Type":"application/json","apikey":KEY,"Authorization":"Bearer "+session.access_token},body:JSON.stringify({action,tenant_id:state.tenantId,operating_context:state.context,...extra})});
+ const d=await r.json().catch(()=>({}));if(!r.ok||d.error)throw Error(d.error||"Tracking unavailable");return d;
+}
+function trackPage(){
+ const rows=trackState.rows.filter(r=>(trackState.status==="all"||r.shipment_status===trackState.status)&&[r.employer_name,r.carrier,r.tracking_number,r.order_reference].join(" ").toLowerCase().includes(trackState.search.toLowerCase()));
+ const inTransit=trackState.rows.filter(r=>["shipped","in_transit","out_for_delivery"].includes(r.shipment_status)).length;
+ const delivered=trackState.rows.filter(r=>r.shipment_status==="delivered").length;
+ const cards=rows.map(r=>'<article class="track-card"><header><div><span class="track-carrier">'+esc(r.carrier)+'</span><h3>'+esc(r.employer_name)+'</h3><small>Order: '+esc(r.order_reference||"Not provided")+'</small></div><span class="track-status">'+esc(r.shipment_status.replaceAll("_"," "))+'</span></header><div class="track-details"><div><small>Tracking number</small><strong>'+esc(r.tracking_number)+'</strong></div><div><small>Shipped</small><strong>'+esc(r.shipped_at?new Date(r.shipped_at).toLocaleDateString():"Not confirmed")+'</strong></div><div><small>Expected delivery</small><strong>'+esc(r.expected_delivery_at?new Date(r.expected_delivery_at).toLocaleDateString():"Not available")+'</strong></div><div><small>Employer email</small><strong>'+esc(r.employer_email||"Not assigned")+'</strong></div></div><footer><a class="btn secondary" target="_blank" rel="noopener noreferrer" href="'+esc(r.tracking_url)+'">Track with '+esc(r.carrier)+'</a><button type="button" class="btn primary" data-track-send="'+esc(r.id)+'"'+(r.can_send?'':' disabled')+'>Send to Employer</button><small>'+(r.employer_notified_at?"Last emailed "+esc(new Date(r.employer_notified_at).toLocaleDateString()):"Not yet emailed")+'</small></footer></article>').join("");
+ $("pageContent").innerHTML='<div class="track-root"><div class="track-intro"><div><small>WORKFORCE / SHIPMENT TRACKING</small><h2>Laboratory Tracking</h2><p>Monitor USPS, FedEx, and UPS shipments published by Workforce Testing. Share tracking directly with your employer.</p></div><strong>USPS · FEDEX · UPS</strong></div><div class="track-summary"><div><small>Total shipments</small><strong>'+trackState.rows.length+'</strong></div><div><small>In transit</small><strong>'+inTransit+'</strong></div><div><small>Delivered</small><strong>'+delivered+'</strong></div></div><div class="track-toolbar"><input type="search" id="trackSearch" placeholder="Search employer, order, or tracking number" value="'+esc(trackState.search)+'"><select id="trackFilter"><option value="all">All shipment statuses</option>'+["preparing","shipped","in_transit","out_for_delivery","delivered","exception"].map(v=>'<option value="'+v+'"'+(trackState.status===v?' selected':'')+'>'+v.replaceAll("_"," ")+'</option>').join("")+'</select></div><div class="track-list">'+(cards||'<div class="track-empty"><strong>No shipments found</strong><p>Shipments assigned to this C/TPA workspace will appear when Workforce Testing publishes them.</p></div>')+'</div></div>';
+ $("trackFilter").onchange=e=>{trackState.status=e.target.value;trackPage()};
+ $("trackSearch").oninput=e=>{trackState.search=e.target.value;const pos=e.target.selectionStart;trackPage();const input=$("trackSearch");input.focus();input.setSelectionRange(pos,pos)};
+}
+async function openTracking(){
+ if(trackState.busy)return;trackState.busy=true;
+ const seq=state.sequence,tenant=state.tenantId,context=state.context;
+ $("pageContent").innerHTML='<section class="panel">Loading assigned shipments…</section>';
+ try{const d=await trackApi("list");if(seq!==state.sequence||tenant!==state.tenantId||context!==state.context||state.page!=="lab_tracking")return;trackState.rows=d.shipments||[];trackPage()}
+ catch(e){if(state.page==="lab_tracking")$("pageContent").innerHTML='<section class="panel"><h2>Tracking unavailable</h2><p>'+esc(e.message)+'</p><button type="button" class="btn secondary" data-track-retry>Try again</button></section>'}
+ finally{trackState.busy=false}
+}
+async function sendTracking(id,button){
+ const record=trackState.rows.find(x=>x.id===id);if(!record?.can_send)return;
+ if(!confirm("Email tracking information to "+record.employer_email+"?"))return;
+ button.disabled=true;button.textContent="Sending…";
+ try{await trackApi("send_employer",{shipment_id:id});message("Employer tracking email accepted for delivery");await openTracking()}
+ catch(e){message(e.message);button.disabled=false;button.textContent="Send to Employer"}
+}
+
 const supplyStore={products:[],orders:[],companies:[],cart:new Map(),search:"",filter:"all",loading:false};
 const supplyMoney=n=>new Intl.NumberFormat("en-US",{style:"currency",currency:"USD"}).format(Number(n||0));
 function supplyCartItems(){
@@ -3560,7 +3594,7 @@ function startApp(){
  if(desired==="lab_orders")history.replaceState(null,"","/unified.html?page=testing_orders"+(search.get("manage")==="new"?"&manage=new":""));
  if(desired==="lab_results"||desired==="lab_documents")history.replaceState(null,"","/unified.html?page="+(desired==="lab_results"?"results":"testing_documents"));
  switchPage(desired==="lab_results"?"results":desired==="lab_documents"?"testing_documents":desired==="lab_orders"?"testing_orders":desired==="enrollments"?"programs":desired==="clearinghouse"?"compliance":CONFIG[desired]?desired:"dashboard",false);
- const action=desired==="lab_supplies"?null:["lab_orders","lab_results","lab_documents"].includes(desired)?(desired==="lab_orders"&&search.get("manage")==="new"?"new":null):search.get("manage"),id=["lab_orders","lab_results","lab_documents"].includes(desired)?null:search.get("record");
+ const action=["lab_supplies","lab_tracking"].includes(desired)?null:["lab_orders","lab_results","lab_documents"].includes(desired)?(desired==="lab_orders"&&search.get("manage")==="new"?"new":null):search.get("manage"),id=["lab_orders","lab_results","lab_documents"].includes(desired)?null:search.get("record");
  if(MANAGEMENT_ACTIONS.has(action)){
   const apply=()=>{if(state.page===(desired==="lab_orders"?"testing_orders":desired))openManagement(action,id,false)};
   const cached=state.cache.get(cacheKey());
@@ -3622,14 +3656,16 @@ function bindEvents(){
  $("pageActions").addEventListener("click",e=>{
   if(e.target.closest("[data-back-list]")){leaveManagement();return}
   if(e.target.closest("#newRecord")){openManagement("new");return}
-  if(e.target.closest("#refreshPage")){void (state.page==="lab_analytics"?renderLabAnalytics(true):state.page==="lab_supplies"?openSupplyStore():loadRecords(state.sequence,true,true));return}
+  if(e.target.closest("#refreshPage")){void (state.page==="lab_analytics"?renderLabAnalytics(true):state.page==="lab_supplies"?openSupplyStore():state.page==="lab_tracking"?openTracking():loadRecords(state.sequence,true,true));return}
   if(e.target.closest("#exportPage")){exportRecords();return}
  });
  $("notice").addEventListener("click",e=>{if(e.target.closest(".notice-close"))message("")});
  $("pageContent").addEventListener("click",e=>{
   const target=e.target;
   if(target.closest("[data-supply-reload]")){void openSupplyStore();return}
-  const adjust=target.closest("[data-supply-increase],[data-supply-decrease]");
+  const retryTrack=target.closest("[data-track-retry]");if(retryTrack){void openTracking();return}
+ const sendTrack=target.closest("[data-track-send]");if(sendTrack){void sendTracking(sendTrack.dataset.trackSend,sendTrack);return}
+ const adjust=target.closest("[data-supply-increase],[data-supply-decrease]");
   if(adjust){const id=adjust.dataset.supplyIncrease||adjust.dataset.supplyDecrease;
    const old=supplyStore.cart.get(id)||0,qty=Math.max(0,Math.min(100,old+(adjust.dataset.supplyIncrease?1:-1)));
    if(qty)supplyStore.cart.set(id,qty);else supplyStore.cart.delete(id);
