@@ -252,18 +252,42 @@ async function renderLabAnalytics(refresh=false){
    '<strong>'+String(counts.get(kind)||0)+'</strong><small>Manage records</small></button>').join("")+'</div></section>';
 }
 function renderDashboard(records){
- const byType=new Map();for(const r of records)byType.set(r.kind,(byType.get(r.kind)||0)+1);
- const metrics=[["employers","Employers"],["people","People"],["programs","Programs"],["testing_orders","Testing Orders"]];
- $("pageContent").innerHTML='<div class="metric-grid">'+metrics.map(([kind,txt])=>
-  '<div class="metric"><small>'+txt+'</small><strong>'+String(byType.get(kind)||0)+'</strong></div>').join("")+
-  '</div><section class="panel"><div class="section-heading"><h2>Activity</h2><span class="pill">'+esc(activeWorkspace()?.name||"Organization")+'</span></div>'+
-  (records.length?''+
-  '<div class="table-scroll"><table class="data-table"><thead><tr><th>Module</th><th>Records</th><th></th></tr></thead><tbody>'+
-  [...byType].sort((a,b)=>b[1]-a[1]).map(([kind,total])=>'<tr><td class="record-name">'+esc(label(kind))+'</td><td>'+total+'</td><td><button class="btn secondary" type="button" data-goto="'+esc(kind)+'">View</button></td></tr>').join("")+'</tbody></table></div>'
-  :'<div class="empty"><p>No records yet.</p><button type="button" class="btn primary" data-goto="employers">Manage Employers</button></div>')+'</section>'+
- '<section class="panel"><div class="management-shortcuts">'+
- [["employers","Employers"],["people","People"],["programs","Programs"],["testing_orders","Testing Orders"],["documents","Documents"],["invoices","Invoices"],["support","Support"]].map(([key,name])=>
- '<button type="button" class="management-shortcut" data-goto="'+key+'"><strong>'+name+'</strong></button>').join("")+'</div></section>';
+ const counts=new Map();
+ for(const r of records)counts.set(r.kind,(counts.get(r.kind)||0)+1);
+ const dashboardCards=[["employers","Employers"],["people","People"],["programs","Programs"],["testing_orders","Testing Orders"]];
+ const sections=[
+  ["People & Programs",["employers","owner_operators","people","programs","pools","selections"]],
+  ["Testing & Compliance",["testing_orders","results","documents","audits","reports"]],
+  ["Lab Account",["lab_accounts","lab_orders","lab_tracking","lab_results","lab_documents","lab_supplies","lab_analytics"]],
+  ["Services & Billing",["orders","billing","invoices","support"]]
+ ];
+ const recent=records.filter(r=>r.kind!=="audit_history")
+  .sort((a,b)=>Date.parse(b.updated_at||b.created_at||0)-Date.parse(a.updated_at||a.created_at||0)).slice(0,6);
+ const context=state.context==="dot"?"DOT":"NON-DOT";
+ const links=sections.map(([heading,items])=>'<div class="dash-link-group"><h3>'+esc(heading)+'</h3>'+
+  items.map(id=>'<button type="button" data-goto="'+esc(id)+'"><span class="dash-link-icon">'+navIcon(id)+'</span>'+
+   '<span>'+esc(label(id))+'</span>'+
+   ((counts.get(id)||0)?'<span class="dash-link-count">'+String(counts.get(id))+'</span>':"")+
+   '<span class="dash-chevron" aria-hidden="true">›</span></button>').join("")+'</div>').join("");
+ $("pageContent").innerHTML=
+  '<div class="dash-metrics">'+dashboardCards.map(([id,name])=>
+   '<button type="button" class="dash-metric" data-goto="'+id+'">'+
+   '<span class="dash-metric-label">'+esc(name)+'<span class="dash-metric-symbol">'+navIcon(id)+'</span></span>'+
+   '<strong>'+String(counts.get(id)||0)+'</strong>'+
+   '<span class="dash-metric-foot">Open management <span aria-hidden="true">›</span></span></button>').join("")+'</div>'+
+  '<div class="dash-columns">'+
+   '<section class="dash-panel"><div class="dash-section-title"><h2>Management</h2><span class="dash-context-label">'+context+'</span></div>'+
+   '<div class="dash-group-grid">'+links+'</div></section>'+
+   '<section class="dash-panel"><div class="dash-section-title"><h2>Recent activity</h2></div>'+
+   (recent.length?'<div class="dash-recent">'+recent.map(r=>
+    '<button type="button" class="dash-recent-row" data-goto="'+esc(r.kind)+'">'+
+    '<span class="dash-recent-icon">'+navIcon(r.kind)+'</span>'+
+    '<span class="dash-recent-info"><strong>'+esc(recordTitle(r))+'</strong><small>'+esc(label(r.kind))+'</small></span>'+
+    '<span class="dash-recent-date">'+esc(new Date(r.updated_at||r.created_at).toLocaleDateString())+'</span></button>').join("")+'</div>':
+    '<div class="dash-empty">No recent activity in this workspace.</div>')+
+   '<div class="dash-recent-footer"><button type="button" data-goto="audit_history">Audit History'+
+   ((counts.get("audit_history")||0)?' · '+String(counts.get("audit_history")):'')+
+   ' <span aria-hidden="true">›</span></button></div></section></div>';
 }
 
 const MANAGEMENT_ACTIONS=new Set(["new","view","edit"]);
