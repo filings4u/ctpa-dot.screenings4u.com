@@ -1586,7 +1586,7 @@ function renderTestingDocumentManagement(record,action){
    '<div class="testing-doc-profile-actions">'+(file?
     '<button type="button" class="btn secondary" data-preview-file="'+esc(record.id)+'">View document</button>'+
     '<button type="button" class="btn primary" data-open-file="'+esc(record.id)+'">Download</button>':"")+
-    '<button type="button" class="btn secondary" data-edit="'+esc(record.id)+'">Edit details</button>'+
+    (["owner","admin","editor"].includes(activeWorkspace()?.role||"")?'<button type="button" class="btn secondary" data-edit="'+esc(record.id)+'">Edit details</button>':"")+
     '<button type="button" class="btn secondary" data-back-list>Back to documents</button></div>'+
    '</div></div>';
   return;
