@@ -27,7 +27,7 @@ Deno.serve(async req=>{
   if(member.error)throw member.error;authorized=!!member.data;
   if(!authorized)return send({error:"You do not have access to this C/TPA's messages"},403);
  }else{
-  const access=await db.from("workforce_portal_user_access").select("portal_code,organization_id").eq("user_id",user.id).eq("enabled",true).in("portal_code",body.portal_type==="owner_operator"?["owner_operator_workforce","owner_operator","ctpa_owner_operator_workforce"]:["employer_workforce","ctpa_employer_workforce","employer_dot","employer_nondot"]).limit(50);
+  const access=await db.from("workforce_portal_user_access").select("portal_code,organization_id").eq("user_id",user.id).eq("enabled",true).in("portal_code",body.portal_type==="owner_operator"?["owner_operator_workforce","owner_operator","ctpa_owner_operator_workforce"]:["employer_workforce","ctpa_employer_workforce","ctpa_employer_dot","employer_dot","employer_nondot"]).limit(50);
   if(access.error)throw access.error;
   if(!access.data?.length)return send({error:"Authorized employer or owner-operator account required"},403);
  }
