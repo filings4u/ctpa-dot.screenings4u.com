@@ -2349,7 +2349,7 @@ function policyList(records){
   const d=r.data||{},sent=(d.sent_history||[]).at(-1);
   return '<div class="policy-directory-row"><span class="results-row-icon">'+navIcon("policies")+'</span>'+
    '<span class="policy-directory-main"><strong>'+esc(d.name||"Untitled policy")+'</strong>'+
-   '<small>'+esc(d.company_name||"Company not linked")+' · v'+esc(d.version||"1.0")+' · '+esc(statusLabel(d.category||"other"))+'</small></span>'+
+   '<small>'+esc("Reusable policy")+' · v'+esc(d.version||"1.0")+' · '+esc(statusLabel(d.category||"other"))+'</small></span>'+
    '<span class="policy-last-sent">'+(sent?'Sent '+esc(new Date(sent.sent_at).toLocaleDateString()):"Not sent")+'</span>'+
    '<span class="mgmt-status '+statusClass(d.status)+'">'+esc(statusLabel(d.status||"draft"))+'</span>'+
    '<div class="policy-directory-actions"><button class="btn secondary" type="button" data-view="'+esc(r.id)+'">View</button>'+
@@ -2370,79 +2370,94 @@ function policyList(records){
  (["owner","admin","editor"].includes(activeWorkspace()?.role||"")?'<button class="btn primary" type="button" data-create="1">Create a Policy</button>':"")+'</div>')+
  '</section></div>';
 }
+
+let savedPolicyRange=null;
+function rememberPolicySelection(){
+ const editor=$("policyRichEditor"),selection=window.getSelection();
+ if(editor&&selection?.rangeCount&&editor.contains(selection.anchorNode))savedPolicyRange=selection.getRangeAt(0).cloneRange();
+}
+function restorePolicySelection(){
+ const editor=$("policyRichEditor"),selection=window.getSelection();
+ editor?.focus();
+ if(editor&&savedPolicyRange&&editor.contains(savedPolicyRange.commonAncestorContainer)){
+  selection.removeAllRanges();selection.addRange(savedPolicyRange);
+ }
+}
 function policyEditor(record,mode,canWrite){
- const d=record?.data||{},view=mode==="view",heading='<div class="program-head"><span class="program-head-icon">'+navIcon("policies")+'</span>'+
- '<div><strong>'+esc(d.name||"New policy")+'</strong><small>'+esc(d.company_name||"Select an employer or owner-operator")+'</small></div>'+
+ const d=record?.data||{},view=mode==="view";
+ const heading='<div class="program-head"><span class="program-head-icon">'+navIcon("policies")+'</span>'+
+ '<div><strong>'+esc(d.name||"New policy")+'</strong><small>Reusable C/TPA policy library · Select employers when sending</small></div>'+
  (record?recordStatus(record):'<span class="mgmt-status pending">Draft</span>')+'</div>';
+ const logo=d.logo_url?'<img class="policy-document-logo" src="'+esc(d.logo_url)+'" alt="Uploaded policy logo">':"";
  if(view){
-  const history=(d.sent_history||[]).slice(-12).reverse();
+  const history=(d.sent_history||[]).slice(-30).reverse();
   $("pageContent").innerHTML='<div class="policy-document-view">'+heading+
   '<div class="policy-document-meta"><span>Version '+esc(d.version||"1.0")+'</span><span>'+esc(statusLabel(d.category||"other"))+'</span>'+
-  '<span>Effective '+esc(d.effective_date||"Not set")+'</span><span>'+esc(d.company_name||"Company not linked")+'</span></div>'+
-  '<div class="policy-paper"><h1>'+esc(d.name||"Policy")+'</h1>'+
+  '<span>Effective '+esc(d.effective_date||"Not set")+'</span><span>Reusable Policy</span></div>'+
+  '<div class="policy-paper">'+logo+'<h1>'+esc(d.name||"Policy")+'</h1>'+
   '<div class="policy-paper-content">'+(d.html||'<p>No policy text saved.</p>')+'</div></div>'+
   '<section class="policy-delivery-history"><h2>Delivery history</h2>'+
-  (history.length?history.map(h=>'<p>'+esc(new Date(h.sent_at).toLocaleString())+' · '+esc(h.recipient)+' · v'+esc(h.version)+' (revision '+esc(h.revision)+')</p>').join(""):
-  '<p>No emails sent for this policy.</p>')+'</section>'+
+  (history.length?history.map(h=>'<p>'+esc(new Date(h.sent_at).toLocaleString())+' · '+esc(h.company_name||"Employer")+' · '+esc(h.recipient)+' · v'+esc(h.version)+' (revision '+esc(h.revision)+')</p>').join(""):
+  '<p>No employers have received this policy yet.</p>')+'</section>'+
   '<footer class="management-editor-actions"><button type="button" class="btn secondary" data-back-list>Back to Policies</button>'+
   (canWrite?'<button type="button" class="btn secondary" data-manage-edit="'+esc(record.id)+'">Edit Policy</button>'+
    '<button type="button" class="btn primary" data-policy-send="'+esc(record.id)+'"'+(d.status!=="active"?" disabled":"")+'>Send to Employer</button>':"")+'</footer></div>';
   return;
  }
- const options=(options,value)=>options.map(([id,title])=>'<option value="'+id+'"'+(id===(value||"")?" selected":"")+'>'+esc(title)+'</option>').join("");
+ const options=(choices,value)=>choices.map(([id,title])=>'<option value="'+id+'"'+(id===(value||"")?" selected":"")+'>'+esc(title)+'</option>').join("");
+ const formatButtons=[
+ ["undo","Undo","↶"],["redo","Redo","↷"],["bold","Bold","<b>B</b>"],["italic","Italic","<i>I</i>"],
+ ["underline","Underline","<u>U</u>"],["strikeThrough","Strikethrough","<s>S</s>"],
+ ["insertUnorderedList","Bulleted list","• List"],["insertOrderedList","Numbered list","1. List"],
+ ["justifyLeft","Align left","⇤"],["justifyCenter","Center","≡"],["justifyRight","Align right","⇥"]
+ ];
  const toolbar='<div class="policy-toolbar" role="toolbar" aria-label="Policy formatting">'+
- '<select id="policyHeading" aria-label="Text style"><option value="p">Paragraph</option><option value="h1">Heading 1</option><option value="h2">Heading 2</option><option value="h3">Heading 3</option></select>'+
- [["bold","Bold"],["italic","Italic"],["underline","Underline"],["strikeThrough","Strike"],["insertUnorderedList","Bullets"],["insertOrderedList","Numbered"],["justifyLeft","Align left"],["justifyCenter","Center"]]
- .map(([cmd,label])=>'<button type="button" title="'+label+'" aria-label="'+label+'" data-policy-command="'+cmd+'">'+(cmd==="bold"?"<b>B</b>":cmd==="italic"?"<i>I</i>":cmd==="underline"?"<u>U</u>":cmd==="strikeThrough"?"<s>S</s>":cmd==="insertUnorderedList"?"• List":cmd==="insertOrderedList"?"1. List":cmd==="justifyLeft"?"⇤":cmd==="justifyCenter"?"≡":"Format")+'</button>').join("")+
- '<label class="policy-toolbar-color">Color <input type="color" id="policyTextColor" value="#01122f" aria-label="Text color"></label>'+
- '<input type="url" id="policyLinkUrl" placeholder="https:// link URL" aria-label="Hyperlink URL">'+
- '<button type="button" id="policyInsertLink">Add link</button><button type="button" id="policyRemoveFormat">Clear formatting</button>'+
- '</div>';
+ '<div class="policy-toolbar-cluster"><select id="policyHeading" aria-label="Text style">'+
+ options([["p","Paragraph"],["h1","Heading 1"],["h2","Heading 2"],["h3","Heading 3"],["blockquote","Quote"]],"p")+
+ '</select><select id="policyFont" aria-label="Font family">'+
+ options([["Arial","Arial"],["Georgia","Georgia"],["Verdana","Verdana"],["Tahoma","Tahoma"],["Times New Roman","Times New Roman"],["Trebuchet MS","Trebuchet"],["Courier New","Courier New"]],"Arial")+
+ '</select><select id="policyFontSize" aria-label="Font size">'+
+ options([["2","Small"],["3","Normal"],["4","Medium"],["5","Large"],["6","Extra large"],["7","Title"]],"3")+
+ '</select></div><div class="policy-toolbar-cluster">'+
+ formatButtons.map(([cmd,label,content])=>'<button type="button" title="'+esc(label)+'" aria-label="'+esc(label)+'" data-policy-command="'+cmd+'">'+content+'</button>').join("")+
+ '</div><div class="policy-toolbar-cluster">'+
+ '<label class="policy-toolbar-color">Text <input type="color" id="policyTextColor" value="#01122f" aria-label="Text color"></label>'+
+ '<label class="policy-toolbar-color">Highlight <input type="color" id="policyHighlight" value="#fff2aa" aria-label="Text highlight"></label>'+
+ '<button type="button" id="policyRemoveFormat">Clear formatting</button></div>'+
+ '<div class="policy-toolbar-cluster policy-toolbar-link"><input type="url" id="policyLinkUrl" placeholder="https:// link URL" aria-label="Link address">'+
+ '<button type="button" id="policyInsertLink">Insert link</button><button type="button" id="policyUnlink">Remove link</button></div></div>';
  $("pageContent").innerHTML='<div class="policy-editor-shell">'+heading+
- '<form id="policyForm">'+
- '<section class="management-section"><header class="management-section-header"><h2>Policy information</h2></header>'+
+ '<form id="policyForm"><section class="management-section"><header class="management-section-header"><h2>Policy information</h2>'+
+ '<p>Write once, save to your library, and choose the recipient company only when you send the policy.</p></header>'+
  '<div class="manage-form-grid">'+
  '<label class="manage-field"><span>Policy title *</span><input name="name" required maxlength="200" value="'+esc(d.name||"")+'" placeholder="Example: Drug and Alcohol Testing Policy"></label>'+
- '<label class="manage-field"><span>Employer / Owner-Operator *</span><select name="company_id" id="policyCompany" required disabled><option value="">Loading companies…</option></select></label>'+
  '<label class="manage-field"><span>Policy category</span><select name="category">'+options(POLICY_CATEGORIES,d.category||"other")+'</select></label>'+
  '<label class="manage-field"><span>Version</span><input name="version" maxlength="30" value="'+esc(d.version||"1.0")+'"></label>'+
  '<label class="manage-field"><span>Effective date</span><input name="effective_date" type="date" value="'+esc(d.effective_date||"")+'"></label>'+
  '<label class="manage-field"><span>Publication status</span><select name="status">'+options([["draft","Draft"],["active","Active / Ready to Send"],["archived","Archived"]],d.status||"draft")+'</select></label>'+
- '<label class="manage-field policy-wide"><span>Summary (optional)</span><textarea name="description" rows="2" maxlength="500" placeholder="Short overview for the company">'+esc(d.description||"")+'</textarea></label>'+
+ '<label class="manage-field policy-wide"><span>Summary (optional)</span><textarea name="description" rows="2" maxlength="500" placeholder="Brief description of this reusable policy">'+esc(d.description||"")+'</textarea></label>'+
  '</div></section>'+
- '<section class="management-section"><header class="management-section-header"><h2>Policy document editor</h2><p>Format the document as you would a blog article. Policies are company-specific, and saved content can be edited or previewed.</p></header>'+
+ '<section class="management-section"><header class="management-section-header"><h2>Policy logo</h2><p>Upload a logo to appear above the policy and in email copies. A policy logo is publicly accessible by link; do not upload confidential images.</p></header>'+
+ '<div class="policy-logo-uploader"><div id="policyLogoPreview" class="policy-logo-preview">'+(logo||'<span>No logo uploaded</span>')+'</div>'+
+ '<div class="policy-logo-controls"><label class="policy-logo-file">Upload PNG, JPG or WebP<input id="policyLogoFile" type="file" accept=".png,.jpg,.jpeg,.webp"></label>'+
+ '<button type="button" class="btn secondary" id="policyRemoveLogo">Remove logo</button>'+
+ '<small>Maximum 1 MB. Optional.</small><input id="policyLogoUrl" name="logo_url" type="hidden" value="'+esc(d.logo_url||"")+'"></div></div></section>'+
+ '<section class="management-section"><header class="management-section-header"><h2>Policy document editor</h2><p>Choose text to apply formatting, or use Undo and Redo to revise the document.</p></header>'+
  toolbar+
- '<div id="policyRichEditor" class="policy-rich-editor" contenteditable="true" role="textbox" aria-multiline="true" aria-label="Policy body" data-placeholder="Start writing your policy here…">'+(d.html||"<h2>Policy purpose</h2><p></p>")+'</div>'+
- '<p class="policy-editor-hint">Choose text to apply formatting. Links must begin with https:// or http://. Paste adds plain text for safe formatting.</p>'+
- '</section><p id="policyFormError" class="manage-form-error" role="alert"></p>'+
+ '<div id="policyRichEditor" class="policy-rich-editor" contenteditable="true" role="textbox" aria-multiline="true" aria-label="Policy body" data-placeholder="Begin your policy…">'+(d.html||'<h2>Policy purpose</h2><p></p>')+'</div>'+
+ '<p class="policy-editor-hint">Formatting is preserved when saved. Paste is plain text for security, and only approved formatting is stored.</p></section>'+
+ '<p id="policyFormError" class="manage-form-error" role="alert"></p>'+
  '<footer class="management-editor-actions"><button type="button" class="btn secondary" data-back-list>Cancel</button>'+
- '<button type="submit" class="btn primary" id="policySave" disabled>'+(record?"Save Changes":"Create Policy")+'</button></footer></form></div>';
+ '<button type="submit" class="btn primary" id="policySave">'+(record?"Save Changes":"Create Policy")+'</button></footer></form></div>';
+ savedPolicyRange=null;
  const editor=$("policyRichEditor");
  editor.addEventListener("paste",e=>{
   e.preventDefault();document.execCommand("insertText",false,e.clipboardData.getData("text/plain"));
  });
- void loadPolicyCompanies(record);
-}
-async function loadPolicyCompanies(record){
- const m=state.management,seq=state.sequence,context=state.context;
- try{
-  const kinds=context==="dot"?["employers","owner_operators"]:["employers"];
-  const lists=await Promise.all(kinds.map(async kind=>{
-   const key=cacheKey(kind),cached=state.cache.get(key);
-   if(cached&&Date.now()-cached.time<30000)return cached.records||[];
-   const res=await api("list",{tenant_id:state.tenantId,operating_context:context,kind});
-   state.cache.set(key,{records:res.records||[],time:Date.now()});return res.records||[];
-  }));
-  if(m!==state.management||seq!==state.sequence)return;
-  const companies=lists.flat(),select=$("policyCompany"),save=$("policySave");
-  if(!select||!save)return;
-  select.innerHTML='<option value="">Select associated company</option>'+
-    companies.map(c=>'<option value="'+esc(c.id)+'">'+esc(c.data?.legal_name||"Company")+'</option>').join("");
-  if(record?.data?.company_id&&companies.some(c=>c.id===record.data.company_id))select.value=record.data.company_id;
-  select.disabled=!companies.length;save.disabled=!select.value;
-  select.addEventListener("change",()=>save.disabled=!select.value);
-  if(!companies.length)$("policyFormError").textContent="Add an employer or owner-operator before writing its policy.";
- }catch(error){if(m===state.management&&$("policyFormError"))$("policyFormError").textContent=error.message}
+ editor.addEventListener("mouseup",rememberPolicySelection);
+ editor.addEventListener("keyup",rememberPolicySelection);
+ const tools=editor.parentElement.querySelector(".policy-toolbar");
+ tools.addEventListener("mousedown",e=>{if(e.target.closest("button"))e.preventDefault()});
 }
 async function savePolicy(form){
  const btn=$("policySave"),error=$("policyFormError");
@@ -2454,50 +2469,94 @@ async function savePolicy(form){
  const values=Object.fromEntries(new FormData(form).entries());
  btn.disabled=true;error.textContent="";
  try{
-  const result=await api("policy_save",{tenant_id:state.tenantId,operating_context:state.context,
+  await api("policy_save",{tenant_id:state.tenantId,operating_context:state.context,
    id:state.management?.id||null,data:{...values,html}});
-  state.cache.delete(cacheKey());
-  leaveManagement();message("Policy saved as version "+(values.version||"1.0")+".");
+  state.cache.delete(cacheKey());leaveManagement();message("Policy saved. Select Send when you want to choose an employer.");
   void loadRecords(state.sequence,true);
  }catch(e){error.textContent=e.message;btn.disabled=false}
 }
 async function confirmPolicySend(id){
  const policy=(state.cache.get(cacheKey())?.records||[]).find(r=>r.id===id);
- if(!policy){message("Policy not found. Reload the page.",true);return}
+ if(!policy){message("Policy not found. Refresh the page.",true);return}
  if(policy.data?.status!=="active"){message("Save the policy as Active before sending.",true);return}
+ $("modalTitle").textContent="Send policy to employer";
+ $("modalDescription").textContent="Choose an employer or owner-operator to receive this saved policy.";
+ $("recordFields").innerHTML='<div class="policy-send-setup">'+
+ '<p><strong>'+esc(policy.data?.name||"Policy")+'</strong> · Version '+esc(policy.data?.version||"1.0")+'</p>'+
+ '<label class="manage-field"><span>Send to employer / owner-operator *</span><select id="policySendCompany" required disabled><option value="">Loading available companies…</option></select></label>'+
+ '<div id="policySendRecipient" class="policy-send-recipient">Select an employer to verify the recipient email.</div>'+
+ '<p class="policy-send-notice">The policy will be emailed to the selected company contact. It will not change your reusable library copy. A delivery event is recorded for each recipient.</p></div>';
+ $("recordForm").dataset.mode="send-policy";
+ $("saveRecord").hidden=false;$("saveRecord").disabled=true;$("saveRecord").className="btn primary";
+ $("saveRecord").textContent="Send Policy";$("formMessage").textContent="";
+ $("modal").hidden=false;document.body.classList.add("modal-open");
+ state.policyDelivery={id};
  try{
-  const recipient=await api("policy_delivery_details",{tenant_id:state.tenantId,operating_context:state.context,id});
-  state.policyDelivery={id,email:recipient.recipient_email};
-  $("modalTitle").textContent="Send policy to employer";
-  $("modalDescription").textContent="Confirm delivery of the saved policy version to the company’s authorized contact.";
-  $("recordFields").innerHTML='<div class="official-result-confirm">'+
-   '<p><b>Policy:</b> '+esc(policy.data?.name||"Policy")+'</p>'+
-   '<p><b>Company:</b> '+esc(recipient.company_name)+'</p>'+
-   '<p><b>Version:</b> '+esc(policy.data?.version||"1.0")+'</p>'+
-   '<p><b>Recipient:</b> '+esc(recipient.recipient_email)+'</p>'+
-   '<p>The employer will receive the full formatted policy in a branded email. This action will be recorded in delivery history.</p></div>';
-  $("recordForm").dataset.mode="send-policy";
-  $("saveRecord").hidden=false;$("saveRecord").disabled=false;$("saveRecord").textContent="Confirm and Send Policy";
-  $("formMessage").textContent="";$("modal").hidden=false;document.body.classList.add("modal-open");
- }catch(error){message(error.message,true)}
+  const kinds=["employers","owner_operators"];
+  const data=await Promise.all(kinds.map(async kind=>{
+   const contexts=kind==="employers"?["dot","nondot"]:["dot"];
+   return Promise.all(contexts.map(async operating_context=>{
+    const res=await api("list",{tenant_id:state.tenantId,operating_context,kind});
+    return res.records||[];
+   }));
+  }));
+  if($("recordForm").dataset.mode!=="send-policy"||state.policyDelivery?.id!==id)return;
+  const list=data.flat(2),select=$("policySendCompany");
+  select.innerHTML='<option value="">Select a company</option>'+list.map(c=>
+   '<option value="'+esc(c.id)+'">'+esc(c.data?.legal_name||"Employer")+' ('+esc(c.operating_context==="dot"?"DOT":"NON-DOT")+')</option>').join("");
+  select.disabled=!list.length;
+  if(!list.length)$("policySendRecipient").textContent="No employers or owner-operators are available yet.";
+  select.addEventListener("change",async()=>{
+   const chosen=select.value;
+   $("saveRecord").disabled=true;state.policyDelivery={id};
+   if(!chosen){$("policySendRecipient").textContent="Select an employer first.";return}
+   $("policySendRecipient").textContent="Verifying company recipient…";
+   try{
+    const found=await api("policy_delivery_details",{tenant_id:state.tenantId,operating_context:state.context,id,company_id:chosen});
+    if(select.value!==chosen||$("recordForm").dataset.mode!=="send-policy")return;
+    state.policyDelivery={id,company_id:chosen,email:found.recipient_email};
+    $("policySendRecipient").innerHTML='<strong>Recipient:</strong> '+esc(found.recipient_email)+'<br><strong>Employer:</strong> '+esc(found.company_name);
+    $("saveRecord").disabled=false;
+   }catch(e){$("policySendRecipient").textContent=e.message}
+  });
+ }catch(e){$("formMessage").textContent=e.message}
 }
 async function deliverPolicy(){
  const recipient=state.policyDelivery,btn=$("saveRecord");
- if(!recipient?.id||!recipient.email)return;
+ if(!recipient?.id||!recipient.company_id||!recipient.email)return;
  btn.disabled=true;
  try{
   const result=await api("policy_send",{tenant_id:state.tenantId,operating_context:state.context,
-   id:recipient.id,confirm_recipient:recipient.email});
+   id:recipient.id,company_id:recipient.company_id,confirm_recipient:recipient.email});
   closeModal();state.policyDelivery=null;
   message(result.warning||"Policy sent to "+result.recipient_email+".");
   state.cache.delete(cacheKey());void loadRecords(state.sequence,true);
  }catch(e){$("formMessage").textContent=e.message;btn.disabled=false}
 }
-function applyPolicyFormatting(command){
+function applyPolicyFormatting(command,value=null){
  const editor=$("policyRichEditor");if(!editor)return;
- editor.focus();document.execCommand(command,false,null);
+ restorePolicySelection();
+ document.execCommand(command,false,value);
+ rememberPolicySelection();
 }
-
+async function uploadPolicyLogo(file){
+ const error=$("policyFormError");
+ if(!file)return;
+ if(!["image/png","image/jpeg","image/webp"].includes(file.type)||file.size>1048576){
+  error.textContent="Logo must be PNG, JPG or WebP, 1 MB maximum.";return;
+ }
+ const input=$("policyLogoFile");input.disabled=true;error.textContent="";
+ try{
+  const base64=await new Promise((resolve,reject)=>{
+   const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(",")[1]||"");
+   reader.onerror=()=>reject(Error("Unable to read your logo"));reader.readAsDataURL(file);
+  });
+  const uploaded=await api("policy_logo_upload",{tenant_id:state.tenantId,operating_context:state.context,
+   filename:file.name,mime_type:file.type,base64});
+  $("policyLogoUrl").value=uploaded.url;
+  $("policyLogoPreview").innerHTML='<img class="policy-document-logo" src="'+esc(uploaded.url)+'" alt="Policy logo">';
+ }catch(e){error.textContent=e.message}finally{input.disabled=false;input.value=""}
+}
 
 const PRIVATE_DOC_TYPES=[["authorization","Authorization"],["company_record","Company record"],["employee_record","Employee record"],["compliance","Compliance"],["correspondence","Correspondence"],["other","Other"]];
 function privateDocumentList(records){
