@@ -494,7 +494,7 @@ function dashboard(ctx,d){
   if(nondot){
     const payload=d?.data||{};
     d={...payload,testing_orders:payload.orders||[],results:payload.reports||[],
-      selection_events:[],compliance_cases:[],notifications:[],client_invoices:[],
+      selection_events:payload.selection_events||[],compliance_cases:payload.cases||[],notifications:payload.notifications||[],client_invoices:payload.invoices||[],
       subscription:{status:'active',plans:{name:workspace()?.combined_plan_name||'C/TPA Plan'}},
       entitlements:{results_summary:true}};
   }
