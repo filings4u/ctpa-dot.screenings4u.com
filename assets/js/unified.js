@@ -7,7 +7,7 @@ const SELECTOR_URL="https://workforceapps.screenings4u.com/selector.html";
 const redirectToSelector=()=>location.replace(SELECTOR_URL);
 const GROUPS=[
  ["People & Programs",["employers","owner_operators","people","programs","pools","selections"]],
- ["Testing & Compliance",["testing_orders","testing_documents","results","occupational_health","compliance","audits","clearinghouse","return_to_duty","policies","enrollments","documents","reports"]],
+ ["Testing & Compliance",["testing_orders","testing_documents","results","occupational_health","compliance","audits","return_to_duty","policies","enrollments","documents","reports"]],
  ["Lab Account",["lab_accounts","lab_orders","lab_tracking","lab_results","lab_documents","lab_supplies","lab_analytics"]],
  ["Services & Billing",["orders","price_list","services","billing","invoices","subscriptions"]],
  ["Account & Support",["locations","messages","notifications","support","demo_sessions","staff","integrations","audit_history"]]
@@ -42,7 +42,6 @@ const CONFIG={
  occupational_health:["Occupational Health","Order DOT and NON-DOT physicals and track Testing Operations processing."],
  compliance:["Compliance","Record employer and employee compliance findings, outcomes, notes and follow-up actions.","name|Case title|text|required;scope|Record applies to|select:company,employee;category|Compliance category|select:review,finding,violation,corrective_action,audit,other;review_date|Review date|date;outcome|Compliance outcome|select:pending,compliant,non_compliant,needs_review,not_applicable;findings|Findings and results|textarea|required;notes|Internal notes|textarea;corrective_action|Corrective action / follow-up|textarea;due_date|Follow-up due date|date;priority|Priority|select:low,normal,high,urgent;status|Status|select:open,in_progress,resolved,closed"],
  audits:["New Entrant Audits","Manage audit preparation and document milestones.","name|Audit title|text|required;carrier|Carrier|text;dot_number|USDOT number|text;due_date|Due date|date;status|Status|select:draft,in_progress,submitted,complete"],
- clearinghouse:["Clearinghouse","Track Clearinghouse-related workflow tasks.","name|Task title|text|required;employer|Employer|text;reference|Reference|text;due_date|Due date|date;status|Status|select:open,in_progress,complete"],
  return_to_duty:["Return to Duty","Manage Return-to-Duty and follow-up tracking.","name|Case reference|text|required;agency|DOT agency|text;employee|Employee|text;status|Status|select:opened,in_progress,follow_up,complete;notes|Notes|textarea"],
  policies:["Policies","Manage compliance policy records.","name|Policy name|text|required;version|Version|text;effective_date|Effective date|date;status|Status|select:draft,active,archived"],
  enrollments:["Enrollments","Manage enrollment record status.","name|Enrollment name|text|required;participant|Participant|text;program|Program|text;status|Status|select:pending,active,complete"],
@@ -188,6 +187,7 @@ function updateHeading(){
   :'<button class="btn secondary" type="button" id="refreshPage">Refresh</button><button class="btn secondary" type="button" id="exportPage">Export CSV</button><button class="btn primary" type="button" id="newRecord">'+(state.page==="selections"?"Run Selection":state.page==="testing_orders"?"Order a Test":state.page==="testing_documents"?"Upload Document":state.page==="occupational_health"?"Order Physical":state.page==="compliance"?"Add Compliance Record":state.page==="audits"?"Start New Entrant Audit":"Add "+esc(title))+'</button>';
 }
 function switchPage(page,push=true){
+ if(page==="clearinghouse")page="compliance";
  if(!CONFIG[page])page="dashboard";
  if(state.context==="nondot"&&["owner_operators","audits"].includes(page))page=page==="audits"?"dashboard":"employers";
  state.page=page;state.search="";state.statusFilter="";state.pageIndex=0;state.companyFilter=null;state.companyDraft=null;state.management=null;state.pendingManagement=null;const seq=++state.sequence;
