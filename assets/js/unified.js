@@ -590,7 +590,7 @@ async function openDocumentFile(id,mode="download"){
   setTimeout(()=>URL.revokeObjectURL(blobUrl),30000);
  }catch(error){message(error.message,true)}
 }
-async function submitManagement(form){
+async function submitManagement(form,continueEditing=false){
  const m=state.management;
  if(!m||!form.reportValidity())return;
  const button=$("managementSave");button.disabled=true;
@@ -609,9 +609,15 @@ async function submitManagement(form){
   }
   if(!uploaded)await api("save",{tenant_id:state.tenantId,operating_context:state.context,
    kind:state.page,record_context:recordContext,id:m.id||null,data});
-  state.cache.delete(cacheKey());leaveManagement();
-  message(m.action==="new"?"Record created successfully.":"Record updated successfully.");
-  void loadRecords();
+  state.cache.delete(cacheKey());
+  if(continueEditing&&m.id){
+   message("Company details saved successfully.");
+   void loadRecords(state.sequence,true);
+  }else{
+   leaveManagement();
+   message(m.action==="new"?"Record created successfully.":"Record updated successfully.");
+   void loadRecords();
+  }
  }catch(error){$("managementError").textContent=error.message;button.disabled=false}
 }
 function statusLabel(value){
@@ -845,6 +851,29 @@ function bindEvents(){
     if(state.cache.get(cacheKey()))openManagement("view",id);
     else state.pendingManagement={action:"view",id,section:destination};
    }
+   return;
+  }
+  const employerRelated=target.closest("[data-employer-related]");
+  const employerCreate=target.closest("[data-employer-create]");
+  if(employerRelated||employerCreate){
+   const page=(employerRelated||employerCreate).dataset.employerRelated||(employerRelated||employerCreate).dataset.employerCreate;
+   const company=state.editing?.data?.legal_name||"";
+   if(!CONFIG[page])return;
+   const creating=Boolean(employerCreate),filterable=["people","programs","pools","testing_orders"].includes(page);
+   switchPage(page);
+   if(creating){
+    if(state.cache.get(cacheKey()))openManagement("new");
+    else state.pendingManagement={action:"new",id:null,section:page};
+   }else if(filterable&&company){
+    state.search=company;state.pageIndex=0;
+    const cached=state.cache.get(cacheKey());
+    if(cached)showRecords(cached.records);
+   }
+   return;
+  }
+  if(target.closest("#saveEmployerContinue")){
+   const form=target.closest("#managementForm");
+   if(form)void submitManagement(form,true);
    return;
   }
   if(previewFile)void openDocumentFile(previewFile.dataset.previewFile,"preview");
