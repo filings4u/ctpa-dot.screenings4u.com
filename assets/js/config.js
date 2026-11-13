@@ -27,5 +27,15 @@ window.PORTAL_CONFIG=Object.freeze({
  };
  window.S4UCTPAPayload=function(body={}){const w=readWorkspace();return {...body,ctpa_id:body.ctpa_id||w?.ctpa_id||undefined,subscription_id:body.subscription_id||w?.subscription_id||undefined,membership_id:body.membership_id||w?.membership_id||undefined}};
  clearLegacyWorkspace();
- if('serviceWorker' in navigator){addEventListener('load',()=>navigator.serviceWorker.register('/sw.js',{scope:'/'}).catch(()=>{}),{once:true})}
+ // Authenticated application assets are versioned. Old cache-first service
+ // workers masked releases and preserved old access rules; retire them.
+ if('serviceWorker' in navigator){
+   addEventListener('load',async()=>{
+     try{
+       const regs=await navigator.serviceWorker.getRegistrations();
+       await Promise.all(regs.filter(r=>new URL(r.scope).origin===location.origin).map(r=>r.unregister()));
+       if('caches' in window){const keys=await caches.keys();await Promise.all(keys.filter(k=>k.startsWith('s4u-ctpa-')).map(k=>caches.delete(k)))}
+     }catch(e){console.warn('Unable to retire outdated portal cache',e)}
+   },{once:true});
+ }
 })();
