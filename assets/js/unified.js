@@ -34,7 +34,7 @@ const CONFIG={
  owner_operators:["Owner-Operators","Manage owner-operator accounts and operating contacts.","legal_name|Legal name|text|required;dba_name|DBA / Trade name|text;dot_number|USDOT number|text;mc_number|MC number|text;ein|Tax ID / EIN|text;company_type|Company type|text;status|Status|select:active,pending,inactive;contact_name|Primary contact|text;contact_title|Contact title|text;email|Email|email;phone|Phone|tel;secondary_phone|Secondary phone|tel;address_line1|Address line 1|text;address_line2|Address line 2|text;city|City|text;state|State|text;zip|ZIP / Postal code|text;country|Country|text;testing_program|Testing program|text;consortium_status|Consortium status|text;random_pool|Random pool|text;clearinghouse_status|Clearinghouse status|text;audit_status|New entrant audit status|text;occupational_health|Occupational health|select:enabled,disabled;billing_contact|Billing contact|text;billing_email|Billing email|email;billing_phone|Billing phone|tel;billing_address1|Billing address|text;billing_city|Billing city|text;billing_state|Billing state|text;billing_zip|Billing ZIP|text;billing_country|Billing country|text;payment_terms|Payment terms|text;mailing_address1|Mailing address|text;mailing_city|Mailing city|text;mailing_state|Mailing state|text;mailing_zip|Mailing ZIP|text;mailing_country|Mailing country|text;account_notes|Internal account notes|textarea"],
  people:["People","Manage individual profiles and company affiliations.","first_name|First name|text|required;last_name|Last name|text|required;employee_number|Employee number|text;job_title|Position / Title|text;email|Email address|email;phone|Phone number|tel;status|Status|select:active,inactive;relationship|Company role|select:staff,contact,worker"],
  programs:["Programs","Manage regulatory testing programs, employers and enrollment.","name|Program name|text|required;program_type|Program type|select:DOT,NON-DOT;dot_agency|DOT agency|select:FMCSA,FAA,FRA,FTA,PHMSA,USCG;regulatory_authority|Regulatory authority|text;testing_panel|Testing panel|text;testing_method|Testing method|select:urine,oral fluid,blood,breath,hair;drug_random_rate|Annual random drug rate (%)|number;alcohol_random_rate|Annual random alcohol rate (%)|number;testing_frequency|Selection frequency|select:monthly,quarterly,semiannual,annual;effective_date|Effective date|date;status|Status|select:active,draft,inactive;regulatory_category|Regulatory category|text;notes|Program notes|textarea"],
- pools:["Pools","Manage consortium and employer selection pools.","name|Pool name|text|required;employer|Employer|text;program|Program|text;frequency|Selection frequency|select:monthly,quarterly,annual;status|Status|select:active,inactive"],
+ pools:["Pools","Manage random testing pools, eligibility and program assignments.","name|Pool name|text|required;pool_type|Pool type|select:consortium,employer;dot_agency|DOT agency|select:FMCSA,FAA,FRA,FTA,PHMSA,USCG;drug_testing_rate|Annual drug selection rate (%)|number;alcohol_testing_rate|Annual alcohol selection rate (%)|number;selection_schedule|Selection schedule|select:monthly,quarterly,semiannual,annual;effective_date|Effective date|date;status|Status|select:active,draft,inactive;notes|Internal notes|textarea"],
  selections:["Selections","Review and record randomized selection activity.","name|Selection reference|text|required;pool|Pool|text;selection_date|Selection date|date;status|Status|select:scheduled,selected,completed;notes|Notes|textarea"],
  testing_orders:["Testing Orders","Create and manage testing requests.","name|Order reference|text|required;employee_name|Employee / donor|text;employer|Employer|text;test_type|Test type|text;reason|Testing reason|text;status|Status|select:draft,ordered,scheduled,completed,cancelled"],
  testing_documents:["Testing Documents","Manage testing-related documents.","title|Document title|text|required;document_type|Document type|text;order_reference|Order reference|text;document_file|Upload document|file;status|Status|select:pending,complete"],
@@ -1002,6 +1002,193 @@ function renderProgramManagement(record,mode,canWrite){
  if(record)void hydrateProgramEnrollments();
  void prepareProgramManagement();
 }
+
+const POOL_SECTIONS=[
+ ["Pool information",["name","pool_type","status","effective_date"]],
+ ["Random testing schedule",["dot_agency","drug_testing_rate","alcohol_testing_rate","selection_schedule"]],
+ ["Internal notes",["notes"]]
+];
+async function poolReferenceRecords(kinds){
+ const rows=await Promise.all(kinds.map(async kind=>{
+  const key=cacheKey(kind),cached=state.cache.get(key);
+  if(cached&&Date.now()-cached.time<30000)return [kind,cached.records];
+  const result=await api("list",{tenant_id:state.tenantId,operating_context:state.context,kind});
+  const records=result.records||[];
+  state.cache.set(key,{records,time:Date.now()});
+  return [kind,records];
+ }));
+ return Object.fromEntries(rows);
+}
+const poolMatches=(r,pool)=>r.data?.pool_id===pool.id||
+ (pool.data?._legacy_id&&r.data?.pool===pool.data._legacy_id);
+async function preparePoolManagement(){
+ const m=state.management,seq=state.sequence;
+ if(state.page!=="pools"||!m)return;
+ const program=$("poolProgram"),company=$("poolCompany");
+ if(!program||!company)return;
+ const data=(m.id?(state.cache.get(cacheKey())?.records||[]).find(r=>r.id===m.id)?.data:null)||{};
+ try{
+  const kinds=state.context==="dot"?["programs","employers","owner_operators"]:["programs","employers"];
+  const refs=await poolReferenceRecords(kinds);
+  if(state.management!==m||seq!==state.sequence)return;
+  const programs=refs.programs||[];
+  const companies=[...(refs.employers||[]),...(refs.owner_operators||[])].filter(r=>r.operating_context===state.context);
+  program.innerHTML='<option value="">Select program</option>'+programs.filter(r=>r.operating_context===state.context).map(r=>
+   '<option value="'+esc(r.id)+'">'+esc(r.data?.name||"Program")+'</option>').join("");
+  company.innerHTML='<option value="">All participating employers</option>'+companies.map(r=>
+   '<option value="'+esc(r.id)+'">'+esc(r.data?.legal_name||"Company")+'</option>').join("");
+  const matchProgram=programs.find(r=>r.id===data.program_id||
+   r.data?._legacy_id===data._legacy_program_id||r.data?.name===data.program);
+  const matchCompany=companies.find(r=>r.id===data.company_id||
+   r.data?.legal_name===data.employer);
+  if(matchProgram)program.value=matchProgram.id;
+  if(matchCompany)company.value=matchCompany.id;
+  program.disabled=false;company.disabled=false;
+  const updateAgency=()=>{
+   const chosen=programs.find(r=>r.id===program.value);
+   const agency=$("manage-dot_agency");
+   if(chosen&&agency&&!agency.value)agency.value=chosen.data?.dot_agency||"";
+  };
+  program.addEventListener("change",updateAgency);
+  if(state.context==="nondot"){$("manage-dot_agency")?.closest(".manage-field")?.remove()}
+  updateAgency();
+ }catch(error){
+  const box=$("poolReferenceError");if(box)box.textContent="Could not load program and company options: "+error.message;
+ }
+}
+async function hydratePoolRoster(){
+ const m=state.management,seq=state.sequence;
+ if(state.page!=="pools"||!m?.id)return;
+ const pool=(state.cache.get(cacheKey())?.records||[]).find(r=>r.id===m.id);
+ if(!pool)return;
+ const roster=$("poolRoster"),selections=$("poolSelections");
+ if(!roster)return;
+ try{
+  const refs=await poolReferenceRecords(["enrollments","people","selections"]);
+  if(state.management!==m||seq!==state.sequence)return;
+  const members=(refs.enrollments||[]).filter(r=>r.data?.membership_type==="pool"&&r.data?.pool_id===m.id);
+  const people=refs.people||[];
+  roster.innerHTML=members.length?members.map(r=>{
+   const person=people.find(p=>p.id===r.data?.person_id);
+   const name=person?[person.data?.first_name,person.data?.last_name].filter(Boolean).join(" "):
+     r.data?.participant||"Member";
+   return '<div class="pool-list-row"><span><strong>'+esc(name)+'</strong><small>'+esc(r.data?.eligibility_status||"eligible")+
+    (r.data?.employer?" · "+esc(r.data.employer):"")+'</small></span>'+
+    '<div><button type="button" data-pool-person="'+esc(r.data?.person_id||"")+'">Profile</button>'+
+    '<button type="button" class="pool-remove" data-pool-remove="'+esc(r.id)+'">Remove</button></div></div>';
+  }).join(""):'<p class="program-enrollment-empty">No members enrolled in this pool.</p>';
+  if($("poolRosterCount"))$("poolRosterCount").textContent=String(members.length);
+  const runs=(refs.selections||[]).filter(r=>poolMatches(r,pool));
+  if(selections)selections.innerHTML=runs.length?runs.slice(0,5).map(r=>
+   '<button type="button" class="pool-selection-item" data-pool-selection="'+esc(r.id)+'"><span>'+
+   esc(r.data?.name||"Selection event")+'</span><small>'+esc(r.data?.status||"")+'</small></button>').join(""):
+   '<p class="program-enrollment-empty">No selection events recorded for this pool.</p>';
+  if($("poolSelectionCount"))$("poolSelectionCount").textContent=String(runs.length);
+ }catch(error){roster.textContent="Unable to load pool records: "+error.message}
+}
+let poolAction=null;
+async function openPoolAddMember(){
+ const m=state.management,pool=(state.cache.get(cacheKey())?.records||[]).find(r=>r.id===m?.id);
+ if(!pool)return;
+ try{
+  const refs=await poolReferenceRecords(["people","enrollments"]);
+  const people=refs.people||[],current=(refs.enrollments||[]).filter(r=>r.data?.membership_type==="pool"&&r.data?.pool_id===pool.id);
+  const candidates=people.filter(r=>!current.some(x=>x.data?.person_id===r.id));
+  poolAction={mode:"add",poolId:pool.id};
+  $("modalTitle").textContent="Add pool member";
+  $("modalDescription").textContent=pool.data?.name||"Random testing pool";
+  $("recordFields").innerHTML='<div class="company-modal-sections"><section class="company-modal-section"><h3>Member details</h3>'+
+   '<div class="company-modal-grid"><label class="company-modal-field span-all"><span>Person *</span>'+
+   '<select class="program-enrollment-select" name="person_id" required><option value="">Select person</option>'+
+   candidates.map(r=>'<option value="'+esc(r.id)+'">'+esc([r.data?.first_name,r.data?.last_name].filter(Boolean).join(" ")||r.data?.email||"Person")+'</option>').join("")+
+   '</select></label><label class="company-modal-field span-all"><span>Eligibility</span>'+
+   '<select class="program-enrollment-select" name="eligibility_status"><option value="eligible">Eligible</option>'+
+   '<option value="ineligible">Ineligible</option></select></label></div></section></div>';
+  $("recordForm").dataset.mode="pool-add-member";$("saveRecord").hidden=false;$("saveRecord").disabled=false;
+  $("saveRecord").className="btn primary";$("saveRecord").textContent="Add member";
+  $("formMessage").textContent="";$("modal").hidden=false;document.body.classList.add("modal-open");
+ }catch(error){message(error.message,true)}
+}
+function confirmPoolRemove(id){
+ const m=state.management;
+ const row=(state.cache.get(cacheKey("enrollments"))?.records||[]).find(r=>r.id===id&&r.data?.pool_id===m?.id);
+ if(!row)return message("Pool membership not found.",true);
+ poolAction={mode:"remove",poolId:m.id,id};
+ $("modalTitle").textContent="Remove pool member";
+ $("modalDescription").textContent="The membership will be archived. The person's profile is preserved.";
+ $("recordFields").innerHTML='<div class="company-remove-confirm"><div><strong>'+esc(row.data?.participant||"Pool member")+'</strong>'+
+  '<p>Removal will not delete the person or any historical selection events.</p></div></div>';
+ $("recordForm").dataset.mode="pool-remove-member";$("saveRecord").hidden=false;$("saveRecord").disabled=false;
+ $("saveRecord").className="btn danger";$("saveRecord").textContent="Remove member";
+ $("formMessage").textContent="";$("modal").hidden=false;document.body.classList.add("modal-open");
+}
+async function savePoolMember(){
+ const action=poolAction,m=state.management,button=$("saveRecord");
+ if(!action||m?.id!==action.poolId)return;
+ button.disabled=true;
+ try{
+  if(action.mode==="add"){
+   if(!$("recordForm").reportValidity()){button.disabled=false;return}
+   const fields=Object.fromEntries(new FormData($("recordForm")).entries());
+   const person=(state.cache.get(cacheKey("people"))?.records||[]).find(r=>r.id===fields.person_id);
+   if(!person)throw Error("Choose an available person.");
+   await api("save",{tenant_id:state.tenantId,operating_context:state.context,kind:"enrollments",
+    data:{membership_type:"pool",pool_id:action.poolId,person_id:person.id,
+     participant:[person.data?.first_name,person.data?.last_name].filter(Boolean).join(" "),
+     employer:person.data?.employer||"",eligibility_status:fields.eligibility_status,status:"active"}});
+  }else{
+   await api("archive",{tenant_id:state.tenantId,operating_context:state.context,kind:"enrollments",id:action.id});
+  }
+  state.cache.delete(cacheKey("enrollments"));closeModal();poolAction=null;
+  message(action.mode==="add"?"Member added to pool.":"Member removed from pool.");
+  void hydratePoolRoster();
+ }catch(error){$("formMessage").textContent=error.message;button.disabled=false}
+}
+function renderPoolManagement(record,mode,canWrite){
+ const view=mode==="view",data=record?.data||{},name=data.name||"New pool";
+ const head='<div class="program-head"><span class="program-head-icon">'+navIcon("pools")+'</span>'+
+  '<div><strong>'+esc(name)+'</strong><small>'+esc(state.context==="dot"?"DOT random testing pool":"NON-DOT random testing pool")+
+  '</small></div>'+(record?recordStatus(record):'<span class="mgmt-status pending">New pool</span>')+'</div>';
+ const definitions=fields("pools");
+ const blocks=POOL_SECTIONS.map(([title,names])=>{
+  const selected=names.map(n=>definitions.find(f=>f.name===n)).filter(Boolean);
+  return view?managementOverviewGroup(title,selected.map(f=>[f.label,data[f.name]])):
+   managementSection(title,selected,record);
+ }).join("");
+ const relation=view?
+  managementOverviewGroup("Program and employer",[["Program",data.program||"Unassigned"],["Company",data.employer||"All participating employers"]]):
+  '<section class="management-section"><header class="management-section-header"><h2>Program assignment</h2></header>'+
+  '<div class="manage-form-grid"><label class="manage-field"><span>Linked program *</span>'+
+  '<select id="poolProgram" name="program_selection" required disabled><option value="">Loading programs…</option></select>'+
+  '</label><label class="manage-field"><span>Employer / Owner-Operator (optional)</span>'+
+  '<select id="poolCompany" name="company_selection" disabled><option value="">Loading companies…</option></select></label></div></section>';
+ const related='<section class="program-related"><h2>Pool management</h2><div class="program-related-links">'+
+  [["selections","Selection events"],["programs","Testing programs"],["people","People"],["reports","Reports"]].map(([kind,title])=>
+  '<button type="button" data-pool-nav="'+kind+'">'+navIcon(kind)+'<span>'+esc(title)+'</span><span aria-hidden="true">›</span></button>').join("")+
+  '</div></section>';
+ const roster=record?'<section class="program-enrollments"><div class="program-enrollments-heading">'+
+  '<h2>Pool members <span id="poolRosterCount"></span></h2>'+
+  (canWrite?'<button type="button" data-pool-add>+ Add member</button>':"")+'</div>'+
+  '<div id="poolRoster" class="program-enrollment-list">Loading members…</div></section>'+
+  '<section class="program-enrollments"><div class="program-enrollments-heading">'+
+  '<h2>Selection history <span id="poolSelectionCount"></span></h2></div>'+
+  '<div id="poolSelections" class="program-enrollment-list">Loading selections…</div></section>':"";
+ const grid='<div class="program-management-grid"><div class="program-primary">'+blocks+relation+roster+'</div>'+related+'</div>';
+ if(view){
+  $("pageContent").innerHTML='<div class="program-management">'+head+grid+
+  '<footer class="program-actions"><button type="button" class="btn secondary" data-back-list>Back to Pools</button>'+
+  (canWrite?'<button type="button" class="btn primary" data-manage-edit="'+esc(record.id)+'">Edit pool</button>':"")+'</footer></div>';
+  void hydratePoolRoster();return;
+ }
+ $("pageContent").innerHTML='<div class="program-management">'+head+'<form id="managementForm">'+grid+
+  '<p id="poolReferenceError" class="manage-form-error"></p>'+
+  '<p class="manage-form-error" id="managementError" role="alert"></p>'+
+  '<footer class="program-actions"><button type="button" class="btn secondary" data-back-list>Cancel</button>'+
+  '<button class="btn primary" type="submit" id="managementSave">'+(record?"Save changes":"Create pool")+'</button></footer></form></div>';
+ if(record)void hydratePoolRoster();
+ void preparePoolManagement();
+ $("managementForm").querySelector('input[name="name"]')?.focus({preventScroll:true});
+}
 function renderManagementPage(){
  const m=state.management;
  if(!m||m.section!==state.page)return;
@@ -1028,6 +1215,10 @@ function renderManagementPage(){
  }
  if(state.page==="programs"){
   renderProgramManagement(record,m.action,canWrite);
+  return;
+ }
+ if(state.page==="pools"){
+  renderPoolManagement(record,m.action,canWrite);
   return;
  }
  if(m.action==="view"){
