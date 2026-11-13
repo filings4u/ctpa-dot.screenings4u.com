@@ -423,7 +423,7 @@ function employerSummary(record,editing=false,kind="employers"){
  const detail=(label,value)=>'<div class="employer-summary-stat"><small>'+label+'</small><strong>'+esc(value||"Not provided")+'</strong></div>';
  return '<div class="employer-summary">'+
   '<div class="employer-summary-heading"><span class="employer-summary-icon">'+navIcon(kind)+'</span>'+
-  '<div class="employer-summary-name"><strong>'+esc(title)+'</strong><span>Company account management</span></div>'+
+  '<div class="employer-summary-name"><strong>'+esc(title)+'</strong><span>'+(isOwner?"Owner-operator account management":"Company account management")+'</span></div>'+
   (record?recordStatus(record):'<span class="mgmt-status pending">New company</span>')+'</div>'+
   '<div class="employer-summary-info">'+
    detail("USDOT",d.dot_number)+detail("Primary contact",d.contact_name)+
