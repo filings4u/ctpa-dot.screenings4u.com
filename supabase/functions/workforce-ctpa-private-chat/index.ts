@@ -1,5 +1,5 @@
 import {createClient} from "npm:@supabase/supabase-js@2";
-const uuid=x=>typeof x==="string"&&/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(x);
+const uuid=x=>typeof x==="string"&&/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(x);
 const trim=(x,n)=>String(x??"").trim().slice(0,n);
 Deno.serve(async req=>{
  const origins=["https://ctpa.screenings4u.com","https://ctpa-employer-dot.screenings4u.com","https://employer-non-dot.screenings4u.com","https://owner-operator.screenings4u.com"];
