@@ -98,6 +98,110 @@ Deno.serve(async request=>{
    }
    return respond({ok:true,rules:[...selected.values()]});
   }
+
+  // Selection events use one immutable, server-authoritative record in the unified store.
+  const selectionPool=async(poolId:unknown)=>{
+   if(!uuid(poolId))return null;
+   const result=await collection.select("id,data,operating_context").eq("id",poolId)
+    .eq("tenant_id",tenantId).eq("kind","pools").eq("operating_context",context)
+    .is("archived_at",null).maybeSingle();
+   if(result.error)throw result.error;
+   return result.data;
+  };
+  const selectionPopulation=async(poolId:string)=>{
+   const memberships=await collection.select("id,data").eq("tenant_id",tenantId)
+    .eq("kind","enrollments").eq("operating_context",context)
+    .eq("data->>membership_type","pool").eq("data->>pool_id",poolId)
+    .is("archived_at",null).limit(1000);
+   if(memberships.error)throw memberships.error;
+   const eligible=(memberships.data||[]).filter((m:any)=>
+    m.data?.eligibility_status==="eligible"&&m.data?.status==="active"&&uuid(m.data?.person_id));
+   if(!eligible.length)return [];
+   const people=await collection.select("id,data").eq("tenant_id",tenantId)
+    .eq("kind","people").in("operating_context",[context,"shared"])
+    .in("id",[...new Set(eligible.map((m:any)=>m.data.person_id))])
+    .is("archived_at",null).limit(1000);
+   if(people.error)throw people.error;
+   const lookup=new Map((people.data||[]).map((person:any)=>[person.id,person]));
+   const unique=new Set<string>();
+   return eligible.flatMap((membership:any)=>{
+    const person:any=lookup.get(membership.data.person_id);
+    if(!person||person.data?.status!=="active"||unique.has(person.id))return [];
+    unique.add(person.id);
+    return [{person_id:person.id,membership_id:membership.id,
+     name:[person.data.first_name,person.data.last_name].filter(Boolean).join(" "),
+     employer:person.data.employer||""}];
+   });
+  };
+  if(action==="selection_preview"||action==="selection_run"){
+   const pool=await selectionPool(body.pool_id);
+   if(!pool)return respond({error:"Select an active pool in the current workspace"},404);
+   if(pool.data?.status!=="active")return respond({error:"Pool must be active before selecting members"},400);
+   const population=await selectionPopulation(pool.id);
+   const size=population.length;
+   const rates={drug:Number(pool.data?.drug_testing_rate||0),
+    alcohol:Number(pool.data?.alcohol_testing_rate||0)};
+   if(action==="selection_preview")return respond({ok:true,pool_id:pool.id,
+    pool_name:pool.data?.name||"",population:size,rates,
+    selection_schedule:pool.data?.selection_schedule||"",eligible_members:population.map(p=>({
+     person_id:p.person_id,name:p.name,employer:p.employer}))});
+   if(!canWrite)return respond({error:"Your role cannot run random selections"},403);
+   const drug=Number(body.drug_count),alcohol=Number(body.alcohol_count);
+   if(!Number.isInteger(drug)||!Number.isInteger(alcohol)||drug<0||alcohol<0||
+     drug>size||alcohol>size||drug+alcohol===0)
+    return respond({error:"Choose at least one selection; each test count must be within the eligible population"},400);
+   if(!size)return respond({error:"No eligible people are enrolled in this pool"},400);
+   const requestId=body.request_id;
+   if(!uuid(requestId))return respond({error:"Invalid selection request identifier"},400);
+   const prior=await collection.select("id").eq("tenant_id",tenantId).eq("kind","selections")
+    .eq("data->>request_id",requestId).is("archived_at",null).limit(1);
+   if(prior.error)throw prior.error;
+   if(prior.data?.length)return respond({ok:true,id:prior.data[0].id,reused:true});
+   // Uniform Fisher-Yates with rejection sampling, never Math.random.
+   const uniform=(max:number)=>{
+    const range=0x100000000,limit=Math.floor(range/max)*max;
+    const bucket=new Uint32Array(1);let value=0;
+    do{crypto.getRandomValues(bucket);value=bucket[0]}while(value>=limit);
+    return value%max;
+   };
+   const shuffled=()=>{const result=[...population];
+    for(let index=result.length-1;index>0;index--){
+     const target=uniform(index+1);[result[index],result[target]]=[result[target],result[index]];
+    }
+    return result;
+   };
+   const drugPeople=shuffled().slice(0,drug);
+   const alcoholPeople=shuffled().slice(0,alcohol);
+   const selected=new Map<string,any>();
+   for(const [people,type] of [[drugPeople,"drug"],[alcoholPeople,"alcohol"]] as const){
+    for(const person of people){
+     const entry=selected.get(person.person_id)||{...person,tests:[] as string[]};
+     entry.tests.push(type);selected.set(person.person_id,entry);
+    }
+   }
+   const now=new Date().toISOString(),eventData={
+    name:"Random selection - "+new Date().toISOString().slice(0,10),pool_id:pool.id,
+    pool_name:pool.data?.name||"",status:"locked",selection_type:"random",
+    selection_date:now,locked_at:now,request_id:requestId,
+    population_size:size,drug_selection_count:drug,alcohol_selection_count:alcohol,
+    drug_required_rate:rates.drug,alcohol_required_rate:rates.alcohol,
+    randomization_version:"crypto-fisher-yates-v1",
+    selection_members:[...selected.values()].map((member:any,i:number)=>({
+     person_id:member.person_id,membership_id:member.membership_id,
+     name:member.name,employer:member.employer,ordinal:i+1,
+     test_type:member.tests.join("_and_")})),
+    population_snapshot:population.map(member=>({
+     person_id:member.person_id,membership_id:member.membership_id})),
+    audit:{algorithm:"crypto.getRandomValues with rejection sampling and Fisher-Yates",
+     created_at:now,created_by:user.id,selection_schedule:pool.data?.selection_schedule||""}
+   };
+   const inserted=await collection.insert({tenant_id:tenantId,kind:"selections",
+    operating_context:context,data:eventData,created_by:user.id,updated_by:user.id})
+    .select("id").single();
+   if(inserted.error)throw inserted.error;
+   return respond({ok:true,id:inserted.data.id,selected:eventData.selection_members.length,
+    population:size,status:"locked"});
+  }
   if(action==="list"){
    const kind=text(body.kind,64);
    if(kind!=="all"&&!ALLOWED.has(kind))return respond({error:"Unknown application module"},400);
@@ -207,6 +311,7 @@ Deno.serve(async request=>{
    if(!ALLOWED.has(kind))return respond({error:"Unknown application module"},400);
    if(kind==="owner_operators"&&context==="nondot")
     return respond({error:"Owner-Operators belong to the DOT workspace"},403);
+   if(kind==="selections")return respond({error:"Use the secure selection workflow; locked selections cannot be manually edited"},403);
    const data=payload(body.data);
    if(!data||Object.keys(data).length>40||JSON.stringify(data).length>60000)
     return respond({error:"Invalid or oversized record"},400);
@@ -370,6 +475,7 @@ Deno.serve(async request=>{
    if(!uuid(body.id)||!ALLOWED.has(text(body.kind,64)))return respond({error:"Invalid record"},400);
    if(body.kind==="owner_operators"&&context==="nondot")
     return respond({error:"Owner-Operators belong to the DOT workspace"},403);
+   if(body.kind==="selections")return respond({error:"Selection audit records cannot be archived"},403);
    const q=await collection.select("id,operating_context").eq("id",body.id).eq("tenant_id",tenantId)
     .eq("kind",body.kind).is("archived_at",null).maybeSingle();
    if(q.error)throw q.error;
