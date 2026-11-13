@@ -3552,7 +3552,7 @@ function startApp(){
  if(desired==="lab_orders")history.replaceState(null,"","/unified.html?page=testing_orders"+(search.get("manage")==="new"?"&manage=new":""));
  if(desired==="lab_results"||desired==="lab_documents")history.replaceState(null,"","/unified.html?page="+(desired==="lab_results"?"results":"testing_documents"));
  switchPage(desired==="lab_results"?"results":desired==="lab_documents"?"testing_documents":desired==="lab_orders"?"testing_orders":desired==="enrollments"?"programs":desired==="clearinghouse"?"compliance":CONFIG[desired]?desired:"dashboard",false);
- const action=["lab_orders","lab_results","lab_documents"].includes(desired)?(desired==="lab_orders"&&search.get("manage")==="new"?"new":null):search.get("manage"),id=["lab_orders","lab_results","lab_documents"].includes(desired)?null:search.get("record");
+ const action=desired==="lab_supplies"?null:["lab_orders","lab_results","lab_documents"].includes(desired)?(desired==="lab_orders"&&search.get("manage")==="new"?"new":null):search.get("manage"),id=["lab_orders","lab_results","lab_documents"].includes(desired)?null:search.get("record");
  if(MANAGEMENT_ACTIONS.has(action)){
   const apply=()=>{if(state.page===(desired==="lab_orders"?"testing_orders":desired))openManagement(action,id,false)};
   const cached=state.cache.get(cacheKey());
