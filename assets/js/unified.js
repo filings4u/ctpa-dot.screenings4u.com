@@ -178,7 +178,7 @@ function showRecords(records){
    visible.map(r=>'<tr><td class="record-name">'+esc(recordTitle(r))+'<br><small>'+esc(r.operating_context==="shared"?"Shared":r.operating_context==="dot"?"DOT":"NON-DOT")+'</small></td>'+
     columns.map(c=>'<td>'+esc(r.data?.[c.name]??"—")+'</td>').join("")+
     '<td>'+esc(new Date(r.updated_at).toLocaleDateString())+'</td><td><div class="row-actions">'+
-    (canWrite?'<button type="button" data-edit="'+esc(r.id)+'">Edit</button><button type="button" data-archive="'+esc(r.id)+'">Archive</button>':"Read only")+
+    '<button type="button" data-view="'+esc(r.id)+'">View</button>'+(canWrite?'<button type="button" data-edit="'+esc(r.id)+'">Edit</button><button type="button" data-archive="'+esc(r.id)+'">Archive</button>':"")+
     '</div></td></tr>').join("")+'</tbody></table></div>'
   :'<div class="empty"><h2>'+esc(query?"No matching records":"No "+label(state.page).toLowerCase()+" records")+'</h2><p>'+
     (query?"Try a different search.":"There are no records in this module for the selected operating context.")+
@@ -189,6 +189,9 @@ function openRecord(id=null){
  const record=id?rows.find(r=>r.id===id):null;
  if(id&&!record){message("This record is no longer available.",true);return}
  state.editing=record||null;$("modalTitle").textContent=(record?"Edit ":"Add ")+label(state.page);
+ $("modalDescription").textContent="Manage this record within your C/TPA account.";
+ $("recordForm").dataset.mode="edit";$("saveRecord").hidden=false;$("saveRecord").className="btn primary";
+ $("saveRecord").textContent=record?"Save Changes":"Save Record";$("cancelModal").textContent="Cancel";
  $("formMessage").textContent="";
  $("recordFields").innerHTML=fields(state.page).map(f=>{
   const value=String(record?.data?.[f.name]??"");
@@ -206,11 +209,14 @@ function openRecord(id=null){
   '<option value="'+esc(record?.operating_context||state.context)+'">'+esc(record?.operating_context||state.context).toUpperCase()+'</option>'+
   (!record&&["owner","admin"].includes(activeWorkspace()?.role||"")?'<option value="shared">Shared across DOT and NON-DOT</option>':"")+
   '</select></label>';
- $("modal").hidden=false;setTimeout(()=>$("recordFields").querySelector("input,textarea,select")?.focus(),0);
+ $("modal").hidden=false;document.body.classList.add("modal-open");setTimeout(()=>$("recordFields").querySelector("input,textarea,select")?.focus(),0);
 }
-function closeModal(){$("modal").hidden=true;state.editing=null}
+function closeModal(){$("modal").hidden=true;document.body.classList.remove("modal-open");state.editing=null;$("recordForm").dataset.mode=""}
 async function saveRecord(event){
- event.preventDefault();const form=$("recordForm"),button=$("saveRecord");
+ event.preventDefault();
+ if($("recordForm").dataset.mode==="view"){closeModal();return}
+ if($("recordForm").dataset.mode==="archive"){await performArchive();return}
+ const form=$("recordForm"),button=$("saveRecord");
  const info=Object.fromEntries(new FormData(form).entries()),context=info.record_context||state.context;
  delete info.record_context;
  for(const f of fields(state.page))if(f.type==="number"&&info[f.name]!=="")info[f.name]=Number(info[f.name]);
@@ -223,13 +229,42 @@ async function saveRecord(event){
  }catch(error){$("formMessage").textContent=error.message}
  finally{button.disabled=false}
 }
-async function archiveRecord(id){
- const r=state.cache.get(cacheKey())?.records.find(x=>x.id===id);
- if(!r||!window.confirm('Archive "'+recordTitle(r)+'"? This removes it from the active view.'))return;
+function viewRecord(id){
+ const record=state.cache.get(cacheKey())?.records.find(x=>x.id===id);
+ if(!record){message("Record not found. Refresh the page.",true);return}
+ state.editing=null;
+ $("modalTitle").textContent="View "+label(state.page);
+ $("modalDescription").textContent="Review this C/TPA account record.";
+ $("recordFields").innerHTML='<dl class="record-details">'+
+ Object.entries(record.data||{}).map(([name,value])=>'<div><dt>'+esc(fields(state.page).find(f=>f.name===name)?.label||name.replaceAll("_"," "))+'</dt><dd>'+esc(value??"—")+'</dd></div>').join("")+
+ '</dl><p class="record-metadata">Context: '+esc(record.operating_context.toUpperCase())+' · Updated '+esc(new Date(record.updated_at).toLocaleString())+'</p>';
+ $("recordForm").dataset.mode="view";$("saveRecord").hidden=true;
+ $("cancelModal").textContent="Close";$("formMessage").textContent="";
+ $("modal").hidden=false;document.body.classList.add("modal-open");
+ $("modalClose").focus();
+}
+function archiveRecord(id){
+ const record=state.cache.get(cacheKey())?.records.find(x=>x.id===id);
+ if(!record){message("Record not found. Refresh the page.",true);return}
+ state.editing=record;
+ $("modalTitle").textContent="Archive "+label(state.page);
+ $("modalDescription").textContent="Confirm this account management change.";
+ $("recordFields").innerHTML='<div class="archive-summary"><strong>'+esc(recordTitle(record))+
+ '</strong><p>Archiving removes this record from active management lists without affecting other records.</p></div>';
+ $("recordForm").dataset.mode="archive";$("saveRecord").hidden=false;
+ $("saveRecord").textContent="Archive Record";$("saveRecord").className="btn danger";
+ $("cancelModal").textContent="Cancel";$("formMessage").textContent="";
+ $("modal").hidden=false;document.body.classList.add("modal-open");
+ $("modalClose").focus();
+}
+async function performArchive(){
+ const button=$("saveRecord"),id=state.editing?.id;
+ if(!id)return;button.disabled=true;
  try{
   await api("archive",{tenant_id:state.tenantId,operating_context:state.context,kind:state.page,id});
-  state.cache.delete(cacheKey());message("Record archived.");void loadRecords();
- }catch(error){message(error.message,true)}
+  closeModal();state.cache.delete(cacheKey());message("Record archived successfully.");void loadRecords();
+ }catch(error){$("formMessage").textContent=error.message}
+ finally{button.disabled=false}
 }
 async function updateAccountMenu(){
  try{
@@ -281,9 +316,10 @@ function bindEvents(){
  $("pageActions").addEventListener("click",e=>{if(e.target.closest("#newRecord"))openRecord();if(e.target.closest("#refreshPage"))void loadRecords(state.sequence,true)});
  $("pageContent").addEventListener("click",e=>{
   const target=e.target;
-  const edit=target.closest("[data-edit]"),archive=target.closest("[data-archive]"),create=target.closest("[data-create]"),goto=target.closest("[data-goto]"),retry=target.closest("#retryLoad");
-  if(edit)openRecord(edit.dataset.edit);
-  else if(archive)void archiveRecord(archive.dataset.archive);
+  const view=target.closest("[data-view]"),edit=target.closest("[data-edit]"),archive=target.closest("[data-archive]"),create=target.closest("[data-create]"),goto=target.closest("[data-goto]"),retry=target.closest("#retryLoad");
+  if(view)viewRecord(view.dataset.view);
+  else if(edit)openRecord(edit.dataset.edit);
+  else if(archive)archiveRecord(archive.dataset.archive);
   else if(create)openRecord();
   else if(goto)switchPage(goto.dataset.goto);
   else if(retry)void loadRecords();
