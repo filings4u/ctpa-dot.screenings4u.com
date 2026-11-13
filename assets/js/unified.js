@@ -3614,7 +3614,7 @@ function bindEvents(){
  $("pageActions").addEventListener("click",e=>{
   if(e.target.closest("[data-back-list]")){leaveManagement();return}
   if(e.target.closest("#newRecord")){openManagement("new");return}
-  if(e.target.closest("#refreshPage")){void (state.page==="lab_analytics"?renderLabAnalytics(true):loadRecords(state.sequence,true,true));return}
+  if(e.target.closest("#refreshPage")){void (state.page==="lab_analytics"?renderLabAnalytics(true):state.page==="lab_supplies"?openSupplyStore():loadRecords(state.sequence,true,true));return}
   if(e.target.closest("#exportPage")){exportRecords();return}
  });
  $("notice").addEventListener("click",e=>{if(e.target.closest(".notice-close"))message("")});
