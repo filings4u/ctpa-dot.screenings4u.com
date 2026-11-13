@@ -27,13 +27,18 @@ Deno.serve(async req=>{
  };
  const sources:[string,string][]=[["subscriptions","dot_ctpa_id"],["workforce_subscriptions","nondot_ctpa_id"]];
  async function load(){
-  if(!linked.data)return [];
   const combined:any[]=[];
   for(const [table,field] of sources){
-   const ctpaId=(linked.data as any)[field];if(!valid(ctpaId))continue;
+   const ctpaId=(linked.data as any)?.[field];if(!valid(ctpaId))continue;
    const records=await db.from(table).select("id,tenant_id,ctpa_id,plan_id,status,start_date,renewal_date,billing_frequency,stripe_subscription_id,stripe_current_period_end,cancel_at_period_end,created_at").eq("ctpa_id",ctpaId).order("created_at",{ascending:false}).limit(50);
    if(records.error)throw records.error;
    for(const sub of records.data||[])combined.push({...sub,source:table});
+  }
+  // Query directly owned C/TPA subscriptions; never match on name or email.
+  for(const [table] of sources){
+   const direct=await db.from(table).select("id,tenant_id,ctpa_id,plan_id,status,start_date,renewal_date,billing_frequency,stripe_subscription_id,stripe_current_period_end,cancel_at_period_end,created_at").eq("tenant_id",tenant).not("ctpa_id","is",null).order("created_at",{ascending:false}).limit(50);
+   if(direct.error)throw direct.error;
+   for(const rec of direct.data||[])combined.push({...rec,source:table});
   }
   const seen=new Map<string,any>();
   for(const rec of combined){const key=rec.stripe_subscription_id?"stripe:"+rec.stripe_subscription_id:"subscription:"+rec.source+":"+rec.id;if(!seen.has(key))seen.set(key,rec)}
@@ -46,7 +51,7 @@ Deno.serve(async req=>{
   const pending=await db.from("workforce_ctpa_subscription_offboarding").select("subscription_id,subscription_source,access_ends_at,retention_ends_at,status").eq("organization_id",tenant).limit(50);
   if(pending.error)throw pending.error;
   const map=new Map((pending.data||[]).map(x=>[x.subscription_source+":"+x.subscription_id,x]));
-  return send({ok:true,linked:!!linked.data,owner,subscriptions:rows.map(s=>{
+  return send({ok:true,linked:!!linked.data||rows.length>0,owner,subscriptions:rows.map(s=>{
    const offboarding=map.get(s.source+":"+s.id);
    return {id:s.id,source:s.source,plan_name:s.plan?.name||"Subscription",plan_code:s.plan?.code||"",status:s.status,billing_frequency:s.billing_frequency,monthly_price:s.plan?.monthly_price,annual_price:s.plan?.annual_price,renewal_date:s.renewal_date,current_period_end:s.stripe_current_period_end,has_stripe_subscription:!!s.stripe_subscription_id,cancel_at_period_end:!!s.cancel_at_period_end||!!offboarding,offboarding:offboarding||null,can_cancel:owner&&!!s.stripe_subscription_id&&!s.cancel_at_period_end&&["active","trial"].includes(s.status),can_pay:!!s.stripe_subscription_id&&["past_due","unpaid","incomplete"].includes(s.status)};
   }),note:linked.data?"Only Stripe-verified subscriptions can be canceled in the portal.":"No consolidated subscription mapping currently matches this workspace."});
