@@ -7,13 +7,13 @@ const SELECTOR_URL="https://workforceapps.screenings4u.com/selector.html";
 const redirectToSelector=()=>location.replace(SELECTOR_URL);
 const GROUPS=[
  ["People & Programs",["employers","owner_operators","people","programs","pools","selections"]],
- ["Testing & Compliance",["testing_orders","testing_documents","results","occupational_health","compliance","audits","clearinghouse","return_to_duty","policies","enrollments","documents","reports","lab_clients","lab_orders","lab_tracking","lab_results","lab_documents","lab_supplies","lab_analytics","lab_delivery","lab_alerts","lab_benefits","lab_consortiums"]],
- ["Services & Billing",["orders","price_list","services","billing","invoices","subscriptions","lab_billing"]],
+ ["Testing & Compliance",["testing_orders","testing_documents","results","occupational_health","compliance","audits","clearinghouse","return_to_duty","policies","enrollments","documents","reports"]],
+ ["Laboratory Services",["lab_accounts","lab_clients","lab_orders","lab_tracking","lab_results","lab_documents","lab_supplies","lab_delivery","lab_alerts","lab_analytics","lab_consortiums","lab_benefits","lab_billing"]],
+ ["Services & Billing",["orders","price_list","services","billing","invoices","subscriptions"]],
  ["Account & Support",["locations","messages","notifications","support","demo_sessions","staff","integrations","audit_history"]]
 ];
 const SIDEBAR_TOP=[
- ["dashboard","Dashboard","⌂"],
- ["lab_accounts","Lab Account","⚗"]
+ ["dashboard","Dashboard","⌂"]
 ];
 const NAV_STORAGE_KEY="workforce_ctpa_sidebar_open_groups";
 const openNavGroups=new Set((()=>{
