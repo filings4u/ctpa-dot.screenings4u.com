@@ -954,3 +954,23 @@ body.modal-open{overflow:hidden}
 .physical-workspace .manage-form-error{padding:0 25px;color:#a1232b}
 @media(max-width:850px){.physical-list-type{display:none}}
 @media(max-width:650px){.physical-order-intro{padding:16px}.physical-list-row{padding:14px;gap:10px;flex-wrap:wrap}.physical-list-row .results-row-view{display:none}.physical-list-row .mgmt-status{margin-left:47px}.physical-type-choice{padding:15px 16px}.physical-type-choice label{flex:1;min-width:135px}.physical-workspace .manage-form-grid{padding:0 16px 20px}.physical-workspace .management-section-header{padding:16px}.physical-helper{padding:0 16px 14px}}
+
+
+/* Employer-linked People directory */
+.people-company-workspace{min-width:0}
+.people-company-row{width:100%;display:flex;align-items:center;gap:16px;padding:17px 22px;border:0;border-top:1px solid #e7edf4;background:#fff;color:#01122f;text-align:left;cursor:pointer}
+.people-company-row:hover,.people-company-row:focus-visible{background:#f7fafe}
+.people-avatar{width:42px;height:42px;border-radius:11px;background:#edf3f9;display:grid;place-items:center;flex:none;color:#1a4a74}
+.people-primary{display:grid;gap:5px;flex:1;min-width:120px}
+.people-primary strong{font-size:.88rem;font-weight:850;overflow-wrap:anywhere}
+.people-primary small,.people-company-name small{font-size:.73rem;color:#71839b}
+.people-company-name{min-width:180px;flex:1;display:grid;gap:4px}
+.people-company-name strong{font-size:.82rem;color:#213f5d;font-weight:800;overflow-wrap:anywhere}
+.people-role{font-size:.73rem;font-weight:800;color:#254c72;border:1px solid #dbe5ef;background:#f5f9fc;border-radius:7px;padding:7px 10px;min-width:108px;text-align:center}
+.people-company-workspace .mgmt-status{min-width:76px;text-align:center}
+.person-management .person-company-section{border-bottom:1px solid #e5edf4}
+.person-management .person-company-picker select:required{border-color:#b5cbe1}
+.person-management #managementSave:disabled{opacity:.55;cursor:not-allowed}
+.person-management .person-company-picker small{line-height:1.55}
+@media(max-width:920px){.people-company-row{flex-wrap:wrap}.people-company-name{min-width:150px}.people-company-row .results-row-view{display:none}}
+@media(max-width:620px){.people-company-row{padding:14px;gap:12px}.people-primary{flex-basis:calc(100% - 60px)}.people-company-name{margin-left:54px;flex-basis:calc(100% - 54px)}.people-role{margin-left:54px}}
