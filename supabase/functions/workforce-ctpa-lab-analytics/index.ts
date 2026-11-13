@@ -8,7 +8,7 @@ Deno.serve(async req=>{
  try{
   const url=Deno.env.get("SUPABASE_URL")||"",anon=Deno.env.get("SUPABASE_ANON_KEY")||"",secret=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")||"";
   if(!url||!anon||!secret)return reply({error:"Analytics not configured"},503);
-  const jwt=(req.headers.get("authorization")||"").replace(/^Bearer\\s+/i,"");
+  const jwt=(req.headers.get("authorization")||"").replace(/^Bearer\s+/i,"");
   const auth=createClient(url,anon,{auth:{persistSession:false,autoRefreshToken:false}});
   const {data:{user},error}=await auth.auth.getUser(jwt);
   if(error||!user?.id||!user.email_confirmed_at)return reply({error:"Sign in required"},401);
