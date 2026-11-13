@@ -11,7 +11,7 @@ const ALLOWED = new Set([
  "lab_consortiums","policies","enrollments","clearinghouse","return_to_duty",
  "staff","support","demo_sessions"
 ]);
-const uuid=(v:unknown)=>typeof v==="string"&&/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
+const uuid=(v:unknown)=>typeof v==="string"&&/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
 const text=(v:unknown,max=160)=>String(v??"").trim().slice(0,max);
 const payload=(x:unknown)=>x&&typeof x==="object"&&!Array.isArray(x)?x as Record<string,unknown>:null;
 Deno.serve(async request=>{
@@ -52,10 +52,16 @@ Deno.serve(async request=>{
    if(orgs.error)throw orgs.error;
    const byTenant=new Map((orgs.data||[]).map((row:any)=>[row.tenant_id,row.data]));
    const workspaces=(members.data||[]).filter((m:any)=>byTenant.has(m.tenant_id))
-    .map((m:any)=>({tenant_id:m.tenant_id,name:byTenant.get(m.tenant_id)?.name||"Organization",role:m.data.role||"viewer"}));
+    .map((m:any)=>({tenant_id:m.tenant_id,name:byTenant.get(m.tenant_id)?.name||"C/TPA company",role:m.data.role||"viewer"}));
+   if(workspaces.length>1)return respond({error:"This sign-in is linked to multiple C/TPA companies. Contact Workforce support to resolve duplicate company memberships."},409);
    return respond({ok:true,workspaces});
   }
   if(action==="create_workspace"){
+   const existing=await collection.select("tenant_id").eq("kind","membership")
+    .eq("data->>user_id",user.id).eq("data->>status","active")
+    .is("archived_at",null).limit(1);
+   if(existing.error)throw existing.error;
+   if(existing.data?.length)return respond({error:"A C/TPA company is already linked to this account"},409);
    const name=text(body.name,120);
    if(name.length<2)return respond({error:"Enter an organization name"},400);
    const tenantId=crypto.randomUUID(),now=new Date().toISOString();
