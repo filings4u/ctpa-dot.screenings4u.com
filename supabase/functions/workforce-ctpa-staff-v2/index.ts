@@ -24,7 +24,7 @@ if(!memberships.data?.length)return respond({error:"You do not have access to th
 const canManage=memberships.data.some(row=>["owner","admin","administrator","manager"].includes(String(row.data?.role||"").toLowerCase()));
 const table=()=>db.from("workforce_ctpa_staff_directory_v2");
 if(action==="list"){
- const r=await table().select("id,first_name,last_name,preferred_name,email,phone,mobile_phone,office_phone,extension,employee_number,department,position,job_title,role_code,supervisor_id,location_id,employment_type,status,start_date,work_timezone,work_schedule,notes,created_at,updated_at").eq("tenant_id",tenant).is("archived_at",null).order("last_name",{ascending:true}).limit(500);
+ const r=await table().select("id,first_name,last_name,preferred_name,email,phone,mobile_phone,office_phone,office_number,extension,employee_number,department,position,job_title,role_code,supervisor_id,location_id,employment_type,status,start_date,work_timezone,work_schedule,notes,created_at,updated_at").eq("tenant_id",tenant).is("archived_at",null).order("last_name",{ascending:true}).limit(500);
  if(r.error)throw r.error;return respond({ok:true,people:r.data||[],can_manage:canManage});
 }
 if(!canManage)return respond({error:"Only C/TPA owners or administrators can manage the directory"},403);
@@ -73,7 +73,7 @@ const start=str(d.start_date,10);
 if(start&&!/^\d{4}-\d{2}-\d{2}$/.test(start))return respond({error:"Invalid start date"},400);
 const item={
  first_name:first,last_name:last,preferred_name:str(d.preferred_name,100),email,
- phone:str(d.phone,40),mobile_phone:str(d.mobile_phone,40),office_phone:str(d.office_phone,40),extension:str(d.extension,12),
+ phone:str(d.phone,40),mobile_phone:str(d.mobile_phone,40),office_phone:str(d.office_phone,40),office_number:str(d.office_number,60),extension:str(d.extension,12),
  employee_number:str(d.employee_number,50),department:str(d.department,120),position:str(d.position,120),job_title:str(d.job_title,150),
  role_code:role,supervisor_id:supervisor,location_id:null,employment_type:employment,status,start_date:start||null,
  work_timezone:str(d.work_timezone,80)||"America/Chicago",work_schedule:weekly,notes:str(d.notes,2000),
