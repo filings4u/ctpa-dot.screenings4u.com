@@ -934,25 +934,31 @@ function updatePortalChrome(){
  updateActiveNavigation();
  if(active!=='support')supportCtxWrite({page_url:location.href,page_title:document.title,page_id:active,captured_at:new Date().toISOString()});
 }
+let navigationSequence=0;
 async function navigatePortal(url,{replace=false,pop=false}={}){
- const u=new URL(url,location.href);
- if(u.origin!==location.origin||!u.pathname.endsWith('.html'))throw Error('This destination is outside the C/TPA application.');
- const pathPage=norm(u.pathname.split('/').pop()?.replace('.html','')||'dashboard');
- // Internal C/TPA modules are already bundled into the application. Do not
- // download HTML, reinitialize auth, or rebuild the entire screen on each click.
- const prepared=(pathPage==='dashboard'||['profile','account_settings'].includes(pathPage))
-  ?{targetPage:pathPage}:await prepareTarget(u.href);
- const targetPage=prepared.targetPage,targetSearch=u.search;
- if(!pop){if(replace)history.replaceState({s4u:true},'',u.pathname+u.search+u.hash);else history.pushState({s4u:true},'',u.pathname+u.search+u.hash)}
- document.body.dataset.portalPage=targetPage;
- updatePortalChrome();
- const error=document.getElementById('error');if(error)error.textContent='';
- const currentSurface=workspace()?.surface;
- const cache=await getCachedPageData(targetPage,targetSearch);
- if(cache!==null){await render(window.portalCtx,cache);return}
- const data=await loadPageDataCached(targetPage,targetSearch,{force:false});
- if(page()===targetPage&&workspace()?.surface===currentSurface)await render(window.portalCtx,data);
+  const u=new URL(url,location.href);
+  if(u.origin!==location.origin||!u.pathname.endsWith('.html'))throw Error('This destination is outside the C/TPA application.');
+  const sequence=++navigationSequence;
+  const pathPage=norm(u.pathname.split('/').pop()?.replace('.html','')||'dashboard');
+  const currentSurface=workspace()?.surface;
+  const prepared=(pathPage==='dashboard'||['profile','account_settings'].includes(pathPage))
+   ?{targetPage:pathPage}:await prepareTarget(u.href);
+  if(sequence!==navigationSequence||workspace()?.surface!==currentSurface)return;
+  const targetPage=prepared.targetPage,targetSearch=u.search;
+  if(!pop){if(replace)history.replaceState({s4u:true},'',u.pathname+u.search+u.hash);else history.pushState({s4u:true},'',u.pathname+u.search+u.hash)}
+  document.body.dataset.portalPage=targetPage;
+  updatePortalChrome();
+  const error=document.getElementById('error');if(error)error.textContent='';
+  const stillCurrent=()=>sequence===navigationSequence&&
+   workspace()?.surface===currentSurface&&page()===targetPage&&
+   location.pathname===u.pathname&&location.search===targetSearch;
+  const cache=await getCachedPageData(targetPage,targetSearch);
+  if(!stillCurrent())return;
+  if(cache!==null){await render(window.portalCtx,cache);return}
+  const data=await loadPageDataCached(targetPage,targetSearch,{force:false});
+  if(stillCurrent())await render(window.portalCtx,data);
 }
+
 async function switchOperatingWorkspace(desired){
  if(!['dot','nondot'].includes(desired))throw Error('Unknown workspace');
  if(desired===workspace()?.surface)return;
