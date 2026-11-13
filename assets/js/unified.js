@@ -434,6 +434,145 @@ function employerSummary(record,editing=false,kind="employers"){
    detail("Email",isOwner?d.email:d.contact_email)+detail("Phone",d.phone)+
   '</div></div>';
 }
+
+let companyAction=null;
+function currentCompany(){
+ const m=state.management;
+ if(!m?.id||!["employers","owner_operators"].includes(state.page))return null;
+ return (state.cache.get(cacheKey())?.records||[]).find(r=>r.id===m.id)||null;
+}
+function belongsToCompany(record,company){
+ if(!record||!company)return false;
+ const d=record.data||{},name=String(company.data?.legal_name||"").trim().toLowerCase();
+ return d.company_id===company.id||
+  (name&&String(d.employer||d.company||"").trim().toLowerCase()===name);
+}
+function companyChildList(kind,company){
+ return (state.cache.get(cacheKey(kind))?.records||[]).filter(r=>belongsToCompany(r,company));
+}
+async function hydrateCompanyRelations(){
+ const company=currentCompany(),context=state.context,seq=state.sequence;
+ if(!company)return;
+ try{
+  const kinds=["people","locations"];
+  const loaded=await Promise.all(kinds.map(async kind=>{
+   const key=cacheKey(kind),stored=state.cache.get(key);
+   if(stored&&Date.now()-stored.time<30000)return stored.records;
+   const result=await api("list",{tenant_id:state.tenantId,operating_context:context,kind});
+   state.cache.set(key,{records:result.records||[],time:Date.now()});
+   return result.records||[];
+  }));
+  if(seq!==state.sequence||currentCompany()?.id!==company.id)return;
+  const people=loaded[0].filter(r=>belongsToCompany(r,company));
+  const locations=loaded[1].filter(r=>belongsToCompany(r,company));
+  const contactEmail=String(company.data?.contact_email||company.data?.email||"").trim().toLowerCase();
+  const contactName=String(company.data?.contact_name||"").trim().toLowerCase();
+  const contact=people.find(p=>
+   contactEmail&&String(p.data?.email||"").trim().toLowerCase()===contactEmail)||
+   people.find(p=>contactName&&[p.data?.first_name,p.data?.last_name].filter(Boolean).join(" ").trim().toLowerCase()===contactName)||
+   (company.data?.contact_person_id?loaded[0].find(p=>p.id===company.data.contact_person_id):null);
+  const contactHolder=document.querySelector("[data-company-contact-profile]");
+  if(contactHolder){
+   contactHolder.disabled=!contact;
+   contactHolder.dataset.personId=contact?.id||"";
+   contactHolder.textContent=contact?"View contact profile":"Contact profile not linked";
+  }
+  const render=(kind,items)=>{
+   const holder=document.querySelector('[data-company-rows="'+kind+'"]');
+   if(!holder)return;
+   holder.innerHTML=items.length?items.map(r=>{
+    const name=kind==="locations"?(r.data?.name||"Location"):
+     [r.data?.first_name,r.data?.last_name].filter(Boolean).join(" ")||r.data?.email||"Staff member";
+    const subtitle=kind==="locations"?
+      [r.data?.address,r.data?.city,r.data?.state].filter(Boolean).join(", "):
+      [r.data?.job_title,r.data?.email].filter(Boolean).join(" · ");
+    return '<div class="company-related-item"><div><strong>'+esc(name)+'</strong><small>'+esc(subtitle)+'</small></div>'+
+    '<div class="company-related-actions">'+
+    (kind==="people"?'<button type="button" data-company-person="'+esc(r.id)+'">Profile</button>':'')+
+    '<button type="button" data-company-remove="'+esc(r.id)+'" data-related-kind="'+kind+'">Remove</button>'+
+    '</div></div>';
+   }).join(""):'<p class="company-related-empty">No '+(kind==="people"?"staff":"locations")+' linked yet.</p>';
+  };
+  render("people",people.filter(r=>r.data?.relationship==="staff"||r.data?.relationship==="contact"||r.data?.company_id===company.id));
+  render("locations",locations);
+ }catch(error){
+  for(const kind of ["people","locations"]){
+   const holder=document.querySelector('[data-company-rows="'+kind+'"]');
+   if(holder)holder.innerHTML='<p class="company-related-empty">Unable to load '+esc(kind)+': '+esc(error.message)+'</p>';
+  }
+ }
+}
+function companyRelatedPanel(kind,canWrite,hasRecord){
+ const people=kind==="people",title=people?"Company staff":"Company locations";
+ return '<section class="employer-side-panel company-related-panel">'+
+  '<div class="company-related-heading"><h2>'+title+'</h2>'+
+  (canWrite&&hasRecord?'<button type="button" data-company-add="'+kind+'">+ Add</button>':"")+'</div>'+
+  '<div class="company-related-list" data-company-rows="'+kind+'">'+
+  (hasRecord?'<p class="company-related-empty">Loading '+title.toLowerCase()+'…</p>':
+   '<p class="company-related-empty">Save the company before adding '+(people?"staff.":"locations.")+'</p>')+
+  '</div></section>';
+}
+function openCompanyAdd(kind){
+ const company=currentCompany();
+ if(!company||!["people","locations"].includes(kind))return;
+ companyAction={action:"add",kind,companyId:company.id};
+ const specs=kind==="locations"?
+  [["name","Location name","text",true],["address","Street address","text"],["city","City","text"],["state","State","text"],["zip","ZIP","text"],["phone","Phone","tel"]]:
+  [["first_name","First name","text",true],["last_name","Last name","text",true],["job_title","Title","text"],["email","Email","email"],["phone","Phone","tel"]];
+ $("modalTitle").textContent=kind==="locations"?"Add company location":"Add company staff";
+ $("modalDescription").textContent=company.data.legal_name||"Company";
+ $("recordFields").innerHTML='<div class="company-modal-grid">'+specs.map(([name,label,type,required])=>
+  '<label><span>'+label+(required?" *":"")+'</span><input name="'+name+'" type="'+type+'"'+(required?" required":"")+' maxlength="250"></label>').join("")+'</div>';
+ $("recordForm").dataset.mode="company-related-add";
+ $("saveRecord").hidden=false;$("saveRecord").disabled=false;$("saveRecord").className="btn primary";
+ $("saveRecord").textContent="Add "+(kind==="locations"?"location":"staff member");
+ $("formMessage").textContent="";
+ $("modal").hidden=false;document.body.classList.add("modal-open");
+ $("recordFields").querySelector("input")?.focus();
+}
+function confirmCompanyRemove(kind,id){
+ const company=currentCompany(),item=companyChildList(kind,company).find(r=>r.id===id);
+ if(!item)return message("Linked record not found. Refresh the company.",true);
+ companyAction={action:"remove",kind,id,companyId:company.id};
+ $("modalTitle").textContent=kind==="people"?"Remove staff member":"Remove location";
+ $("modalDescription").textContent="This archives the linked record; it does not delete historical records.";
+ $("recordFields").innerHTML='<div class="archive-summary"><strong>'+esc(recordTitle(item))+'</strong></div>';
+ $("recordForm").dataset.mode="company-related-remove";
+ $("saveRecord").hidden=false;$("saveRecord").disabled=false;$("saveRecord").className="btn danger";
+ $("saveRecord").textContent="Confirm removal";$("formMessage").textContent="";
+ $("modal").hidden=false;document.body.classList.add("modal-open");
+}
+async function submitCompanyAction(){
+ const op=companyAction,button=$("saveRecord"),company=currentCompany();
+ if(!op||!company||op.companyId!==company.id)return;
+ button.disabled=true;
+ try{
+  if(op.action==="add"){
+   const form=$("recordForm");if(!form.reportValidity()){button.disabled=false;return}
+   const data=Object.fromEntries(new FormData(form).entries());
+   data.company_id=company.id;
+   data.employer=company.data.legal_name;
+   if(op.kind==="people"){data.relationship="staff";data.status="active"}
+   await api("save",{tenant_id:state.tenantId,operating_context:state.context,
+    kind:op.kind,record_context:company.operating_context,id:null,data});
+  }else{
+   await api("archive",{tenant_id:state.tenantId,operating_context:state.context,kind:op.kind,id:op.id});
+  }
+  state.cache.delete(cacheKey(op.kind));
+  closeModal();companyAction=null;
+  message(op.action==="add"?"Company record added.":"Company record removed.");
+  await hydrateCompanyRelations();
+ }catch(error){$("formMessage").textContent=error.message;button.disabled=false}
+}
+async function openCompanyPerson(id){
+ const company=currentCompany();
+ if(!company)return;
+ const person=companyChildList("people",company).find(p=>p.id===id);
+ if(!person)return message("People profile not available.",true);
+ switchPage("people");
+ if(state.cache.get(cacheKey()))openManagement("view",id);
+ else state.pendingManagement={action:"view",id,section:"people"};
+}
 function renderEmployerManagement(record,mode,canWrite,kind="employers"){
  const view=mode==="view",newRecord=mode==="new",id=record?.id||"";
  const isOwner=kind==="owner_operators",plural=isOwner?"Owner-Operators":"Employers",singular=isOwner?"owner-operator":"employer";
@@ -460,7 +599,10 @@ function renderEmployerManagement(record,mode,canWrite,kind="employers"){
  const shortcuts=EMPLOYER_QUICK.map(([page,name])=>
   '<button type="button" class="employer-side-link" data-employer-create="'+page+'"'+(record?'':' disabled')+'>'+
   '<span class="employer-side-icon">'+navIcon(page)+'</span><span>'+esc(name)+'</span><span aria-hidden="true">+</span></button>').join("");
+ const contactProfile=record?'<div class="company-contact-action"><button type="button" class="btn secondary" data-company-contact-profile disabled>Finding contact profile…</button></div>':"";
  const side='<aside class="employer-management-side">'+
+  companyRelatedPanel("locations",canWrite,Boolean(record))+
+  companyRelatedPanel("people",canWrite,Boolean(record))+
   '<section class="employer-side-panel"><h2>Related management</h2><div class="employer-side-links">'+rightLinks+'</div></section>'+
   '<section class="employer-side-panel"><h2>Quick actions</h2><div class="employer-side-links">'+shortcuts+'</div></section>'+
   (record?'<section class="employer-side-panel employer-record-facts"><h2>Account information</h2><dl><div><dt>Last updated</dt><dd>'+
@@ -469,15 +611,16 @@ function renderEmployerManagement(record,mode,canWrite,kind="employers"){
  '</aside>';
  if(view){
   $("pageContent").innerHTML='<div class="employer-workspace">'+employerSummary(record,false,kind)+
-   '<div class="employer-management-grid"><div class="employer-management-main employer-profile-main">'+groups+contextBlock+
+   '<div class="employer-management-grid"><div class="employer-management-main employer-profile-main">'+groups+contactProfile+contextBlock+
    '<div class="employer-workspace-footer"><button type="button" class="btn secondary" data-back-list>Back to '+esc(plural)+'</button>'+
    (canWrite?'<button type="button" class="btn primary" data-manage-edit="'+esc(id)+'">Edit company details</button>':'')+
    '</div></div>'+side+'</div></div>';
+  if(record)void hydrateCompanyRelations();
   return;
  }
  $("pageContent").innerHTML='<div class="employer-workspace">'+employerSummary(record,true,kind)+
   '<div class="employer-management-grid"><div class="employer-management-main">'+
-   '<form id="managementForm">'+groups+contextBlock+
+   '<form id="managementForm">'+groups+contactProfile+contextBlock+
    '<p class="manage-form-error" id="managementError" role="alert"></p>'+
    '<footer class="employer-workspace-footer">'+
    '<button type="button" class="btn secondary" data-back-list>Cancel</button>'+
@@ -485,6 +628,7 @@ function renderEmployerManagement(record,mode,canWrite,kind="employers"){
    '<button type="submit" class="btn primary" id="managementSave">'+
    (record?"Save changes":"Create "+singular)+'</button></footer></form></div>'+side+'</div></div>';
  $("managementForm").querySelector("input,select,textarea")?.focus({preventScroll:true});
+ if(record)void hydrateCompanyRelations();
 }
 function renderManagementPage(){
  const m=state.management;
@@ -699,6 +843,7 @@ function closeModal(){$("modal").hidden=true;document.body.classList.remove("mod
 async function saveRecord(event){
  event.preventDefault();
  const mode=$("recordForm").dataset.mode;
+ if(mode==="company-related-add"||mode==="company-related-remove"){await submitCompanyAction();return}
  if(mode==="archive"){await performArchive();return}
  if(mode==="profile"){await saveProfile();return}
  if(mode==="view"){closeModal();return}
@@ -864,6 +1009,16 @@ function bindEvents(){
     if(state.cache.get(cacheKey()))openManagement("view",id);
     else state.pendingManagement={action:"view",id,section:destination};
    }
+   return;
+  }
+  if(target.closest("[data-company-add]")){openCompanyAdd(target.closest("[data-company-add]").dataset.companyAdd);return}
+  if(target.closest("[data-company-remove]")){
+   const b=target.closest("[data-company-remove]");confirmCompanyRemove(b.dataset.relatedKind,b.dataset.companyRemove);return
+  }
+  if(target.closest("[data-company-person]")){void openCompanyPerson(target.closest("[data-company-person]").dataset.companyPerson);return}
+  if(target.closest("[data-company-contact-profile]")){
+   const id=target.closest("[data-company-contact-profile]").dataset.personId;
+   if(id)void openCompanyPerson(id);else message("Link a matching contact in People before opening their profile.",true);
    return;
   }
   const employerRelated=target.closest("[data-employer-related]");
