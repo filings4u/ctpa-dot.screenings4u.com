@@ -504,3 +504,42 @@ body.modal-open{overflow:hidden}
  .top-actions .page-actions{max-width:none}
  .top-actions .page-actions .btn{font-size:.71rem}
 }
+
+/* Full employer company management workspace */
+.employer-workspace{display:grid;gap:17px;width:100%;min-width:0}
+.employer-summary,.employer-management-main,.employer-side-panel{background:#fff;border:1px solid #dce4ed;border-radius:12px;overflow:hidden;min-width:0}
+.employer-summary-heading{display:flex;align-items:center;gap:15px;padding:20px 24px;border-bottom:1px solid #e9edf2}
+.employer-summary-icon{width:48px;height:48px;flex:0 0 48px;display:grid;place-items:center;color:#16426e;background:#eff4f9;border-radius:11px}
+.employer-summary-icon .nav-svg{width:23px;height:23px}
+.employer-summary-name{display:grid;gap:5px;flex:1;min-width:0}
+.employer-summary-name strong{font-size:1.3rem;letter-spacing:-.02em;font-weight:850;color:#01122f;overflow-wrap:anywhere}
+.employer-summary-name>span{font-size:.76rem;color:#6c8097}
+.employer-summary-info{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));padding:14px 8px}
+.employer-summary-stat{display:grid;gap:6px;padding:7px 17px;border-right:1px solid #e9edf2;min-width:0}
+.employer-summary-stat:last-child{border:0}
+.employer-summary-stat small{font-size:.69rem;font-weight:800;color:#72859b}
+.employer-summary-stat strong{font-size:.84rem;font-weight:740;color:#112c4a;overflow-wrap:anywhere}
+.employer-management-grid{display:grid;grid-template-columns:minmax(0,2.3fr) minmax(245px,.85fr);gap:17px;align-items:start}
+.employer-management-side{display:grid;gap:15px;min-width:0}
+.employer-side-panel h2{margin:0;padding:17px 19px;border-bottom:1px solid #e8edf2;font-size:.89rem;color:#01122f}
+.employer-side-links{padding:7px}
+.employer-side-link{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:#fff;border:0;border-radius:8px;padding:10px;color:#1c3a57;font-weight:750;font-size:.78rem}
+.employer-side-link:hover:not(:disabled){background:#f3f7fb}
+.employer-side-link:disabled{opacity:.4}
+.employer-side-link>span:nth-child(2){flex:1}
+.employer-side-icon{display:grid;place-items:center;flex:0 0 30px;width:30px;height:30px;border-radius:8px;background:#edf3f9;color:#1c4976}
+.employer-side-icon .nav-svg{width:16px;height:16px}
+.employer-record-facts dl{margin:0;padding:7px 18px 14px}
+.employer-record-facts dl>div{display:flex;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid #e9eef3}
+.employer-record-facts dt{color:#667e95;font-size:.75rem}
+.employer-record-facts dd{margin:0;color:#173752;font-size:.75rem;font-weight:800}
+.employer-management-main .management-section-header{padding:20px 24px 0}
+.employer-management-main .management-section .manage-form-grid{padding:15px 24px 23px;gap:18px 20px}
+.employer-management-main .manage-field:has(textarea){grid-column:1/-1}
+.employer-workspace-footer{display:flex;justify-content:flex-end;align-items:center;gap:10px;flex-wrap:wrap;padding:16px 24px;background:#fafcff;border-top:1px solid #e8edf2}
+.employer-profile-main .profile-section{padding:20px 24px;border-bottom:1px solid #e8edf2;border-right:0}
+.employer-profile-main .profile-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.employer-profile-main .profile-field{grid-template-columns:1fr;gap:5px}
+@media(max-width:1200px){.employer-management-grid{grid-template-columns:minmax(0,1.6fr) minmax(235px,.8fr)}.employer-summary-info{grid-template-columns:repeat(2,minmax(0,1fr))}.employer-summary-stat:nth-child(2){border:0}}
+@media(max-width:950px){.employer-management-grid{grid-template-columns:1fr}.employer-management-side{grid-template-columns:repeat(2,minmax(0,1fr))}.employer-record-facts{grid-column:1/-1}}
+@media(max-width:650px){.employer-summary-heading{padding:16px;flex-wrap:wrap}.employer-summary-info{padding:8px}.employer-summary-stat{padding:9px}.employer-management-side{grid-template-columns:1fr}.employer-management-main .management-section-header{padding:17px 16px 0}.employer-management-main .management-section .manage-form-grid{padding:15px 16px}.employer-workspace-footer{padding:14px 16px}.employer-profile-main .profile-fields{grid-template-columns:1fr}}
