@@ -96,6 +96,42 @@ Deno.serve(async request=>{
    if(result.error)throw result.error;
    return respond({ok:true,tenant_id:tenantId,operating_context:context,records:result.data||[],limit:1000});
   }
+  const documentKinds=new Set(["documents","testing_documents","lab_documents"]);
+  if(action==="document_link"){
+   const kind=text(body.kind,64);
+   if(!documentKinds.has(kind)||!uuid(body.id))return respond({error:"Invalid document"},400);
+   const found=await collection.select("id,data").eq("id",body.id).eq("tenant_id",tenantId)
+    .eq("kind",kind).in("operating_context",[context,"shared"]).is("archived_at",null).maybeSingle();
+   if(found.error)throw found.error;
+   if(!found.data)return respond({error:"Document not found"},404);
+   const bucket=text(found.data.data?.storage_bucket,100),path=text(found.data.data?.storage_path,1000);
+   if(!["workforce-documents","dot-documents","general-documents","business-documents","compliance-documents","testing-documents","workforce-private","workforce-employer-documents"].includes(bucket)||!path)
+    return respond({error:"This document has no downloadable file"},404);
+   const signed=await db.storage.from(bucket).createSignedUrl(path,60);
+   if(signed.error||!signed.data?.signedUrl)return respond({error:"Document file could not be opened"},404);
+   return respond({ok:true,url:signed.data.signedUrl,expires_in:60});
+  }
+  if(action==="upload_file"){
+   if(!canWrite)return respond({error:"Your role is read only"},403);
+   const kind=text(body.kind,64),filename=text(body.filename,150),mimetype=text(body.mime_type,90);
+   const base64=typeof body.base64==="string"?body.base64:"";
+   if(!documentKinds.has(kind)||!filename||!/^[a-z0-9][a-z0-9 ._()\-]{0,149}$/i.test(filename))
+    return respond({error:"Invalid document details"},400);
+   if(!["application/pdf","image/png","image/jpeg","image/webp","text/plain","application/msword","application/vnd.openxmlformats-officedocument.wordprocessingml.document"].includes(mimetype))
+    return respond({error:"Unsupported document type"},400);
+   if(!base64||base64.length>11200000||!/^[A-Za-z0-9+/]+={0,2}$/.test(base64))
+    return respond({error:"Document must be 8 MB or smaller"},413);
+   let bytes:Uint8Array;
+   try{
+    const binary=atob(base64);bytes=Uint8Array.from(binary,c=>c.charCodeAt(0));
+   }catch{return respond({error:"Invalid file encoding"},400)}
+   if(bytes.byteLength>8*1024*1024)return respond({error:"Document must be 8 MB or smaller"},413);
+   const safeName=filename.replace(/[^a-zA-Z0-9._-]+/g,"_");
+   const path=tenantId+"/"+kind+"/"+crypto.randomUUID()+"/"+safeName;
+   const upload=await db.storage.from("workforce-documents").upload(path,bytes,{contentType:mimetype,upsert:false});
+   if(upload.error)throw upload.error;
+   return respond({ok:true,storage_bucket:"workforce-documents",storage_path:path,file_name:filename,mime_type:mimetype,size_bytes:bytes.byteLength});
+  }
   if(!canWrite)return respond({error:"Your role is read only"},403);
   if(action==="save"){
    const kind=text(body.kind,64);
