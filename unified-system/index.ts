@@ -279,15 +279,15 @@ Deno.serve(async request=>{
 
   // Native policy management: employer-bound, sanitized rich text, and audited email delivery.
   const cleanPolicyHTML=(html:string)=>sanitizeHtml(html,{
-   allowedTags:["p","h1","h2","h3","h4","div","span","br","strong","b","em","i","u","s","ul","ol","li","blockquote","a","hr","table","thead","tbody","tr","th","td"],
-   allowedAttributes:{"a":["href","title"],"p":["style"],"div":["style"],"span":["style"],"h1":["style"],"h2":["style"],"h3":["style"]},
+   allowedTags:["p","h1","h2","h3","h4","div","span","br","strong","b","em","i","u","s","ul","ol","li","blockquote","a","hr","table","thead","tbody","tr","th","td","font"],
+   allowedAttributes:{"a":["href","title"],"p":["style"],"div":["style"],"span":["style"],"h1":["style"],"h2":["style"],"h3":["style"],"h4":["style"],"font":["color","face","size"]},
    allowedSchemes:["https","http","mailto"],allowProtocolRelative:false,
-   allowedStyles:{"*":{"text-align":[/^(left|right|center|justify)$/],"color":[/^#[a-f0-9]{3,8}$/i,/^rgb\\(\\d{1,3},\\s*\\d{1,3},\\s*\\d{1,3}\\)$/]}}
+   allowedStyles:{"*":{"text-align":[/^(left|right|center|justify)$/],"color":[/^#[a-f0-9]{3,8}$/i,/^rgb\\(\\d{1,3},\\s*\\d{1,3},\\s*\\d{1,3}\\)$/],"background-color":[/^#[a-f0-9]{3,8}$/i,/^rgb\\(\\d{1,3},\\s*\\d{1,3},\\s*\\d{1,3}\\)$/],"font-family":[/^(Arial|Georgia|Verdana|Tahoma|Times New Roman|Trebuchet MS|Courier New)(,\\s*(serif|sans-serif|monospace))?$/i],"font-size":[/^(1[0-9]|[2-4][0-9])px$/i]}}
   });
   const policyById=async(id:unknown)=>{
    if(!uuid(id))return null;
-   const result=await collection.select("id,data,updated_at").eq("tenant_id",tenantId)
-    .eq("id",id).eq("kind","policies").eq("operating_context",context)
+   const result=await collection.select("id,data,updated_at,operating_context").eq("tenant_id",tenantId)
+    .eq("id",id).eq("kind","policies").in("operating_context",[context,"shared"])
     .is("archived_at",null).maybeSingle();
    if(result.error)throw result.error;
    return result.data||null;
@@ -295,8 +295,8 @@ Deno.serve(async request=>{
   const policyCompany=async(companyId:unknown)=>{
    if(!uuid(companyId))return null;
    const result=await collection.select("id,data").eq("tenant_id",tenantId).eq("id",companyId)
-    .in("kind",context==="dot"?["employers","owner_operators"]:["employers"])
-    .eq("operating_context",context).is("archived_at",null).maybeSingle();
+    .in("kind",["employers","owner_operators"])
+    .in("operating_context",["dot","nondot"]).is("archived_at",null).maybeSingle();
    if(result.error)throw result.error;
    return result.data||null;
   };
@@ -399,12 +399,36 @@ Deno.serve(async request=>{
    return respond({ok:true,deleted:true});
   }
 
+
+  if(action==="policy_logo_upload"){
+   if(!canWrite)return respond({error:"Not authorized to upload logos"},403);
+   const mime=text(body.mime_type,60),filename=text(body.filename,140);
+   if(!["image/png","image/jpeg","image/webp"].includes(mime))return respond({error:"Choose a PNG, JPG or WebP logo"},400);
+   if(!/^[a-z0-9][a-z0-9 ._()\\-]{0,139}$/i.test(filename))return respond({error:"Invalid logo filename"},400);
+   const encoded=typeof body.base64==="string"?body.base64:"";
+   if(!encoded||encoded.length>1450000||!/^[A-Za-z0-9+/]+={0,2}$/.test(encoded))
+    return respond({error:"Logo must be 1 MB or smaller"},413);
+   let bytes:Uint8Array;
+   try{bytes=Uint8Array.from(atob(encoded),v=>v.charCodeAt(0))}
+   catch{return respond({error:"Invalid logo contents"},400)}
+   if(bytes.length>1048576)return respond({error:"Logo exceeds 1 MB"},413);
+   const signature=Array.from(bytes.slice(0,8)).join(",");
+   const match=(mime==="image/png"&&signature==="137,80,78,71,13,10,26,10")||
+     (mime==="image/jpeg"&&bytes[0]===255&&bytes[1]===216&&bytes[2]===255)||
+     (mime==="image/webp"&&String.fromCharCode(...bytes.slice(0,4))==="RIFF"&&String.fromCharCode(...bytes.slice(8,12))==="WEBP");
+   if(!match)return respond({error:"Logo file contents do not match image type"},400);
+   const ext=mime==="image/png"?"png":mime==="image/jpeg"?"jpg":"webp";
+   const storagePath=tenantId+"/"+crypto.randomUUID()+"."+ext;
+   const uploaded=await db.storage.from("ctpa-policy-logos").upload(storagePath,bytes,{contentType:mime,upsert:false});
+   if(uploaded.error)throw uploaded.error;
+   const publicUrl=db.storage.from("ctpa-policy-logos").getPublicUrl(storagePath).data.publicUrl;
+   return respond({ok:true,url:publicUrl});
+  }
+
   if(action==="policy_save"){
    if(!canWrite)return respond({error:"Policy editing is not available to this role"},403);
    const input=payload(body.data);
    if(!input)return respond({error:"Policy details missing"},400);
-   const company=await policyCompany(input.company_id);
-   if(!company)return respond({error:"Select a valid employer or owner-operator in this workspace"},400);
    const name=text(input.name,200),version=text(input.version,30)||"1.0",
     category=text(input.category,60)||"other",
     status=text(input.status,20)||"draft";
@@ -424,18 +448,21 @@ Deno.serve(async request=>{
    if(body.id&&!existing)return respond({error:"Policy not found"},404);
    const old=existing?.data||{};
    const changes=old.html!==html||old.version!==version||old.name!==name;
+   const logoUrl=text(input.logo_url,1100)||text(old.logo_url,1100);
+   const logoPrefix=(Deno.env.get("SUPABASE_URL")||"").replace(/\\/$/,"")+"/storage/v1/object/public/ctpa-policy-logos/"+tenantId+"/";
+   if(logoUrl&&!logoUrl.startsWith(logoPrefix))return respond({error:"Upload your logo using the policy editor"},400);
    const safe={
-    ...old,name,version,category,status,effective_date:effective,html,
-    company_id:company.id,company_name:text(company.data?.legal_name,180),
+    ...old,name,version,category,status,effective_date:effective,html,logo_url:logoUrl,
+    company_id:null,company_name:"Reusable policy template",
     description:text(input.description,500),updated_editor_at:new Date().toISOString(),
     policy_source:"workforce_unified_native",content_revision:(Number(old.content_revision)||0)+(changes?1:0),
     sent_history:Array.isArray(old.sent_history)?old.sent_history:[]
    };
    delete safe._legacy_id;delete safe._legacy_table;
    const update=existing?await collection.update({data:safe,updated_at:new Date().toISOString(),updated_by:user.id})
-      .eq("id",existing.id).eq("tenant_id",tenantId).eq("kind","policies").eq("operating_context",context)
+      .eq("id",existing.id).eq("tenant_id",tenantId).eq("kind","policies").eq("operating_context",existing.operating_context)
       .is("archived_at",null).select("id").single():
-    await collection.insert({tenant_id:tenantId,kind:"policies",operating_context:context,
+    await collection.insert({tenant_id:tenantId,kind:"policies",operating_context:"shared",
       data:safe,created_by:user.id,updated_by:user.id}).select("id").single();
    if(update.error)throw update.error;
    return respond({ok:true,id:update.data.id,revision:safe.content_revision});
@@ -444,14 +471,14 @@ Deno.serve(async request=>{
    const policy=await policyById(body.id);
    if(!policy)return respond({error:"Policy not found in this workspace"},404);
    const data=policy.data||{};
-   const company=await policyCompany(data.company_id);
-   if(!company)return respond({error:"The associated company is unavailable"},404);
-   const email=text(company.data?.contact_email||company.data?.primary_contact_email,200).toLowerCase();
+   const company=await policyCompany(body.company_id);
+   if(!company)return respond({error:"Choose a valid employer or owner-operator recipient"},404);
+   const email=text(company.data?.contact_email||company.data?.primary_contact_email||company.data?.email,200).toLowerCase();
    if(!email||!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email))
     return respond({error:"Add a valid primary contact email to the associated employer before sending"},409);
    const history=Array.isArray(data.sent_history)?data.sent_history:[];
    if(action==="policy_delivery_details")
-    return respond({ok:true,recipient_email:email,company_name:text(company.data?.legal_name,180),
+    return respond({ok:true,recipient_email:email,company_id:company.id,company_name:text(company.data?.legal_name,180),
      sent_history:history.slice(-12).map((h:any)=>({
       sent_at:h.sent_at,recipient:h.recipient,version:h.version,revision:h.revision
      }))});
@@ -468,7 +495,8 @@ Deno.serve(async request=>{
    const subject="Workforce | "+text(data.name,150)+" (v"+text(data.version,30)+")";
    const emailHtml='<div style="max-width:780px;margin:0 auto;font-family:Arial,sans-serif;color:#01122f">'+
     '<div style="background:#01122f;padding:22px;color:white;font-size:20px;font-weight:700">Workforce | Employer Policy</div>'+
-    '<div style="padding:24px"><p>A policy prepared for '+escaped(text(company.data?.legal_name,150))+
+    '<div style="padding:24px">'+(data.logo_url?'<img alt="Policy logo" src="'+escaped(String(data.logo_url))+'" style="max-width:180px;max-height:100px;object-fit:contain;display:block;margin-bottom:20px">':"")+
+    '<p>A policy prepared for '+escaped(text(company.data?.legal_name,150))+
     ' has been delivered by your C/TPA.</p><h2>'+escaped(text(data.name,200))+'</h2>'+
     '<p><b>Version:</b> '+escaped(text(data.version,30))+
     ' &nbsp; <b>Effective:</b> '+escaped(text(data.effective_date,10)||"Not specified")+'</p>'+
@@ -479,11 +507,11 @@ Deno.serve(async request=>{
       to:[email],subject,html:emailHtml})});
    const delivery=await sent.json().catch(()=>({}));
    if(!sent.ok)return respond({error:"Email delivery failed: "+text(delivery.message,180)},502);
-   const event={recipient:email,sent_at:new Date().toISOString(),version:text(data.version,30),
+   const event={recipient:email,company_id:company.id,company_name:text(company.data?.legal_name,180),sent_at:new Date().toISOString(),version:text(data.version,30),
     revision:Number(data.content_revision)||1,provider_message_id:text(delivery.id,160),sent_by:user.id};
    const update=await collection.update({data:{...data,sent_history:[...history.slice(-49),event],last_sent_at:event.sent_at},
     updated_at:new Date().toISOString(),updated_by:user.id}).eq("id",policy.id).eq("tenant_id",tenantId)
-    .eq("kind","policies").eq("operating_context",context).is("archived_at",null).select("id").single();
+    .eq("kind","policies").eq("operating_context",policy.operating_context||context).is("archived_at",null).select("id").single();
    if(update.error)return respond({ok:true,sent:true,recipient_email:email,warning:"Policy sent but sending history could not be stored."});
    return respond({ok:true,sent:true,recipient_email:email,sent_at:event.sent_at});
   }
