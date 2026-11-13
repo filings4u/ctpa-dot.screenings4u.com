@@ -946,6 +946,14 @@ Deno.serve(async request=>{
    const kind=text(body.kind,64);
    if(kind!=="all"&&!ALLOWED.has(kind))return respond({error:"Unknown application module"},400);
 
+   if(kind==="documents"){
+    const docs=await collection.select("id,kind,operating_context,data,created_at,updated_at")
+     .eq("tenant_id",tenantId).eq("kind","documents").eq("operating_context",context)
+     .eq("data->>visibility","ctpa_private").eq("data->>storage_bucket","ctpa-private-documents")
+     .is("archived_at",null).order("created_at",{ascending:false}).limit(500);
+    if(docs.error)throw docs.error;
+    return respond({ok:true,tenant_id:tenantId,operating_context:context,records:docs.data||[],limit:500});
+   }
    if(kind==="occupational_health"){
     const physicals=await db.from("occupational_health_orders")
      .select("id,reference_number,physical_type,exam_type,donor_name,company_name,donor_email,donor_phone,notes,status,testing_case_id,donor_pass_id,metadata,created_at,updated_at")
