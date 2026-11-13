@@ -28,7 +28,7 @@ const navGroupForPage=id=>GROUPS.find(group=>group[1].includes(id))?.[0]||null;
 const CONFIG={
  account:["Account","Your Workforce C/TPA company and signed-in account."],
  dashboard:["Dashboard","Single C/TPA operations dashboard across the selected records."],
- employers:["Employers","Manage employer organizations, contacts and identifiers.","legal_name|Legal name|text|required;dot_number|USDOT number|text;contact_name|Primary contact|text;contact_email|Contact email|email;phone|Phone|tel;status|Status|select:active,inactive"],
+ employers:["Employers","Manage employer organizations, contacts and identifiers.","legal_name|Legal name|text|required;dba_name|DBA / Trade name|text;dot_number|USDOT number|text;mc_number|MC number|text;ein|Tax ID / EIN|text;company_type|Company type|text;status|Status|select:active,pending,inactive;contact_name|Primary contact|text;contact_title|Contact title|text;contact_email|Contact email|email;phone|Phone|tel;secondary_phone|Secondary phone|tel;address_line1|Address line 1|text;address_line2|Address line 2|text;city|City|text;state|State|text;zip|ZIP / Postal code|text;country|Country|text;testing_program|Testing program|text;consortium_status|Consortium status|text;random_pool|Random pool|text;clearinghouse_status|Clearinghouse status|text;audit_status|New entrant audit status|text;occupational_health|Occupational health|select:enabled,disabled;account_notes|Internal account notes|textarea"],
  owner_operators:["Owner-Operators","Manage owner-operator accounts and operating contacts.","legal_name|Legal name|text|required;dot_number|USDOT number|text;contact_name|Contact name|text;email|Email|email;phone|Phone|tel;status|Status|select:active,inactive"],
  people:["People","Maintain worker and employee records.","first_name|First name|text|required;last_name|Last name|text|required;employee_number|Employee number|text;employer|Employer|text;email|Email|email;status|Status|select:active,inactive"],
  programs:["Programs","Set up testing and compliance programs.","name|Program name|text|required;employer|Employer|text;program_type|Program type|text;effective_date|Effective date|date;status|Status|select:active,draft,inactive"],
@@ -392,6 +392,87 @@ function managementOverviewGroup(title,entries){
   '<dl class="profile-fields">'+populated.map(([name,value])=>
   '<div class="profile-field"><dt>'+esc(name)+'</dt><dd>'+esc(value)+'</dd></div>').join("")+'</dl></section>';
 }
+
+const EMPLOYER_GROUPS=[
+ ["Company information",["legal_name","dba_name","dot_number","mc_number","ein","company_type","status"]],
+ ["Primary contact",["contact_name","contact_title","contact_email","phone","secondary_phone"]],
+ ["Company address",["address_line1","address_line2","city","state","zip","country"]],
+ ["Compliance & programs",["testing_program","consortium_status","random_pool","clearinghouse_status","audit_status","occupational_health"]],
+ ["Internal notes",["account_notes"]]
+];
+const EMPLOYER_RELATED=[
+ ["people","People"],["programs","Programs"],["pools","Pools"],
+ ["testing_orders","Testing orders"],["results","Results"],["documents","Documents"],
+ ["invoices","Invoices"],["support","Support"]
+];
+const EMPLOYER_QUICK=[
+ ["people","Add person"],["programs","Add program"],
+ ["testing_orders","Create testing order"],["documents","Upload document"],
+ ["invoices","Create invoice"],["audits","Start audit"]
+];
+function employerSummary(record,editing=false){
+ const d=record?.data||{},title=d.legal_name||"New employer";
+ const detail=(label,value)=>'<div class="employer-summary-stat"><small>'+label+'</small><strong>'+esc(value||"Not provided")+'</strong></div>';
+ return '<div class="employer-summary">'+
+  '<div class="employer-summary-heading"><span class="employer-summary-icon">'+navIcon("employers")+'</span>'+
+  '<div class="employer-summary-name"><strong>'+esc(title)+'</strong><span>Company account management</span></div>'+
+  (record?recordStatus(record):'<span class="mgmt-status pending">New company</span>')+'</div>'+
+  '<div class="employer-summary-info">'+
+   detail("USDOT",d.dot_number)+detail("Primary contact",d.contact_name)+
+   detail("Email",d.contact_email)+detail("Phone",d.phone)+
+  '</div></div>';
+}
+function renderEmployerManagement(record,mode,canWrite){
+ const view=mode==="view",newRecord=mode==="new",id=record?.id||"";
+ const d=record?.data||{};
+ const list=fields("employers");
+ const groups=EMPLOYER_GROUPS.map(([heading,names])=>{
+  const selected=names.map(name=>list.find(f=>f.name===name)).filter(Boolean);
+  if(view){
+   return managementOverviewGroup(heading,selected.map(f=>[f.label,d[f.name]]));
+  }
+  return managementSection(heading,selected,record);
+ }).join("");
+ const current=record?.operating_context||state.context;
+ const shared=!record&&["owner","admin"].includes(activeWorkspace()?.role||"");
+ const contextBlock=view?
+  managementOverviewGroup("Operating context",[["Workspace",current==="shared"?"DOT and NON-DOT":current.toUpperCase()]])
+  :'<section class="management-section"><header class="management-section-header"><h2>Operating context</h2></header>'+
+   '<div class="manage-form-grid"><label class="manage-field manage-context"><span>Record context</span><select name="record_context"'+(record?' disabled':'')+'>'+
+   '<option value="'+esc(current)+'">'+esc(current.toUpperCase())+'</option>'+
+   (shared?'<option value="shared">DOT and NON-DOT</option>':"")+'</select></label></div></section>';
+ const rightLinks=EMPLOYER_RELATED.map(([page,name])=>
+  '<button type="button" class="employer-side-link" data-employer-related="'+page+'"'+(record?'':' disabled')+'>'+
+  '<span class="employer-side-icon">'+navIcon(page)+'</span><span>'+esc(name)+'</span><span aria-hidden="true">›</span></button>').join("");
+ const shortcuts=EMPLOYER_QUICK.map(([page,name])=>
+  '<button type="button" class="employer-side-link" data-employer-create="'+page+'"'+(record?'':' disabled')+'>'+
+  '<span class="employer-side-icon">'+navIcon(page)+'</span><span>'+esc(name)+'</span><span aria-hidden="true">+</span></button>').join("");
+ const side='<aside class="employer-management-side">'+
+  '<section class="employer-side-panel"><h2>Related management</h2><div class="employer-side-links">'+rightLinks+'</div></section>'+
+  '<section class="employer-side-panel"><h2>Quick actions</h2><div class="employer-side-links">'+shortcuts+'</div></section>'+
+  (record?'<section class="employer-side-panel employer-record-facts"><h2>Account information</h2><dl><div><dt>Last updated</dt><dd>'+
+   esc(new Date(record.updated_at).toLocaleDateString())+'</dd></div>'+
+   '<div><dt>Operating context</dt><dd>'+esc(current==="shared"?"DOT and NON-DOT":current.toUpperCase())+'</dd></div></dl></section>':"")+
+ '</aside>';
+ if(view){
+  $("pageContent").innerHTML='<div class="employer-workspace">'+employerSummary(record)+
+   '<div class="employer-management-grid"><div class="employer-management-main employer-profile-main">'+groups+contextBlock+
+   '<div class="employer-workspace-footer"><button type="button" class="btn secondary" data-back-list>Back to employers</button>'+
+   (canWrite?'<button type="button" class="btn primary" data-manage-edit="'+esc(id)+'">Edit company details</button>':'')+
+   '</div></div>'+side+'</div></div>';
+  return;
+ }
+ $("pageContent").innerHTML='<div class="employer-workspace">'+employerSummary(record,true)+
+  '<div class="employer-management-grid"><div class="employer-management-main">'+
+   '<form id="managementForm">'+groups+contextBlock+
+   '<p class="manage-form-error" id="managementError" role="alert"></p>'+
+   '<footer class="employer-workspace-footer">'+
+   '<button type="button" class="btn secondary" data-back-list>Cancel</button>'+
+   (record?'<button type="button" class="btn secondary" id="saveEmployerContinue">Save & continue</button>':"")+
+   '<button type="submit" class="btn primary" id="managementSave">'+
+   (record?"Save changes":"Create employer")+'</button></footer></form></div>'+side+'</div></div>';
+ $("managementForm").querySelector("input,select,textarea")?.focus({preventScroll:true});
+}
 function renderManagementPage(){
  const m=state.management;
  if(!m||m.section!==state.page)return;
@@ -408,6 +489,10 @@ function renderManagementPage(){
  $("pageActions").innerHTML='<button type="button" class="btn secondary" data-back-list>Back to '+esc(label(state.page))+'</button>';
  const canWrite=["owner","admin","editor"].includes(activeWorkspace()?.role||"");
  const context=record?.operating_context||state.context;
+ if(isEmployer){
+  renderEmployerManagement(record,m.action,canWrite);
+  return;
+ }
  if(m.action==="view"){
   const d=record.data||{};
   const sections=isEmployer?[
