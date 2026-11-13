@@ -956,6 +956,41 @@ async function submitProgramEnrollment(){
   void hydrateProgramEnrollments();
  }catch(error){$("formMessage").textContent=error.message;button.disabled=false}
 }
+async function refreshProgramLock(){
+ const m=state.management,seq=state.sequence;
+ if(state.page!=="programs"||!m?.id)return;
+ const warning=$("programLockNotice"),editButton=$("programEditButton"),
+   form=$("managementForm"),saveButton=$("managementSave");
+ if(editButton)editButton.disabled=true;
+ if(form){form.querySelectorAll("input,select,textarea").forEach(el=>el.disabled=true);
+   if(saveButton)saveButton.disabled=true;}
+ if(warning)warning.textContent="Checking employee enrollments…";
+ try{
+  const result=await api("program_lock_status",{tenant_id:state.tenantId,operating_context:state.context,program_id:m.id});
+  if(state.management!==m||state.page!=="programs"||seq!==state.sequence)return;
+  if(result.locked){
+   if(m.action==="edit"){
+    state.management={...m,action:"view"};
+    history.replaceState({management:true},"",managementUrl("view",m.id));
+    renderManagementPage();
+    return;
+   }
+   if(warning)warning.innerHTML='<span class="program-lock-symbol" aria-hidden="true">🔒</span><span><strong>Program locked · '+
+    result.employee_count+' enrolled '+(result.employee_count===1?"employee":"employees")+'</strong>'+
+    '<small>Editing is unavailable until every employee is removed from the program’s linked pools.</small></span>';
+   if(editButton)editButton.hidden=true;
+  }else{
+   if(warning)warning.innerHTML='<span class="program-lock-symbol" aria-hidden="true">✓</span><span><strong>Program editable</strong>'+
+    '<small>No employees are currently enrolled in this program.</small></span>';
+   if(editButton)editButton.disabled=false;
+   if(form){form.querySelectorAll("input,select,textarea").forEach(el=>el.disabled=false);
+    if(saveButton)saveButton.disabled=false;}
+  }
+ }catch(error){
+  if(warning)warning.innerHTML='<span class="program-lock-symbol">!</span><span><strong>Lock verification unavailable</strong>'+
+   '<small>'+esc(error.message)+'. Editing remains disabled until enrollment status can be verified.</small></span>';
+ }
+}
 function renderProgramManagement(record,mode,canWrite){
  const view=mode==="view",d=record?.data||{},title=d.name||"New program";
  const head='<div class="program-head"><span class="program-head-icon">'+navIcon("programs")+'</span><div><strong>'+
@@ -981,14 +1016,14 @@ function renderProgramManagement(record,mode,canWrite){
   '<option value="">Loading companies…</option></select><small>Only companies in this workspace can be assigned.</small></label></div></section>';
  if(view){
   $("pageContent").innerHTML='<div class="program-management">'+head+'<div class="program-management-grid">'+
-   '<div class="program-primary">'+sections+assigned+enrollmentPanel+'</div>'+related+'</div>'+
+   '<div class="program-primary"><div class="program-lock-notice" id="programLockNotice">Checking employee enrollments…</div>'+sections+assigned+enrollmentPanel+'</div>'+related+'</div>'+
    '<footer class="program-actions"><button type="button" class="btn secondary" data-back-list>Back to Programs</button>'+
-   (canWrite?'<button class="btn primary" type="button" data-manage-edit="'+esc(record.id)+'">Edit program</button>':"")+'</footer></div>';
-  if(record)void hydrateProgramEnrollments();
+   (canWrite?'<button id="programEditButton" class="btn primary" type="button" data-manage-edit="'+esc(record.id)+'" disabled>Edit program</button>':"")+'</footer></div>';
+  if(record){void hydrateProgramEnrollments();void refreshProgramLock();}
   return;
  }
  $("pageContent").innerHTML='<div class="program-management">'+head+'<form id="managementForm"><div class="program-management-grid">'+
-  '<div class="program-primary">'+sections+assigned+'</div>'+related+'</div>'+
+  '<div class="program-primary"><div class="program-lock-notice" id="programLockNotice">Checking employee enrollments…</div>'+sections+assigned+'</div>'+related+'</div>'+
   '<div class="program-rule-guidance" id="programRegulatoryGuidance">Loading regulatory references…</div>'+
   '<p class="manage-form-error" id="managementError" role="alert"></p>'+
   '<footer class="program-actions"><button type="button" class="btn secondary" data-back-list>Cancel</button>'+
@@ -1000,7 +1035,7 @@ function renderProgramManagement(record,mode,canWrite){
   const agency=$("manage-dot_agency");if(agency)agency.closest(".manage-field")?.remove();
  }
  $("managementForm").querySelector('input[name="name"]')?.focus({preventScroll:true});
- if(record)void hydrateProgramEnrollments();
+ if(record){void hydrateProgramEnrollments();void refreshProgramLock();}
  void prepareProgramManagement();
 }
 
