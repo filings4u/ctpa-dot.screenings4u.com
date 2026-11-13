@@ -98,6 +98,37 @@ async function api(action,body={}){
 }
 function showView(id){for(const name of ["workspaceSetup","application"])$(name).hidden=name!==id;}
 function activeWorkspace(){return state.workspaces.find(w=>w.tenant_id===state.tenantId)}
+const SIDEBAR_STATE_KEY="workforce_ctpa_sidebar_collapsed";
+const isCompactViewport=()=>window.matchMedia("(max-width: 820px)").matches;
+function updateSidebarToggle(){
+ const sidebar=$("sidebar"),toggle=$("sidebarToggle"),glyph=$("sidebarToggleIcon");
+ if(!sidebar||!toggle||!glyph)return;
+ const mobile=isCompactViewport();
+ const visible=mobile?sidebar.classList.contains("open"):!document.body.classList.contains("sidebar-collapsed");
+ glyph.textContent=visible?"❮":"❯";
+ toggle.setAttribute("aria-expanded",String(visible));
+ toggle.setAttribute("aria-label",visible?"Hide sidebar":"Show sidebar");
+ toggle.title=visible?"Hide sidebar":"Show sidebar";
+}
+function setSidebarVisible(visible){
+ if(isCompactViewport()){
+  $("sidebar").classList.toggle("open",visible);
+ }else{
+  document.body.classList.toggle("sidebar-collapsed",!visible);
+  try{localStorage.setItem(SIDEBAR_STATE_KEY,visible?"visible":"collapsed")}catch(_){}
+ }
+ updateSidebarToggle();
+}
+function setupSidebarToggle(){
+ try{document.body.classList.toggle("sidebar-collapsed",localStorage.getItem(SIDEBAR_STATE_KEY)==="collapsed")}catch(_){}
+ $("sidebarToggle").addEventListener("click",()=>{
+  const visible=isCompactViewport()?$("sidebar").classList.contains("open"):!document.body.classList.contains("sidebar-collapsed");
+  setSidebarVisible(!visible);
+ });
+ $("menuToggle").addEventListener("click",()=>setSidebarVisible(!$("sidebar").classList.contains("open")));
+ addEventListener("resize",updateSidebarToggle,{passive:true});
+ updateSidebarToggle();
+}
 function renderNav(){
  const nav=$("sidebarNavigation");
  const top=SIDEBAR_TOP.map(([id,name,icon])=>'<button type="button" class="nav-item nav-top-link'+
@@ -137,7 +168,7 @@ function switchPage(page,push=true){
  if(!CONFIG[page])page="dashboard";
  state.page=page;state.search="";state.management=null;state.pendingManagement=null;const seq=++state.sequence;
  if(push)history.pushState(null,"","/unified.html?page="+encodeURIComponent(page));
- $("sidebar").classList.remove("open");renderNav();updateHeading();message("");
+ if(isCompactViewport())$("sidebar").classList.remove("open");updateSidebarToggle();renderNav();updateHeading();message("");
  if(page==="account"){void renderAccount();return}
  const stored=state.cache.get(cacheKey());
  if(stored){showRecords(stored.records);if(Date.now()-stored.time>30000)void loadRecords(seq,true)}
@@ -440,7 +471,7 @@ function bindEvents(){
    finally{state.cache.clear();state.workspaces=[];redirectToSelector()}
   }
  });
- $("menuToggle").addEventListener("click",()=>$("sidebar").classList.toggle("open"));
+ setupSidebarToggle();
  $("pageActions").addEventListener("click",e=>{if(e.target.closest("#newRecord"))openManagement("new");if(e.target.closest("#refreshPage"))void loadRecords(state.sequence,true);if(e.target.closest("#exportPage"))exportRecords()});
  $("pageContent").addEventListener("click",e=>{
   const target=e.target;
