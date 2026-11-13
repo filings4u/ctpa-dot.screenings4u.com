@@ -948,7 +948,21 @@ const PAGE_STYLES=Object.freeze({
  'occupational_health':['occupational-health'],
  'testing':['testing-page']
 });
-const ROUTE_ASSET_VERSION='20261113-fast-route2';
+const ROUTE_ASSET_VERSION='20261113-fast-route3';
+const isPortalRoute=(p)=>Boolean(PAGE_MODULES[p]||SHARED_MODULE_PAGES.has(p)||p.startsWith('laboratory_'));
+const PDF_SCRIPT='https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js';
+// Prefetch only a selected module's static code, never bulk backend records.
+const prefetchedAssets=new Set();
+function warmRouteAssets(url){
+ const p=norm(new URL(url,location.href).pathname.split('/').pop()?.replace('.html','')||'');
+ if(!isPortalRoute(p))return;
+ for(const name of (p.startsWith('laboratory_')?['lab-services']:(PAGE_MODULES[p]||[]))){
+  const asset='/assets/js/'+name+'.js?v='+ROUTE_ASSET_VERSION;
+  if(prefetchedAssets.has(asset)||loadedAssets.has(moduleName(asset)))continue;
+  prefetchedAssets.add(asset);
+  const link=document.createElement('link');link.rel='prefetch';link.as='script';link.href=asset;document.head.appendChild(link);
+ }
+}
 async function prepareTarget(url){
  const u=new URL(url,location.href);
  const p=norm(u.pathname.split('/').pop()?.replace('.html','')||'dashboard');
@@ -960,6 +974,8 @@ async function prepareTarget(url){
  await Promise.all(styles);
  // Some modules depend on globals installed by earlier modules. Keep order.
  for(const name of scripts)await ensureAsset('/assets/js/'+name+'.js?v='+ROUTE_ASSET_VERSION,'script');
+ // Keep existing invoice PDF functionality for routes loaded inside the SPA.
+ if((p==='billing'||p==='employer_billing')&&!window.jspdf)await ensureAsset(PDF_SCRIPT,'script');
  return {u,targetPage:p};
 }
 
@@ -1065,7 +1081,9 @@ function installFastNavigation(){
   e.preventDefault();e.stopImmediatePropagation();
   switchOperatingWorkspace(desired).catch(err=>{console.warn('Unable to change workspace',err);showNavigationError(err);});
  },true);
- document.addEventListener('click',e=>{const a=e.target.closest?.('a[href]');if(!a||e.defaultPrevented||e.button!==0||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey||a.target||a.hasAttribute('download'))return;const u=new URL(a.href,location.href);if(u.origin!==location.origin||!u.pathname.endsWith('.html')||u.pathname==='/workforce-context.html')return;e.preventDefault();navigatePortal(u.href).catch(showNavigationError)},true);
+ document.addEventListener('click',e=>{const a=e.target.closest?.('a[href]');if(!a||e.defaultPrevented||e.button!==0||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey||a.target||a.hasAttribute('download'))return;const u=new URL(a.href,location.href);const route=norm(u.pathname.split('/').pop()?.replace('.html','')||'');if(u.origin!==location.origin||!u.pathname.endsWith('.html')||!isPortalRoute(route))return;e.preventDefault();navigatePortal(u.href).catch(showNavigationError)},true);
+ document.addEventListener('pointerover',e=>{const a=e.target.closest?.('a[href]');if(a&&a.origin===location.origin)warmRouteAssets(a.href)},{passive:true});
+ document.addEventListener('focusin',e=>{const a=e.target.closest?.('a[href]');if(a&&a.origin===location.origin)warmRouteAssets(a.href)},{passive:true});
   // Deliberately avoid preloading pages or backend calls on hover/touch.
   // Only the destination selected by the user should request its data.
   addEventListener('popstate',()=>navigatePortal(location.href,{pop:true}).catch(showNavigationError));
