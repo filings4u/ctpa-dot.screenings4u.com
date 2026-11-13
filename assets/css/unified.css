@@ -577,3 +577,59 @@ body.modal-open{overflow:hidden}
 .company-invoice-row:hover{text-decoration:underline;background:#f5f8fc}
 .company-invoice-row span{overflow-wrap:anywhere}
 .company-invoice-row strong{font-size:.77rem;white-space:nowrap}
+
+/* Branded, content-sized dialogs across the portal: no blank fixed-height forms. */
+.modal{padding:18px;background:rgba(1,18,47,.26);backdrop-filter:blur(3px)}
+.modal-underlay{background:rgba(1,18,47,.40)}
+.modal-panel{width:min(720px,100%);height:auto;min-height:0;max-height:calc(100dvh - 36px);border-radius:16px;box-shadow:0 25px 75px rgba(1,18,47,.26);border:1px solid #d8e0eb}
+.modal-heading{padding:18px 23px 16px;gap:15px}
+.modal-heading h2{font-size:1.18rem;line-height:1.3;font-weight:800}
+.modal-heading button{width:33px;height:33px;border-radius:8px;transition:background .14s,border-color .14s}
+.modal-heading button:hover{background:#193653;border-color:#8a9bb0}
+#recordForm{min-height:0;overflow:hidden}
+.modal-body{flex:0 1 auto;min-height:0;padding:18px 23px 16px;overscroll-behavior:contain}
+.modal-description{margin:0 0 16px}
+.modal-actions{padding:14px 23px;gap:10px;background:#fbfcfe}
+.modal-actions .btn{min-height:39px;min-width:104px}
+#recordFields{min-width:0}
+#recordForm[data-mode="company-related-add"] #recordFields,
+#recordForm[data-mode="company-related-remove"] #recordFields{display:block}
+#recordForm[data-mode="company-related-add"] .modal-body,
+#recordForm[data-mode="company-related-remove"] .modal-body{padding:18px 23px 15px}
+#recordForm[data-mode="company-related-add"] .modal-panel{height:auto}
+.modal-company-context{display:flex;align-items:center;gap:11px;padding:11px 13px;border:1px solid #e1e8f0;border-radius:10px;background:#f7f9fc;color:#01122f;max-width:100%}
+.modal-company-icon{display:grid;place-items:center;flex:0 0 34px;width:34px;height:34px;border-radius:9px;color:#164774;background:#e9f0f8;font-size:1.1rem}
+.modal-company-context>span:last-child{display:grid;gap:3px;min-width:0}
+.modal-company-context small{font-size:.62rem;color:#60758d;font-weight:800;letter-spacing:.075em}
+.modal-company-context strong{font-size:.82rem;font-weight:800;overflow-wrap:anywhere}
+.company-modal-sections{display:grid;gap:0}
+.company-modal-section{padding:13px 0 14px;border-bottom:1px solid #e8eef4}
+.company-modal-section:first-child{padding-top:2px}
+.company-modal-section:last-child{border-bottom:0;padding-bottom:0}
+.company-modal-section h3{font-size:.79rem;font-weight:850;color:#01122f;margin:0 0 12px;letter-spacing:.005em}
+.company-modal-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 15px;align-items:start}
+.company-modal-grid label.company-modal-field{margin:0;display:grid;gap:6px;min-width:0;color:#3d526e;font-size:.75rem;font-weight:750}
+.company-modal-grid label.company-modal-field.span-all{grid-column:1/-1}
+.company-modal-field span b{color:#a36b00}
+#recordFields .company-modal-field input{min-width:0;width:100%;height:42px;min-height:42px;border-radius:8px;padding:9px 12px;font-size:.84rem;background:#fff;border:1px solid #cfdae7}
+#recordFields .company-modal-field input:focus{outline:2px solid #fdc102;outline-offset:1px;border-color:#c9ab2d}
+#recordForm[data-mode="company-related-remove"] .modal-panel{width:min(480px,100%)}
+#recordForm[data-mode="company-related-remove"] .modal-description{line-height:1.55}
+.company-remove-confirm{display:flex;gap:14px;align-items:flex-start;border:1px solid #efd3d1;background:#fff9f8;padding:16px;border-radius:11px}
+.company-remove-symbol{display:grid;place-items:center;flex:0 0 34px;width:34px;height:34px;border-radius:50%;background:#fce4e2;color:#a33b35;font-weight:900}
+.company-remove-confirm strong{display:block;font-size:.89rem;color:#492827;overflow-wrap:anywhere}
+.company-remove-confirm p{margin:6px 0 0;font-size:.77rem;line-height:1.5;color:#806462}
+#recordForm[data-mode="company-related-remove"] .modal-body{padding:19px 23px}
+#recordForm[data-mode="company-related-remove"] .modal-actions .danger{color:#fff;background:#ac3936;border-color:#ac3936}
+#recordForm[data-mode="company-related-remove"] .modal-actions .danger:hover{background:#8d2927}
+@media(max-width:580px){
+ .modal{padding:10px}
+ .modal-panel{height:auto;max-height:calc(100dvh - 20px);width:100%}
+ .modal-heading{padding:16px 17px 13px}
+ .modal-body,#recordForm[data-mode="company-related-add"] .modal-body{padding:15px 17px}
+ .modal-actions{padding:13px 17px}
+ .company-modal-grid{grid-template-columns:1fr;gap:12px}
+ .company-modal-grid label.company-modal-field.span-all{grid-column:1}
+ .company-modal-section{padding:12px 0}
+ .company-modal-section h3{margin-bottom:10px}
+}
