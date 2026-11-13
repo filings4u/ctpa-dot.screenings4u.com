@@ -1,6 +1,19 @@
 (()=>{"use strict";
 const $=id=>document.getElementById(id),esc=x=>String(x??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/\x27/g,"&#39;"),money=x=>new Intl.NumberFormat("en-US",{style:"currency",currency:"USD"}).format(Number(x)||0);
 let ctx,records=[],people=[],logo=null,canWrite=false,mode="list",lines=[],query="",filter="all",serial=0,detailId=null;
+
+function billingDialog(title,message,kind="confirm"){
+ return new Promise(resolve=>{
+  const overlay=document.createElement("div");overlay.className="eb-overlay";overlay.innerHTML='<div class="eb-dialog" role="dialog" aria-modal="true" aria-labelledby="ebDialogTitle"><div class="eb-dialog-top"><strong id="ebDialogTitle">'+esc(title)+'</strong></div><div class="eb-dialog-body"><p>'+esc(message)+'</p>'+(kind==="prompt"?'<label>Reason<input id="ebDialogInput" maxlength="400" placeholder="Enter your reason"></label>':'')+'<div class="eb-dialog-buttons">'+(kind==="alert"?"":'<button type="button" class="btn secondary" data-eb-cancel>Cancel</button>')+'<button type="button" class="btn primary" data-eb-confirm>'+(kind==="alert"?"OK":"Continue")+'</button></div></div></div>';
+  const prior=document.activeElement,finish=v=>{document.removeEventListener("keydown",escapeKey,true);overlay.remove();if(prior?.isConnected)prior.focus();resolve(v)};
+  const escapeKey=e=>{if(e.key==="Escape"){e.preventDefault();finish(kind==="prompt"?null:false)}};
+  overlay.querySelector("[data-eb-confirm]").onclick=()=>finish(kind==="prompt"?overlay.querySelector("#ebDialogInput").value:true);
+  overlay.querySelector("[data-eb-cancel]")?.addEventListener("click",()=>finish(kind==="prompt"?null:false));
+  document.body.append(overlay);document.addEventListener("keydown",escapeKey,true);
+  (overlay.querySelector("#ebDialogInput")||overlay.querySelector("[data-eb-confirm]")).focus();
+ });
+}
+
 const today=()=>new Date().toISOString().slice(0,10);
 const plus30=()=>{const x=new Date();x.setDate(x.getDate()+30);return x.toISOString().slice(0,10)};
 async function call(action,payload={}){
@@ -68,17 +81,17 @@ async function download(id,button){
  if(button)button.disabled=true;
  try{const result=await call("pdf",{id}),raw=atob(result.base64),bytes=new Uint8Array(raw.length);for(let i=0;i<raw.length;i++)bytes[i]=raw.charCodeAt(i);
  const url=URL.createObjectURL(new Blob([bytes],{type:"application/pdf"})),a=document.createElement("a");a.href=url;a.download=result.filename||"invoice.pdf";a.click();setTimeout(()=>URL.revokeObjectURL(url),2000);
- }catch(e){window.alert("PDF download failed: "+e.message)}finally{if(button)button.disabled=false}
+ }catch(e){await billingDialog("PDF download failed",e.message,"alert")}finally{if(button)button.disabled=false}
 }
 async function send(id,button){
- const row=records.find(x=>x.id===id);if(!confirm("Email invoice "+(row?.invoice_number||"")+" to "+(row?.recipient_email||"employer")+"?"))return;
+ const row=records.find(x=>x.id===id);if(!await billingDialog("Send employer invoice","Email invoice "+(row?.invoice_number||"")+" to "+(row?.recipient_email||"employer")+"?"))return;
  button.disabled=true;
- try{const result=await call("send",{id});await refresh();if(result.status_update_failed)alert("Email accepted, but invoice status could not be recorded. Please contact support before resending.");else alert("Invoice accepted for email delivery.");if(mode==="detail")await view(id);else list()}
- catch(e){alert("Invoice send failed: "+e.message)}finally{button.disabled=false}
+ try{const result=await call("send",{id});await refresh();if(result.status_update_failed)await billingDialog("Status needs attention","Email accepted, but invoice status could not be recorded. Contact support before resending.","alert");else await billingDialog("Invoice email","Invoice accepted for email delivery.","alert");if(mode==="detail")await view(id);else list()}
+ catch(e){await billingDialog("Invoice send failed",e.message,"alert")}finally{button.disabled=false}
 }
 async function cancel(id){
- const reason=prompt("Reason for voiding the invoice (required):");if(reason===null)return;if(!reason.trim()){alert("A void reason is required.");return}if(!confirm("Void invoice permanently?"))return;
- try{await call("void",{id,reason});await refresh();if(mode==="detail")await view(id);else list()}catch(e){alert("Could not void invoice: "+e.message)}
+ const reason=await billingDialog("Void invoice","Enter the reason for voiding this invoice.","prompt");if(reason===null)return;if(!reason.trim()){await billingDialog("Reason required","A void reason is required.","alert");return}if(!await billingDialog("Confirm void","Void this invoice? This cannot be undone."))return;
+ try{await call("void",{id,reason});await refresh();if(mode==="detail")await view(id);else list()}catch(e){await billingDialog("Cannot void invoice",e.message,"alert")}
 }
 async function refresh(){const d=await call("bootstrap");records=d.invoices||[];people=d.recipients||[];logo=d.logo;canWrite=!!d.can_write}
 async function open(value){ctx=value;const id=++serial;$("pageContent").innerHTML='<section class="eb-loading">Loading Employer Billing…</section>';
