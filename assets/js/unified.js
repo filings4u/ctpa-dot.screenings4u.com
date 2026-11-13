@@ -106,7 +106,7 @@ function updateHeading(){
  $("pageSummary").textContent=CONFIG[state.page]?.[1]||"Manage records in the unified system.";
  $("pageActions").innerHTML=state.page==="account"?"":state.page==="dashboard"
   ?'<button class="btn secondary" type="button" id="refreshPage">Refresh overview</button>'
-  :'<button class="btn secondary" type="button" id="refreshPage">Refresh</button><button class="btn primary" type="button" id="newRecord">Add '+esc(title)+'</button>';
+  :'<button class="btn secondary" type="button" id="refreshPage">Refresh</button><button class="btn secondary" type="button" id="exportPage">Export CSV</button><button class="btn primary" type="button" id="newRecord">Add '+esc(title)+'</button>';
 }
 function switchPage(page,push=true){
  if(!CONFIG[page])page="dashboard";
@@ -150,7 +150,10 @@ async function renderAccount(){
   '<div class="account-details"><div><small>Account</small><strong>'+esc(person)+'</strong></div>'+
   '<div><small>Email</small><strong>'+esc(email)+'</strong></div>'+
   '<div><small>C/TPA Company</small><strong>'+esc(w?.name||"Workforce C/TPA")+'</strong></div>'+
-  '<div><small>Role</small><strong>'+esc(w?.role||"Member")+'</strong></div></div></section>';
+  '<div><small>Role</small><strong>'+esc(w?.role||"Member")+'</strong></div></div>'+
+ '<div class="management-account-actions"><button type="button" class="btn primary" id="editProfile">Edit Profile</button>'+
+ '<button type="button" class="btn secondary" data-goto="staff">Manage Staff</button>'+
+ '<button type="button" class="btn secondary" data-goto="employers">Manage Employers</button></div></section>';
 }
 function renderDashboard(records){
  const byType=new Map();for(const r of records)byType.set(r.kind,(byType.get(r.kind)||0)+1);
@@ -161,7 +164,10 @@ function renderDashboard(records){
   (records.length?'<p>'+records.length+' active records across '+byType.size+' modules in this operating context.</p>'+
   '<div class="table-scroll"><table class="data-table"><thead><tr><th>Module</th><th>Records</th><th></th></tr></thead><tbody>'+
   [...byType].sort((a,b)=>b[1]-a[1]).map(([kind,total])=>'<tr><td class="record-name">'+esc(label(kind))+'</td><td>'+total+'</td><td><button class="btn secondary" type="button" data-goto="'+esc(kind)+'">View</button></td></tr>').join("")+'</tbody></table></div>'
-  :'<div class="empty"><h2>No records in this operating context</h2><p>This new system starts empty. Existing portal data has not been migrated. Create records through the modules on the left.</p></div>')+'</section>';
+  :'<div class="empty"><h2>No records in this operating context</h2><p>This new system starts empty. Existing portal data has not been migrated.</p><button type="button" class="btn primary" data-goto="employers">Manage Employers</button></div>')+'</section>'+
+ '<section class="panel"><h2>Management workspaces</h2><div class="management-shortcuts">'+
+ [["employers","Employers"],["people","People"],["programs","Programs"],["testing_orders","Testing Orders"],["documents","Documents"],["invoices","Invoices"],["support","Support"]].map(([key,name])=>
+ '<button type="button" class="management-shortcut" data-goto="'+key+'"><strong>'+name+'</strong><span>Open management page</span></button>').join("")+'</div></section>';
 }
 function showRecords(records){
  if(state.page==="dashboard"){renderDashboard(records);return}
@@ -216,6 +222,7 @@ async function saveRecord(event){
  event.preventDefault();
  if($("recordForm").dataset.mode==="view"){closeModal();return}
  if($("recordForm").dataset.mode==="archive"){await performArchive();return}
+ if($("recordForm").dataset.mode==="profile"){await saveProfile();return}
  const form=$("recordForm"),button=$("saveRecord");
  const info=Object.fromEntries(new FormData(form).entries()),context=info.record_context||state.context;
  delete info.record_context;
@@ -266,6 +273,43 @@ async function performArchive(){
  }catch(error){$("formMessage").textContent=error.message}
  finally{button.disabled=false}
 }
+async function editProfile(){
+ const {data:{user},error}=await state.supabase.auth.getUser();
+ if(error||!user){message("Unable to load your profile.",true);return}
+ $("modalTitle").textContent="Manage Account";
+ $("modalDescription").textContent="Update the name shown on your Workforce C/TPA account.";
+ $("recordFields").innerHTML='<label>First name<input name="first_name" required maxlength="100" value="'+esc(user.user_metadata?.first_name||"")+'"></label>'+
+  '<label>Last name<input name="last_name" required maxlength="100" value="'+esc(user.user_metadata?.last_name||"")+'"></label>'+
+  '<label>Email<input type="email" disabled value="'+esc(user.email||"")+'"></label>';
+ $("recordForm").dataset.mode="profile";
+ $("saveRecord").className="btn primary";$("saveRecord").hidden=false;$("saveRecord").textContent="Save Profile";
+ $("cancelModal").textContent="Cancel";$("formMessage").textContent="";
+ $("modal").hidden=false;document.body.classList.add("modal-open");
+ $("recordFields").querySelector("input")?.focus();
+}
+async function saveProfile(){
+ const button=$("saveRecord");
+ if(!$("recordForm").reportValidity())return;
+ const form=new FormData($("recordForm"));
+ button.disabled=true;$("formMessage").textContent="";
+ try{
+  const {error}=await state.supabase.auth.updateUser({data:{first_name:String(form.get("first_name")||"").trim(),last_name:String(form.get("last_name")||"").trim()}});
+  if(error)throw error;
+  closeModal();void renderAccount();void updateAccountMenu();message("Account profile saved.");
+ }catch(error){$("formMessage").textContent=error.message}
+ finally{button.disabled=false}
+}
+function exportRecords(){
+ const rows=state.cache.get(cacheKey())?.records||[];
+ if(!rows.length){message("There are no records to export.",true);return}
+ const cols=["id","operating_context",...new Set(rows.flatMap(r=>Object.keys(r.data||{}))),"updated_at"];
+ const csv=[cols,...rows.map(r=>cols.map(k=>k==="id"?r.id:k==="operating_context"?r.operating_context:k==="updated_at"?r.updated_at:r.data?.[k]??""))]
+  .map(line=>line.map(v=>'"'+String(v??"").replaceAll('"','""')+'"').join(",")).join("\r\n");
+ const blob=new Blob([csv],{type:"text/csv;charset=utf-8"});
+ const url=URL.createObjectURL(blob),link=document.createElement("a");
+ link.href=url;link.download="workforce-"+state.page+"-"+state.context+".csv";
+ document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
 async function updateAccountMenu(){
  try{
   const {data:{user}}=await state.supabase.auth.getUser();
@@ -313,7 +357,7 @@ function bindEvents(){
   }
  });
  $("menuToggle").addEventListener("click",()=>$("sidebar").classList.toggle("open"));
- $("pageActions").addEventListener("click",e=>{if(e.target.closest("#newRecord"))openRecord();if(e.target.closest("#refreshPage"))void loadRecords(state.sequence,true)});
+ $("pageActions").addEventListener("click",e=>{if(e.target.closest("#newRecord"))openRecord();if(e.target.closest("#refreshPage"))void loadRecords(state.sequence,true);if(e.target.closest("#exportPage"))exportRecords()});
  $("pageContent").addEventListener("click",e=>{
   const target=e.target;
   const view=target.closest("[data-view]"),edit=target.closest("[data-edit]"),archive=target.closest("[data-archive]"),create=target.closest("[data-create]"),goto=target.closest("[data-goto]"),retry=target.closest("#retryLoad");
@@ -323,6 +367,7 @@ function bindEvents(){
   else if(create)openRecord();
   else if(goto)switchPage(goto.dataset.goto);
   else if(retry)void loadRecords();
+  else if(target.closest("#editProfile"))void editProfile();
  });
  $("pageContent").addEventListener("input",e=>{
   if(e.target.id!=="recordSearch")return;
