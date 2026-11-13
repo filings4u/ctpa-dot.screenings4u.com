@@ -169,8 +169,8 @@ async function saveNondotRecord(payload){
  if(!response.ok||data.ok!==true||data.saved!==true)throw Error(data.error||"Unable to save NON-DOT record");
  return data;
 }
-async function nondotWorkspaceData(){
- const session=await getSession(),w=workspace(),section=nondotSection(page());
+async function nondotWorkspaceData(overrideSection=null){
+ const session=await getSession(),w=workspace(),section=overrideSection||nondotSection(page());
  const accepted=["dashboard","employers","people","programs","pools","selections","testing","results","compliance","documents","reports","billing"];
  if(!accepted.includes(section))return {ok:false,context:"nondot",message:"Unknown NON-DOT module"};
  if(!session?.access_token||!w?.ctpa_id||!w.subscription_id)throw Error("Select an authorized C/TPA subscription");
@@ -181,6 +181,31 @@ async function nondotWorkspaceData(){
   return {ok:false,context:"nondot",section,message:result.error||"This feature is not included in your active subscription."};
  }
  return result;
+}
+async function nondotSharedPageData(p){
+ const section=NONDOT_PAGES[norm(p)];
+ if(!section)return null;
+ const result=await nondotWorkspaceData(section);
+ if(result?.ok!==true)return {__feature_denied:result?.message||'Unable to load the selected C/TPA records.'};
+ if(p==='dashboard')return result;
+ const raw=result.data||{};
+ const employers=Array.isArray(raw.employers)?raw.employers:[];
+ const employees=Array.isArray(raw.employees)?raw.employees:[];
+ const programs=Array.isArray(raw.programs)?raw.programs:[];
+ const pools=Array.isArray(raw.pools)?raw.pools:[];
+ const orders=Array.isArray(raw.orders)?raw.orders:[];
+ const reports=Array.isArray(raw.reports)?raw.reports:[];
+ const cases=Array.isArray(raw.cases)?raw.cases:[];
+ const invoices=Array.isArray(raw.invoices)?raw.invoices:[];
+ const documents=(Array.isArray(raw.documents)?raw.documents:[]).map(item=>({...item,title:item.title||item.file_name,ownership:item.ownership||'ctpa',visibility:item.visibility||'private'}));
+ const records={...raw,employers,employees,programs,pools,orders,testing_orders:orders,
+  results:reports,result_reports:reports,reports,cases,compliance_cases:cases,documents,
+  invoices,client_invoices:invoices,events:raw.events||[],selection_events:raw.selection_events||[],
+  program_employers:raw.program_employers||[],pool_memberships:raw.memberships||[],
+  handoffs:raw.handoffs||[],can_manage:result.can_manage===true,read_only:result.read_only===true,
+  totals:{employers:employers.length,testing_orders:orders.length,random_events:(raw.selection_events||[]).length,compliance_cases:cases.length},
+  scope:{operating_context:'nondot'}};
+ return records;
 }
 async function syncNondotNavigation(ctx){
  // Workspace links are built once by buildNavigation; never inject duplicates.
@@ -410,7 +435,7 @@ function bindUtilityPage(p,d,ctx){
 
 async function ctpaData(p){
   if(p==='lab_services'||isLaboratoryPage(p))return {authorized:false,loading:true};
-  if(workspace()?.surface==='nondot'&&p==='dashboard')return nondotWorkspaceData();
+  if(workspace()?.surface==='nondot'&&Boolean(NONDOT_PAGES[norm(p)]))return nondotSharedPageData(p);
   if(p==='enterprise_tools')return window.CtpaEnterpriseTools.load();
   if(p==='profile'||p==='account_settings')return {workspace:workspace(),profile:(await getSession())?.user||null};
   if(p==='employers'||p==='employer_form')return invoke('workforce-ctpa-employers',{action:'workspace'});
