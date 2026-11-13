@@ -537,13 +537,25 @@ function openCompanyAdd(kind,asContact=false){
  const company=currentCompany();
  if(!company||!["people","locations"].includes(kind))return;
  companyAction={action:"add",kind,companyId:company.id,asContact};
- const specs=kind==="locations"?
-  [["name","Location name","text",true],["address","Street address","text"],["city","City","text"],["state","State","text"],["zip","ZIP","text"],["phone","Phone","tel"]]:
-  [["first_name","First name","text",true],["last_name","Last name","text",true],["job_title","Title","text"],["email","Email","email"],["phone","Phone","tel"]];
- $("modalTitle").textContent=kind==="locations"?"Add company location":asContact?"Add company contact":"Add company staff";
- $("modalDescription").textContent=company.data.legal_name||"Company";
- $("recordFields").innerHTML='<div class="company-modal-grid">'+specs.map(([name,label,type,required])=>
-  '<label><span>'+label+(required?" *":"")+'</span><input name="'+name+'" type="'+type+'"'+(required?" required":"")+' maxlength="250"></label>').join("")+'</div>';
+ const isLocation=kind==="locations";
+ const locationGroups=[
+  ["Location details",[["name","Location name","text",true]]],
+  ["Address",[["address","Street address","text"],["city","City","text"],["state","State","text"],["zip","ZIP code","text"]]],
+  ["Contact",[["phone","Phone number","tel"]]]
+ ];
+ const peopleGroups=[
+  ["Personal information",[["first_name","First name","text",true],["last_name","Last name","text",true],["job_title","Position / Title","text"]]],
+  ["Contact information",[["email","Email address","email"],["phone","Phone number","tel"]]]
+ ];
+ const sections=isLocation?locationGroups:peopleGroups;
+ $("modalTitle").textContent=isLocation?"Add company location":asContact?"Add company contact":"Add company staff";
+ $("modalDescription").innerHTML='<span class="modal-company-context"><span class="modal-company-icon" aria-hidden="true">▣</span><span><small>ADDING TO COMPANY</small><strong>'+esc(company.data.legal_name||"Company")+'</strong></span></span>';
+ const field=([name,label,type,required])=>
+  '<label class="company-modal-field'+(name==="address"?' span-all':'')+'"><span>'+esc(label)+(required?' <b aria-hidden="true">*</b>':'')+'</span>'+
+  '<input name="'+name+'" type="'+type+'"'+(required?' required':'')+' maxlength="250" autocomplete="off"></label>';
+ $("recordFields").innerHTML='<div class="company-modal-sections">'+sections.map(([title,items])=>
+  '<section class="company-modal-section"><h3>'+esc(title)+'</h3>'+
+  '<div class="company-modal-grid">'+items.map(field).join("")+'</div></section>').join("")+'</div>';
  if(asContact){
   const d=company.data||{},names=String(d.contact_name||"").trim().split(/\s+/);
   const first=$("recordFields").querySelector('[name="first_name"]'),last=$("recordFields").querySelector('[name="last_name"]'),email=$("recordFields").querySelector('[name="email"]'),phone=$("recordFields").querySelector('[name="phone"]');
@@ -554,10 +566,10 @@ function openCompanyAdd(kind,asContact=false){
  }
  $("recordForm").dataset.mode="company-related-add";
  $("saveRecord").hidden=false;$("saveRecord").disabled=false;$("saveRecord").className="btn primary";
- $("saveRecord").textContent="Add "+(kind==="locations"?"location":"staff member");
+ $("saveRecord").textContent=isLocation?"Save location":asContact?"Save contact":"Save staff member";
  $("formMessage").textContent="";
  $("modal").hidden=false;document.body.classList.add("modal-open");
- $("recordFields").querySelector("input")?.focus();
+ $("recordFields").querySelector("input")?.focus({preventScroll:true});
 }
 function confirmCompanyRemove(kind,id){
  const company=currentCompany(),item=companyChildList(kind,company).find(r=>r.id===id);
@@ -565,10 +577,10 @@ function confirmCompanyRemove(kind,id){
  companyAction={action:"remove",kind,id,companyId:company.id};
  $("modalTitle").textContent=kind==="people"?"Remove staff member":"Remove location";
  $("modalDescription").textContent=kind==="people"?"Remove this person from the company staff list without deleting their People profile.":"Archive this company location while retaining its historical record.";
- $("recordFields").innerHTML='<div class="archive-summary"><strong>'+esc(recordTitle(item))+'</strong></div>';
+ $("recordFields").innerHTML='<div class="company-remove-confirm"><div class="company-remove-symbol" aria-hidden="true">!</div><div><strong>'+esc(recordTitle(item))+'</strong><p>'+(kind==="people"?"The People profile will remain available.":"The location record will be archived, not permanently deleted.")+'</p></div></div>';
  $("recordForm").dataset.mode="company-related-remove";
  $("saveRecord").hidden=false;$("saveRecord").disabled=false;$("saveRecord").className="btn danger";
- $("saveRecord").textContent="Confirm removal";$("formMessage").textContent="";
+ $("saveRecord").textContent="Remove "+(kind==="people"?"staff":"location");$("formMessage").textContent="";
  $("modal").hidden=false;document.body.classList.add("modal-open");
 }
 async function submitCompanyAction(){
