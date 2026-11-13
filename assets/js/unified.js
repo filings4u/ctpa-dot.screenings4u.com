@@ -3443,7 +3443,7 @@ function startApp(){
  if(desired==="enrollments")history.replaceState(null,"","/unified.html?page=programs");
  if(desired==="lab_orders")history.replaceState(null,"","/unified.html?page=testing_orders"+(search.get("manage")==="new"?"&manage=new":""));
  switchPage(desired==="lab_orders"?"testing_orders":desired==="enrollments"?"programs":desired==="clearinghouse"?"compliance":CONFIG[desired]?desired:"dashboard",false);
- const action=search.get("manage"),id=search.get("record");
+ const action=desired==="lab_orders"?(search.get("manage")==="new"?"new":null):search.get("manage"),id=desired==="lab_orders"?null:search.get("record");
  if(MANAGEMENT_ACTIONS.has(action)){
   const apply=()=>{if(state.page===(desired==="lab_orders"?"testing_orders":desired))openManagement(action,id,false)};
   const cached=state.cache.get(cacheKey());
