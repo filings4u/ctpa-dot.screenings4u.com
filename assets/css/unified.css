@@ -797,3 +797,25 @@ body.modal-open{overflow:hidden}
 .program-lock-symbol{display:grid;place-items:center;flex:0 0 34px;width:34px;height:34px;border-radius:9px;background:#fff1c2;color:#745600;font-size:1.05rem;font-weight:850}
 #programEditButton:disabled{opacity:.6;cursor:wait}
 @media(max-width:600px){.program-lock-notice{margin:14px 16px 5px;padding:12px}}
+
+/* Branded C/TPA drug and alcohol test ordering workspace */
+.drug-order-workspace{width:100%;min-width:0;background:#fff;border:1px solid #dbe4ee;border-radius:14px;overflow:hidden}
+.drug-order-section{padding:22px 26px;border-bottom:1px solid #e7edf4}
+.drug-order-section h2{color:#01122f;font-size:.93rem;font-weight:850;margin:0 0 18px}
+.drug-order-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:17px 22px;align-items:start}
+.drug-order-field{display:grid;min-width:0;gap:8px;font-size:.78rem;font-weight:800;color:#3c536d}
+.drug-order-field.full{grid-column:1/-1}
+.drug-order-field input,.drug-order-field select,.drug-order-field textarea{min-width:0;width:100%;min-height:44px;padding:10px 12px;border-radius:9px;border:1px solid #cfdbe9;background:#fff;color:#01122f;font-size:.86rem;font-weight:500;font-family:inherit}
+.drug-order-field textarea{min-height:112px;resize:vertical;line-height:1.5}
+.drug-order-field :is(input,select,textarea):focus-visible{outline:2px solid #fdc102;outline-offset:1px}
+.drug-order-field :is(select,input):disabled{background:#f1f5f8;color:#78889e}
+.drug-order-hint{grid-column:1/-1;color:#6d8197;font-size:.75rem;line-height:1.55;margin:0}
+.drug-order-workspace> .drug-order-hint{padding:0 26px 16px}
+.drug-order-handoff{display:grid;gap:5px;margin:19px 26px;background:#f6f9fd;border:1px solid #dce6f0;border-left:4px solid #fdc102;border-radius:9px;padding:14px 16px;color:#244460}
+.drug-order-handoff strong{font-size:.83rem;color:#01122f}
+.drug-order-handoff span{font-size:.77rem;line-height:1.55;color:#526b84}
+.drug-order-workspace .manage-form-error{padding:0 26px}
+.drug-order-workspace .program-actions{padding:16px 26px;background:#fafbfd}
+.drug-order-workspace .profile-section{padding:21px 26px;border-bottom:1px solid #e9edf3}
+.drug-order-workspace .profile-fields{grid-template-columns:repeat(3,minmax(0,1fr))}
+@media(max-width:720px){.drug-order-section{padding:18px 17px}.drug-order-grid{grid-template-columns:1fr;gap:14px}.drug-order-handoff{margin:15px 17px}.drug-order-workspace .program-actions{padding:14px 17px}.drug-order-workspace> .drug-order-hint{padding:0 17px 12px}.drug-order-workspace .profile-section{padding:18px 17px}.drug-order-workspace .profile-fields{grid-template-columns:1fr}}
