@@ -9,9 +9,9 @@
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <link rel="preconnect" href="https://elpbnytpciqnbexiaebp.supabase.co" crossorigin>
 <title>Workforce C/TPA | Unified Portal</title>
-<link rel="stylesheet" href="/assets/css/unified.css?v=20261112-unified3">
+<link rel="stylesheet" href="/assets/css/unified.css?v=20261113-management1">
 <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script defer src="/assets/js/unified.js?v=20261112-unified3"></script>
+<script defer src="/assets/js/unified.js?v=20261113-management1"></script>
 </head>
 <body>
 <div id="workspaceSetup" class="signin" hidden>
@@ -59,9 +59,21 @@
 </div>
 <div id="modal" class="modal" hidden>
  <div class="modal-underlay" id="modalDismiss"></div>
- <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
-  <div class="modal-heading"><h2 id="modalTitle">Record</h2><button type="button" id="modalClose" aria-label="Close dialog">×</button></div>
-  <form id="recordForm"><div id="recordFields"></div><p class="message" id="formMessage" role="alert"></p><div class="modal-actions"><button type="button" class="btn secondary" id="cancelModal">Cancel</button><button type="submit" class="btn primary" id="saveRecord">Save</button></div></form>
+ <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="modalTitle" tabindex="-1">
+  <div class="modal-heading">
+   <div><span class="modal-eyebrow">WORKFORCE C/TPA</span><h2 id="modalTitle">Manage record</h2></div>
+   <button type="button" id="modalClose" aria-label="Close dialog">×</button>
+  </div>
+  <form id="recordForm">
+   <div class="modal-body" id="modalBody">
+    <p class="modal-description" id="modalDescription">Manage records for this C/TPA account.</p>
+    <div id="recordFields"></div><p class="message" id="formMessage" role="alert"></p>
+   </div>
+   <div class="modal-actions">
+    <button type="button" class="btn secondary" id="cancelModal">Cancel</button>
+    <button type="submit" class="btn primary" id="saveRecord">Save</button>
+   </div>
+  </form>
  </div>
 </div>
 </body>
