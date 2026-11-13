@@ -2637,7 +2637,7 @@ function startApp(){
  void updateAccountMenu();
  const search=new URLSearchParams(location.search);
  const desired=search.get("page")||"dashboard";
- switchPage(CONFIG[desired]?desired:"dashboard",false);
+ switchPage(desired==="clearinghouse"?"compliance":CONFIG[desired]?desired:"dashboard",false);
  const action=search.get("manage"),id=search.get("record");
  if(MANAGEMENT_ACTIONS.has(action)){
   const apply=()=>{if(state.page===desired)openManagement(action,id,false)};
