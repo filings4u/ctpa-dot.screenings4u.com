@@ -333,6 +333,114 @@ Deno.serve(async request=>{
    return respond({ok:true,id:result.data.id,case_id:caseId,
     case_number:caseNumber,status:caseResult.data.status});
   }
+
+  const officialResult=async(recordId:unknown)=>{
+   if(!uuid(recordId))return null;
+   const unified=await collection.select("id,data,tenant_id,operating_context").eq("id",recordId)
+    .eq("tenant_id",tenantId).eq("kind","results").in("operating_context",[context,"shared"])
+    .is("archived_at",null).maybeSingle();
+   if(unified.error)throw unified.error;
+   if(!unified.data||!uuid(unified.data.data?._legacy_id))return null;
+   const report=await db.from("test_result_reports").select("*")
+    .eq("id",unified.data.data._legacy_id).maybeSingle();
+   if(report.error)throw report.error;
+   if(!report.data||!uuid(report.data.employer_id))return null;
+   const employer=await collection.select("id,data").eq("tenant_id",tenantId)
+    .eq("kind","employers").eq("operating_context",context)
+    .eq("data->>_legacy_id",report.data.employer_id).is("archived_at",null).maybeSingle();
+   if(employer.error)throw employer.error;
+   if(!employer.data)return null;
+   const employee=uuid(report.data.employee_id)?
+    await db.from("employees").select("id,employer_id,first_name,last_name,date_of_birth")
+     .eq("id",report.data.employee_id).eq("employer_id",report.data.employer_id).maybeSingle():{data:null,error:null};
+   if(employee.error)throw employee.error;
+   const ids=report.data.official_mro_document_id;
+   let official:any=null;
+   if(uuid(ids)){
+    const document=await db.from("documents").select("id,title,storage_bucket,storage_path,mime_type,document_type")
+     .eq("id",ids).eq("employer_id",report.data.employer_id).is("archived_at",null).maybeSingle();
+    if(document.error)throw document.error;
+    if(document.data)official=document.data;
+    else{
+     const caseDoc=await db.from("testing_case_documents").select("id,title,storage_bucket,storage_path,mime_type,document_type,testing_case_id")
+      .eq("id",ids).is("archived_at",null).maybeSingle();
+     if(caseDoc.error)throw caseDoc.error;
+     if(caseDoc.data&&uuid(caseDoc.data.testing_case_id)){
+      const owner=await db.from("testing_cases").select("id,metadata").eq("id",caseDoc.data.testing_case_id).maybeSingle();
+      if(owner.error)throw owner.error;
+      if(owner.data?.metadata?.tenant_id===report.data.tenant_id)official=caseDoc.data;
+     }
+    }
+   }
+   if(!official?.storage_path||!official?.storage_bucket||official.mime_type!=="application/pdf")official=null;
+   const past=await db.from("test_result_deliveries").select("id,delivery_status,employer_email,delivered_at")
+    .eq("test_result_report_id",report.data.id).eq("employer_id",report.data.employer_id)
+    .order("created_at",{ascending:false}).limit(1);
+   if(past.error)throw past.error;
+   return {unified:unified.data,report:report.data,employer:employer.data,employee:employee.data,
+    document:official,delivery:past.data?.[0]||null};
+  };
+  if(action==="result_details"||action==="result_document_link"||action==="result_send_to_employer"){
+   const r=await officialResult(body.id);
+   if(!r)return respond({error:"Result unavailable for this C/TPA account"},404);
+   const final= r.report.report_status==="final"&&!!r.report.finalized_at;
+   const verified=final&&!!r.document;
+   const contact=text(r.employer.data.contact_email||r.employer.data.primary_contact_email,200);
+   const response={ok:true,id:r.unified.id,report_number:r.report.report_number,
+    status:r.report.report_status,finalized_at:r.report.finalized_at,
+    mro_name:r.report.mro_name||"",mro_verified_at:r.report.mro_verified_at||"",
+    verified_result:String(r.report.verified_result||""),
+    testing_order_id:r.report.testing_order_id||"",test_reason:r.report.test_reason||"",
+    specimen_type:r.report.specimen_type||"",lab_name:r.report.laboratory_name||"",
+    employer_name:r.employer.data.legal_name||"",recipient_email:contact,
+    donor_name:r.employee?[r.employee.first_name,r.employee.last_name].filter(Boolean).join(" "):"",
+    donor_birthdate:r.employee?.date_of_birth||"",document_ready:verified,
+    document_name:r.document?.title||"Official MRO Result.pdf",
+    sent_at:r.delivery?.delivery_status==="sent"?r.delivery.delivered_at:null,
+    delivery_status:r.delivery?.delivery_status||"not_sent"};
+   if(action==="result_details")return respond(response);
+   if(!verified)return respond({error:"The finalized official MRO PDF is not available. Ask Testing Operations to attach it before delivery."},409);
+   if(action==="result_document_link"){
+    const signed=await db.storage.from(r.document.storage_bucket).createSignedUrl(r.document.storage_path,60);
+    if(signed.error||!signed.data?.signedUrl)return respond({error:"Official document could not be opened"},404);
+    return respond({ok:true,url:signed.data.signedUrl,filename:r.document.title||"Official MRO Result.pdf"});
+   }
+   if(!canWrite)return respond({error:"Only C/TPA staff with write access can send results"},403);
+   if(!contact||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact))
+    return respond({error:"Employer has no valid authorized contact email"},409);
+   if(body.confirm_recipient!==contact)return respond({error:"Recipient confirmation does not match the employer contact"},400);
+   if(!r.employee)return respond({error:"Verified donor relationship is required before sending"},409);
+   const key=Deno.env.get("RESEND_API_KEY");
+   if(!key)return respond({error:"Result delivery email service is not configured"},503);
+   const file=await db.storage.from(r.document.storage_bucket).download(r.document.storage_path);
+   if(file.error||!file.data)return respond({error:"Unable to retrieve official MRO document"},502);
+   const bytes=new Uint8Array(await file.data.arrayBuffer());
+   if(!bytes.length||bytes.length>10*1024*1024)return respond({error:"Official document size is unsupported"},413);
+   let binary="";for(let i=0;i<bytes.length;i+=8192)binary+=String.fromCharCode(...bytes.subarray(i,i+8192));
+   const encoded=btoa(binary);
+   const escaped=(v:string)=>v.replace(/[&<>"']/g,(ch:string)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]||ch));
+   const send=await fetch("https://api.resend.com/emails",{method:"POST",
+    headers:{Authorization:"Bearer "+key,"Content-Type":"application/json"},
+    body:JSON.stringify({from:Deno.env.get("SCREENINGS4U_FROM_EMAIL")||"Workforce <notifications@screenings4u.com>",
+     to:[contact],subject:"Workforce | Official testing result "+text(r.report.report_number,50),
+     html:'<div style="font-family:Arial,sans-serif;max-width:640px;margin:auto;color:#01122f">'+
+      '<div style="background:#01122f;padding:24px;color:white;font-weight:700;font-size:20px">Workforce | Official Result Delivery</div>'+
+      '<div style="padding:28px 24px"><p>An official finalized testing result has been sent to the designated employer contact.</p>'+
+      '<p>Report reference: <strong>'+escaped(text(r.report.report_number,70))+'</strong></p>'+
+      '<p>Please review the attached official MRO document and handle it as confidential personnel information.</p>'+
+      '<p style="color:#687a91">This message is intended for the authorized employer contact only.</p></div></div>',
+     attachments:[{filename:"MRO-"+text(r.report.report_number,60).replace(/[^A-Za-z0-9_-]/g,"")+".pdf",content:encoded}]})});
+   const sent=await send.json().catch(()=>({}));
+   if(!send.ok)return respond({error:"Email provider rejected result delivery: "+text(sent.message,180)},502);
+   const log=await db.from("test_result_deliveries").insert({
+    tenant_id:r.report.tenant_id,employer_id:r.report.employer_id,
+    test_result_report_id:r.report.id,testing_order_id:r.report.testing_order_id,
+    delivered_by:user.id,delivered_at:new Date().toISOString(),delivery_status:"sent",
+    employer_email:contact,metadata:{source:"workforce_unified_ctpa",provider_message_id:sent.id||null}
+   }).select("id").single();
+   if(log.error)return respond({ok:true,sent:true,warning:"Email sent, but delivery history could not be recorded."});
+   return respond({ok:true,sent:true,delivery_id:log.data.id,recipient_email:contact});
+  }
   if(action==="list"){
    const kind=text(body.kind,64);
    if(kind!=="all"&&!ALLOWED.has(kind))return respond({error:"Unknown application module"},400);
@@ -492,6 +600,7 @@ Deno.serve(async request=>{
     return respond({error:"Owner-Operators belong to the DOT workspace"},403);
    if(kind==="selections")return respond({error:"Use the secure selection workflow; locked selections cannot be manually edited"},403);
    if(kind==="testing_orders")return respond({error:"Use the drug testing order submission workflow"},403);
+   if(kind==="results")return respond({error:"Results are issued and finalized by Testing Operations and cannot be edited here"},403);
    const data=payload(body.data);
    if(!data||Object.keys(data).length>40||JSON.stringify(data).length>60000)
     return respond({error:"Invalid or oversized record"},400);
@@ -705,6 +814,7 @@ Deno.serve(async request=>{
     return respond({error:"Owner-Operators belong to the DOT workspace"},403);
    if(body.kind==="selections")return respond({error:"Selection audit records cannot be archived"},403);
    if(body.kind==="testing_orders")return respond({error:"Submitted testing orders must be managed by Testing Operations"},403);
+   if(body.kind==="results")return respond({error:"Official result records cannot be archived by the C/TPA"},403);
    if(body.kind==="pools"){
     const status=await poolMemberCount(body.id);
     if(!status)return respond({error:"Pool not found in this workspace"},404);
