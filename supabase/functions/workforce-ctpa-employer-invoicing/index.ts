@@ -83,7 +83,7 @@ Deno.serve(async request=>{
   const table=db.from("workforce_ctpa_employer_invoices");
   const appendEvent=async(id:string,type:string,details={})=>{const e=await db.from("workforce_ctpa_invoice_events").insert({invoice_id:id,tenant_id:tenant,event_type:type,actor_id:user.id,details});if(e.error)console.error("Invoice audit event failed",e.error)};
   const recipients=async()=>{
-   const result=await db.from("workforce_unified_records").select("id,kind,data").eq("tenant_id",tenant).eq("operating_context",context).in("kind",context==="dot"?["employers","owner_operators"]:["employers"]).is("archived_at",null).limit(1000);
+   const result=await db.from("workforce_unified_records").select("id,kind,data").eq("tenant_id",tenant).eq("operating_context",context).in("kind",["employers","owner_operators"]).is("archived_at",null).limit(1000);
    if(result.error)throw result.error;
    return (result.data||[]).map((r:any)=>({id:r.id,kind:r.kind,name:str(r.data?.legal_name||r.data?.dba_name||r.data?.name,180),email:str(r.data?.contact_email||r.data?.email||r.data?.billing_email,180)})).filter((r:any)=>!!r.name);
   };
