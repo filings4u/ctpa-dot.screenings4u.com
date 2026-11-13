@@ -32,7 +32,7 @@ const CONFIG={
  dashboard:["Dashboard","Single C/TPA operations dashboard across the selected records."],
  employers:["Employers","Manage employer organizations, contacts and identifiers.","legal_name|Legal name|text|required;dba_name|DBA / Trade name|text;dot_number|USDOT number|text;mc_number|MC number|text;ein|Tax ID / EIN|text;company_type|Company type|text;status|Status|select:active,pending,inactive;contact_name|Primary contact|text;contact_title|Contact title|text;contact_email|Contact email|email;phone|Phone|tel;secondary_phone|Secondary phone|tel;address_line1|Address line 1|text;address_line2|Address line 2|text;city|City|text;state|State|text;zip|ZIP / Postal code|text;country|Country|text;testing_program|Testing program|text;consortium_status|Consortium status|text;random_pool|Random pool|text;clearinghouse_status|Clearinghouse status|text;audit_status|New entrant audit status|text;occupational_health|Occupational health|select:enabled,disabled;billing_contact|Billing contact|text;billing_email|Billing email|email;billing_phone|Billing phone|tel;billing_address1|Billing address|text;billing_city|Billing city|text;billing_state|Billing state|text;billing_zip|Billing ZIP|text;billing_country|Billing country|text;payment_terms|Payment terms|text;mailing_address1|Mailing address|text;mailing_city|Mailing city|text;mailing_state|Mailing state|text;mailing_zip|Mailing ZIP|text;mailing_country|Mailing country|text;account_notes|Internal account notes|textarea"],
  owner_operators:["Owner-Operators","Manage owner-operator accounts and operating contacts.","legal_name|Legal name|text|required;dba_name|DBA / Trade name|text;dot_number|USDOT number|text;mc_number|MC number|text;ein|Tax ID / EIN|text;company_type|Company type|text;status|Status|select:active,pending,inactive;contact_name|Primary contact|text;contact_title|Contact title|text;email|Email|email;phone|Phone|tel;secondary_phone|Secondary phone|tel;address_line1|Address line 1|text;address_line2|Address line 2|text;city|City|text;state|State|text;zip|ZIP / Postal code|text;country|Country|text;testing_program|Testing program|text;consortium_status|Consortium status|text;random_pool|Random pool|text;clearinghouse_status|Clearinghouse status|text;audit_status|New entrant audit status|text;occupational_health|Occupational health|select:enabled,disabled;billing_contact|Billing contact|text;billing_email|Billing email|email;billing_phone|Billing phone|tel;billing_address1|Billing address|text;billing_city|Billing city|text;billing_state|Billing state|text;billing_zip|Billing ZIP|text;billing_country|Billing country|text;payment_terms|Payment terms|text;mailing_address1|Mailing address|text;mailing_city|Mailing city|text;mailing_state|Mailing state|text;mailing_zip|Mailing ZIP|text;mailing_country|Mailing country|text;account_notes|Internal account notes|textarea"],
- people:["People","Manage individual profiles and company affiliations.","first_name|First name|text|required;last_name|Last name|text|required;employee_number|Employee number|text;job_title|Position / Title|text;email|Email address|email;phone|Phone number|tel;status|Status|select:active,inactive;relationship|Company role|select:staff,contact,worker"],
+ people:["People","Manage company-linked employees, contacts and staff.","first_name|First name|text|required;last_name|Last name|text|required;employee_number|Employee number|text;job_title|Position / Title|text;email|Email address|email;phone|Phone number|tel;status|Status|select:active,inactive;relationship|Person type|select:employee,contact,staff"],
  programs:["Programs","Manage regulatory testing programs, employers and enrollment.","name|Program name|text|required;program_type|Program type|select:DOT,NON-DOT;dot_agency|DOT agency|select:FMCSA,FAA,FRA,FTA,PHMSA,USCG;regulatory_authority|Regulatory authority|text;testing_panel|Testing panel|text;testing_method|Testing method|select:urine,oral fluid,blood,breath,hair;drug_random_rate|Annual random drug rate (%)|number;alcohol_random_rate|Annual random alcohol rate (%)|number;testing_frequency|Selection frequency|select:monthly,quarterly,semiannual,annual;effective_date|Effective date|date;status|Status|select:active,draft,inactive;regulatory_category|Regulatory category|text;notes|Program notes|textarea"],
  pools:["Pools","Manage random testing pools, eligibility and program assignments.","name|Pool name|text|required;pool_type|Pool type|select:consortium,employer;dot_agency|DOT agency|select:FMCSA,FAA,FRA,FTA,PHMSA,USCG;drug_testing_rate|Annual drug selection rate (%)|number;alcohol_testing_rate|Annual alcohol selection rate (%)|number;selection_schedule|Selection schedule|select:monthly,quarterly,semiannual,annual;effective_date|Effective date|date;status|Status|select:active,draft,inactive;notes|Internal notes|textarea"],
  selections:["Selections","Secure random selection records and results.","name|Selection reference|text|required;pool_name|Pool name|text;selection_date|Selection date|date;status|Status|select:locked,completed"],
@@ -511,7 +511,7 @@ async function hydrateCompanyRelations(){
     return '<div class="company-related-item"><div><strong>'+esc(name)+'</strong><small>'+esc(subtitle)+'</small></div>'+
     '<div class="company-related-actions">'+
     (kind==="people"?'<button type="button" data-company-person="'+esc(r.id)+'">Profile</button>':'')+
-    '<button type="button" data-company-remove="'+esc(r.id)+'" data-related-kind="'+kind+'">Remove</button>'+
+    '' + (kind==="people"?"":'<button type="button" data-company-remove="'+esc(r.id)+'" data-related-kind="'+kind+'">Remove</button>') + ''+
     '</div></div>';
    }).join(""):'<p class="company-related-empty">No '+(kind==="people"?"staff":"locations")+' linked yet.</p>';
   };
@@ -607,7 +607,7 @@ async function submitCompanyAction(){
    const person=companyChildList("people",company).find(r=>r.id===op.id);
    if(!person)throw Error("The linked People record could not be found.");
    await api("save",{tenant_id:state.tenantId,operating_context:state.context,
-    kind:"people",id:op.id,data:{company_id:"",employer:"",relationship:"worker"}});
+    kind:"people",id:op.id,data:{company_id:company.id,employer:company.data.legal_name,relationship:"staff"}});
   }else{
    await api("archive",{tenant_id:state.tenantId,operating_context:state.context,kind:op.kind,id:op.id});
   }
@@ -702,7 +702,7 @@ function renderEmployerManagement(record,mode,canWrite,kind="employers"){
 const PERSON_GROUPS=[
  ["Personal information",["first_name","last_name","employee_number"]],
  ["Contact details",["email","phone"]],
- ["Work information",["job_title","status"]]
+ ["Work information",["relationship","job_title","status"]]
 ];
 async function loadPersonCompanies(){
  const m=state.management,seq=state.sequence;
@@ -723,7 +723,7 @@ async function loadPersonCompanies(){
    options.push(...records.filter(r=>r.operating_context===state.context));
   }
   if(seq!==state.sequence||state.page!=="people"||state.management!==m)return;
-  selector.innerHTML='<option value="">Not linked to a company</option>'+options.map(r=>
+  selector.innerHTML='<option value="">Select company (required)</option>'+options.map(r=>
    '<option value="'+esc(r.id)+'">'+esc(r.data?.legal_name||"Unnamed company")+
    (r.kind==="owner_operators"?" · Owner-Operator":"")+'</option>').join("");
   if(currentId&&options.some(r=>r.id===currentId))selector.value=currentId;
@@ -732,8 +732,8 @@ async function loadPersonCompanies(){
    const match=options.find(r=>prior&&r.data?.legal_name?.toLowerCase()===prior.toLowerCase());
    if(match)selector.value=match.id;
   }
-  selector.disabled=false;
-  if(holder)holder.textContent=options.length?"Choose the company where this person works. Linked people appear in that company's Staff section.":"No companies in this workspace yet. Add an employer first, or leave this person unassigned.";
+  selector.disabled=!options.length;
+  if(holder)holder.textContent=options.length?"Company assignment is required. People are listed under their associated employer.":"Create an employer or owner-operator in this workspace before adding people.";
   const link=$("personCompanyProfile");
   if(link){link.hidden=!selector.value;link.dataset.companyId=selector.value}
   selector.addEventListener("change",()=>{
@@ -771,7 +771,7 @@ function renderPersonManagement(record,mode,canWrite){
  const view=mode==="view",data=record?.data||{},isNew=mode==="new";
  const name=[data.first_name,data.last_name].filter(Boolean).join(" ")||"New person";
  const heading='<div class="person-identity"><span class="person-identity-symbol">'+navIcon("people")+'</span>'+
-  '<div><strong>'+esc(name)+'</strong><small>Individual profile</small></div>'+
+  '<div><strong>'+esc(name)+'</strong><small>'+esc(data.employer||"Company required")+' · '+esc(statusLabel(data.relationship||"employee"))+'</small></div>'+
   (record?recordStatus(record):'<span class="mgmt-status pending">New person</span>')+'</div>';
  const fieldDefs=fields("people");
  let groups=PERSON_GROUPS.map(([title,names])=>{
@@ -779,7 +779,7 @@ function renderPersonManagement(record,mode,canWrite){
   return view?managementOverviewGroup(title,selected.map(f=>[f.label,data[f.name]])):
    managementSection(title,selected,record);
  }).join("");
- const companyDisplay=esc(data.employer||"Not linked to a company");
+ const companyDisplay=esc(data.employer||"Company affiliation missing");
  if(view){
   const affiliation='<section class="profile-section person-affiliation-view"><div class="profile-section-heading"><h2>Company affiliation</h2></div>'+
    '<div class="person-company-summary"><span>'+companyDisplay+'</span>'+
@@ -791,13 +791,13 @@ function renderPersonManagement(record,mode,canWrite){
  }
  const companySection='<section class="management-section person-company-section">'+
   '<header class="management-section-header"><h2>Company affiliation</h2></header>'+
-  '<div class="manage-form-grid"><label class="manage-field person-company-picker"><span>Linked company</span>'+
-  '<select id="personCompanySelect" name="company_selection" disabled><option value="">Loading companies…</option></select>'+
+  '<div class="manage-form-grid"><label class="manage-field person-company-picker"><span>Company affiliation <span class="required-mark">*</span></span>'+
+  '<select id="personCompanySelect" name="company_selection" required disabled><option value="">Loading companies…</option></select>'+
   '<small id="personCompanyHelp">Loading authorized companies from this workspace…</small></label>'+
   '<div class="person-company-action"><button type="button" id="personCompanyProfile" class="btn secondary" data-person-company="" hidden>View company profile</button></div>'+
   '</div></section>';
  $("pageContent").innerHTML='<div class="person-management">'+heading+
-  '<form id="managementForm">'+groups+companySection+
+  '<form id="managementForm">'+companySection+groups+
   '<p class="manage-form-error" id="managementError" role="alert"></p>'+
   '<footer class="person-actions"><button class="btn secondary" type="button" data-back-list>Cancel</button>'+
   '<button class="btn primary" type="submit" id="managementSave">'+(isNew?"Create person":"Save changes")+'</button></footer></form></div>';
@@ -2072,13 +2072,16 @@ async function submitManagement(form,continueEditing=false){
    related.push(...(state.cache.get(cacheKey(kind))?.records||[]));
   }
   const company=selected?related.find(r=>r.id===selected&&r.operating_context===state.context):null;
-  if(selected&&!company){
-   $("managementError").textContent="Select a company from the current workspace.";
+  if(!company){
+   $("managementError").textContent="Select the company associated with this person.";
    button.disabled=false;return;
   }
-  data.company_id=company?.id||"";
-  data.employer=company?.data?.legal_name||"";
-  data.relationship=company?(data.relationship==="contact"?"contact":"staff"):"worker";
+  data.company_id=company.id;
+  data.employer=company.data?.legal_name||"";
+  if(!["employee","contact","staff"].includes(data.relationship)){
+   $("managementError").textContent="Select Employee, Company Contact or Staff.";
+   button.disabled=false;return;
+  }
   if(!data.status)data.status="active";
  }
  const file=data.document_file;delete data.document_file;
@@ -2131,12 +2134,32 @@ function recordStatus(record){
  const value=record.data?.status||record.data?.account_status||record.data?.setup_status||"";
  return '<span class="mgmt-status '+statusClass(value)+'"><span class="status-dot"></span>'+esc(statusLabel(value))+'</span>';
 }
+function peopleCompanyList(records){
+ const q=state.search.trim().toLowerCase(),f=state.statusFilter;
+ const visible=records.filter(r=>{const d=r.data||{};return (!q||[d.first_name,d.last_name,d.employer,d.job_title,d.relationship,d.email,d.employee_number].some(v=>String(v||"").toLowerCase().includes(q)))&&(!f||d.relationship===f)});
+ const rows=visible.map(r=>{const d=r.data||{},name=[d.first_name,d.last_name].filter(Boolean).join(" ")||"Person";
+ return '<button type="button" class="people-company-row" data-view="'+esc(r.id)+'"><span class="people-avatar">'+navIcon("people")+'</span>'+
+ '<span class="people-primary"><strong>'+esc(name)+'</strong><small>'+esc(d.job_title||d.email||"No title")+'</small></span>'+
+ '<span class="people-company-name"><small>Associated company</small><strong>'+esc(d.employer||"Company unavailable")+'</strong></span>'+
+ '<span class="people-role">'+esc(statusLabel(d.relationship||"employee"))+'</span><span class="mgmt-status '+statusClass(d.status)+'">'+esc(statusLabel(d.status||"active"))+'</span>'+
+ '<span class="results-row-view">View</span></button>'}).join("");
+ $("pageContent").innerHTML='<div class="results-workspace people-company-workspace"><section class="results-intro"><span class="results-intro-icon">'+navIcon("people")+'</span><div><strong>People and company associations</strong>'+
+ '<p>Employees, company contacts and staff are always assigned to an employer or owner-operator in this workspace.</p></div></section>'+
+ '<section class="results-list"><div class="directory-toolbar"><div class="directory-search"><input id="recordSearch" type="search" aria-label="Search people and companies" placeholder="Search people, companies and positions" value="'+esc(state.search)+'"></div>'+
+ '<select id="statusFilter" aria-label="Filter people by type"><option value="">All types</option>'+
+ [["employee","Employees"],["contact","Contacts"],["staff","Staff"]].map(([v,t])=>'<option value="'+v+'"'+(f===v?" selected":"")+'>'+t+'</option>').join("")+'</select>'+
+ '<span class="directory-total">'+visible.length+' people</span></div>'+
+ (rows||'<div class="directory-empty"><div class="directory-empty-icon">'+navIcon("people")+'</div><h2>No people yet</h2><p>Add an employer first, then link employees, contacts, and staff to that company.</p>'+
+ (["owner","admin","editor"].includes(activeWorkspace()?.role||"")?'<button class="btn primary" type="button" data-create="1">Add Person</button>':"")+'</div>')+
+ '</section></div>';
+}
 function showRecords(records){
  if(state.page==="dashboard"){renderDashboard(records);return}
  if(state.page==="selections"){selectionList(records);return}
  if(state.page==="testing_orders"){renderDrugOrderList(records);return}
  if(state.page==="testing_documents"){testingDocumentsList(records);return}
  if(state.page==="results"){resultsManagementList(records);return}
+ if(state.page==="people"){peopleCompanyList(records);return}
  if(state.page==="occupational_health"){physicalOrderList(records);return}
  const count=records.length,query=state.search.trim().toLowerCase();
  const statuses=[...new Set(records.map(r=>String(r.data?.status||"").trim()).filter(Boolean))].sort();
