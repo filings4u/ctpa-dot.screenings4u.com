@@ -178,3 +178,12 @@ body.modal-open{overflow:hidden}
  .manage-form-grid,.manage-details{padding:15px;grid-template-columns:1fr}
  .manage-actions{padding:14px 15px}
 }
+
+/* Every sidebar destination uses a consistent outlined icon, not square bullets. */
+.nav-svg{width:15px;height:15px;display:block;flex:0 0 15px;stroke:currentColor}
+.nav-top-link .symbol,.nav-child .symbol{width:18px;min-width:18px;height:18px;display:flex;align-items:center;justify-content:center;flex:0 0 18px}
+.nav-child{display:flex;align-items:center;gap:9px;padding:9px 11px 9px 18px}
+.nav-child::before{content:none;display:none}
+.nav-child.active .nav-svg,.nav-top-link.active .nav-svg{color:#01122f}
+.nav-child:not(.active) .nav-svg{color:#b5c7e2}
+.nav-child:hover .nav-svg{color:currentColor}
