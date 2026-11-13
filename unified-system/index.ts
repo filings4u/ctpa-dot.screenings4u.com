@@ -407,12 +407,46 @@ Deno.serve(async request=>{
     return respond({error:"Document must be 8 MB or smaller"},413);
    const input=payload(body.document_data);
    const formFields=kind==="documents"?["title","document_type","status"]:
-    kind==="testing_documents"?["title","document_type","order_reference","status"]:
+    kind==="testing_documents"?["title","document_type","order_reference","status","company_id","person_id","testing_order_id","description","document_date","visibility"]:
     ["title","account","status"];
    if(!input||typeof input.title!=="string"||input.title.trim().length<2)
     return respond({error:"Document title is required"},400);
    const clean=Object.fromEntries(Object.entries(input).filter(([k,v])=>
     formFields.includes(k)&&(typeof v==="string"||typeof v==="number"||typeof v==="boolean")));
+   if(kind==="testing_documents"){
+    const validTypes=["chain_of_custody","donor_pass","collection_form","lab_report","mro_report","test_result","consent_authorization","random_selection","program_policy","medical_document","invoice_receipt","correspondence","other"];
+    if(!validTypes.includes(String(clean.document_type||"")))
+     return respond({error:"Choose a valid testing document category"},400);
+    clean.visibility="internal";
+    if(clean.company_id){
+     if(!uuid(clean.company_id))return respond({error:"Invalid company reference"},400);
+     const company=await collection.select("id").eq("tenant_id",tenantId).eq("id",clean.company_id)
+      .in("kind",context==="dot"?["employers","owner_operators"]:["employers"])
+      .eq("operating_context",context).is("archived_at",null).maybeSingle();
+     if(company.error)throw company.error;
+     if(!company.data)return respond({error:"Company not found in this workspace"},400);
+    }
+    if(clean.person_id){
+     if(!uuid(clean.person_id))return respond({error:"Invalid person reference"},400);
+     const person=await collection.select("id,data").eq("tenant_id",tenantId).eq("kind","people")
+      .eq("id",clean.person_id).in("operating_context",[context,"shared"])
+      .is("archived_at",null).maybeSingle();
+     if(person.error)throw person.error;
+     if(!person.data||(clean.company_id&&person.data.data?.company_id!==clean.company_id))
+      return respond({error:"Selected person is not linked to this company"},400);
+    }
+    if(clean.testing_order_id){
+     if(!uuid(clean.testing_order_id))return respond({error:"Invalid testing order reference"},400);
+     const order=await collection.select("id,data").eq("tenant_id",tenantId).eq("kind","testing_orders")
+      .eq("id",clean.testing_order_id).eq("operating_context",context)
+      .is("archived_at",null).maybeSingle();
+     if(order.error)throw order.error;
+     if(!order.data)return respond({error:"Testing order not found in this workspace"},400);
+     if(clean.company_id&&order.data.data?.company_id!==clean.company_id)
+      return respond({error:"Testing order does not belong to this company"},400);
+     clean.order_reference=String(order.data.data?.name||"");
+    }
+   }
    const requestedContext=body.record_context==="shared"?"shared":context;
    if(requestedContext==="shared"&&role==="editor")return respond({error:"Shared documents require an administrator"},403);
    let existing:null|{id:string,data:Record<string,unknown>,operating_context:string}=null;
