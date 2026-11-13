@@ -559,7 +559,7 @@ function confirmCompanyRemove(kind,id){
  if(!item)return message("Linked record not found. Refresh the company.",true);
  companyAction={action:"remove",kind,id,companyId:company.id};
  $("modalTitle").textContent=kind==="people"?"Remove staff member":"Remove location";
- $("modalDescription").textContent="This archives the linked record; it does not delete historical records.";
+ $("modalDescription").textContent=kind==="people"?"Remove this person from the company staff list without deleting their People profile.":"Archive this company location while retaining its historical record.";
  $("recordFields").innerHTML='<div class="archive-summary"><strong>'+esc(recordTitle(item))+'</strong></div>';
  $("recordForm").dataset.mode="company-related-remove";
  $("saveRecord").hidden=false;$("saveRecord").disabled=false;$("saveRecord").className="btn danger";
@@ -579,6 +579,11 @@ async function submitCompanyAction(){
    if(op.kind==="people"){data.relationship=op.asContact?"contact":"staff";data.status="active"}
    await api("save",{tenant_id:state.tenantId,operating_context:state.context,
     kind:op.kind,record_context:company.operating_context,id:null,data});
+  }else if(op.kind==="people"){
+   const person=companyChildList("people",company).find(r=>r.id===op.id);
+   if(!person)throw Error("The linked People record could not be found.");
+   await api("save",{tenant_id:state.tenantId,operating_context:state.context,
+    kind:"people",id:op.id,data:{company_id:"",employer:"",relationship:"worker"}});
   }else{
    await api("archive",{tenant_id:state.tenantId,operating_context:state.context,kind:op.kind,id:op.id});
   }
