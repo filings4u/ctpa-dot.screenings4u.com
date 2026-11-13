@@ -99,3 +99,39 @@ body.modal-open{overflow:hidden}
 .record-management-meta{padding:0 26px 22px;display:flex;gap:13px;flex-wrap:wrap;color:#718198;font-size:.76rem}
 .manage-form-error{color:#9e3026;padding:0 26px;margin:0;font-weight:650}
 @media(max-width:630px){.manage-form-grid,.manage-details{grid-template-columns:1fr;padding:18px;gap:15px}.manage-section-head{padding:18px;align-items:flex-start}.manage-actions{padding:15px;flex-wrap:wrap}.manage-actions .btn{flex:1;min-width:0}.record-management-meta{padding:0 18px 18px}}
+
+/* Fixed show/hide sidebar control: stays visible at every page scroll position. */
+.application{--sidebar-width:250px;grid-template-columns:var(--sidebar-width) minmax(0,1fr);transition:grid-template-columns .2s ease}
+.sidebar-edge-toggle{position:fixed;top:50%;left:calc(var(--sidebar-width) - 1px);transform:translateY(-50%);z-index:24;width:28px;height:68px;border:1px solid #d3ddea;border-left:0;background:#fff;color:#01122f;box-shadow:3px 1px 12px rgba(1,18,47,.12);border-radius:0 9px 9px 0;display:flex;align-items:center;justify-content:center;font-size:.94rem;font-weight:850;cursor:pointer;transition:left .2s ease,background .15s ease}
+.sidebar-edge-toggle:hover{background:#fdc102}
+.sidebar-edge-toggle:focus-visible{outline:3px solid #fdc102;outline-offset:2px}
+.sidebar-collapsed .application{--sidebar-width:0px;grid-template-columns:0 minmax(0,1fr)}
+.sidebar-collapsed .sidebar{transform:translateX(-100%);visibility:hidden;pointer-events:none}
+.sidebar-collapsed .sidebar-edge-toggle{left:0;border-left:1px solid #d3ddea}
+/* Compact and consistent management form positioning across the portal. */
+.manage-panel{width:100%;max-width:1180px;margin:0 auto 22px}
+.manage-breadcrumb{max-width:1180px;margin:0 auto 12px;line-height:1.4}
+.manage-section-head{padding:19px 25px}
+.manage-section-head h2{font-size:1.12rem}
+.manage-section-head p{margin:5px 0 0;font-size:.81rem}
+.manage-form-grid{padding:22px 25px;gap:17px 20px}
+.manage-field{gap:6px;font-size:.8rem;line-height:1.35}
+.manage-field input,.manage-field select,.manage-field textarea{min-height:42px;padding:10px 12px;border-radius:8px}
+.manage-actions{padding:16px 25px}
+.page-top{margin-bottom:21px}
+@media(max-width:820px){
+ .application,.sidebar-collapsed .application{display:block}
+ .sidebar{transform:translateX(-100%);visibility:visible;pointer-events:auto}
+ .sidebar.open{transform:translateX(0)}
+ .sidebar-collapsed .sidebar{visibility:visible;pointer-events:auto}
+ .sidebar-edge-toggle,.sidebar-collapsed .sidebar-edge-toggle{left:0;top:50%;height:60px}
+ body:has(.sidebar.open) .sidebar-edge-toggle{left:249px}
+ .sidebar-collapsed .sidebar.open{transform:translateX(0)}
+}
+@media(max-width:630px){
+ .manage-panel{margin-top:0}
+ .manage-breadcrumb{font-size:.76rem}
+ .manage-section-head{padding:17px 18px}
+ .manage-form-grid{padding:18px;gap:13px}
+ .manage-actions{padding:14px 18px}
+}
