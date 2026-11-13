@@ -1329,6 +1329,31 @@ async function submitManagement(form,continueEditing=false){
   if(Object.hasOwn(data,"client"))data.client=state.companyDraft.companyName;
  }
  delete data.record_context;
+ if(state.page==="pools"){
+  const programSelection=form.querySelector("#poolProgram"),companySelection=form.querySelector("#poolCompany");
+  if(!programSelection||programSelection.disabled||!companySelection||companySelection.disabled){
+   $("managementError").textContent="Pool program and company choices have not loaded.";
+   button.disabled=false;return;
+  }
+  const programId=data.program_selection,companyId=data.company_selection;
+  delete data.program_selection;delete data.company_selection;
+  const program=(state.cache.get(cacheKey("programs"))?.records||[]).find(r=>r.id===programId&&r.operating_context===state.context);
+  const employers=[...(state.cache.get(cacheKey("employers"))?.records||[]),
+   ...(state.cache.get(cacheKey("owner_operators"))?.records||[])];
+  const company=companyId?employers.find(r=>r.id===companyId&&r.operating_context===state.context):null;
+  if(!program||(companyId&&!company)){
+   $("managementError").textContent="Choose a valid program and company in this workspace.";
+   button.disabled=false;return;
+  }
+  data.program_id=program.id;
+  data.program=program.data?.name||"";
+  data.company_id=company?.id||"";
+  data.employer=company?.data?.legal_name||"";
+  data.program_type=state.context==="dot"?"DOT":"NON-DOT";
+  if(state.context==="nondot")data.dot_agency="";
+  if(!data.dot_agency&&state.context==="dot")data.dot_agency=program.data?.dot_agency||"";
+  if(!data.status)data.status="active";
+ }
  if(state.page==="programs"){
   const selector=form.querySelector("#programCompany");
   if(!selector||selector.disabled){
@@ -1481,6 +1506,7 @@ async function saveRecord(event){
  const mode=$("recordForm").dataset.mode;
  if(mode==="company-related-add"||mode==="company-related-remove"){await submitCompanyAction();return}
  if(mode==="program-enroll-add"||mode==="program-enroll-remove"){await submitProgramEnrollment();return}
+ if(mode==="pool-add-member"||mode==="pool-remove-member"){await savePoolMember();return}
  if(mode==="archive"){await performArchive();return}
  if(mode==="profile"){await saveProfile();return}
  if(mode==="view"){closeModal();return}
@@ -1646,6 +1672,28 @@ function bindEvents(){
     if(state.cache.get(cacheKey()))openManagement("view",id);
     else state.pendingManagement={action:"view",id,section:destination};
    }
+   return;
+  }
+  if(target.closest("[data-pool-add]")){void openPoolAddMember();return}
+  if(target.closest("[data-pool-remove]")){confirmPoolRemove(target.closest("[data-pool-remove]").dataset.poolRemove);return}
+  if(target.closest("[data-pool-person]")){
+   const id=target.closest("[data-pool-person]").dataset.poolPerson;
+   if(!id)return;
+   switchPage("people");
+   if(state.cache.get(cacheKey()))openManagement("view",id);
+   else state.pendingManagement={action:"view",id,section:"people"};
+   return;
+  }
+  if(target.closest("[data-pool-selection]")){
+   const id=target.closest("[data-pool-selection]").dataset.poolSelection;
+   switchPage("selections");
+   if(state.cache.get(cacheKey()))openManagement("view",id);
+   else state.pendingManagement={action:"view",id,section:"selections"};
+   return;
+  }
+  if(target.closest("[data-pool-nav]")){
+   const kind=target.closest("[data-pool-nav]").dataset.poolNav;
+   if(CONFIG[kind])switchPage(kind);
    return;
   }
   if(target.closest("[data-program-enroll-add]")){void openProgramEnrollment();return}
