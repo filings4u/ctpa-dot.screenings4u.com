@@ -266,6 +266,14 @@ Deno.serve(async request=>{
     if(!program.data||!company.data)return respond({error:"Program or company is unavailable in this workspace"},400);
     clean.program=program.data.data?.name||"";
     clean.participant=company.data.data?.legal_name||"";
+    if(!body.id){
+     const duplicate=await collection.select("id",{count:"exact",head:true})
+      .eq("tenant_id",tenantId).eq("kind","enrollments").eq("operating_context",context)
+      .eq("data->>program_id",clean.program_id).eq("data->>company_id",clean.company_id)
+      .is("archived_at",null);
+     if(duplicate.error)throw duplicate.error;
+     if((duplicate.count||0)>0)return respond({error:"This company is already enrolled in the program"},409);
+    }
    }
    const id=body.id;
    // New company account classification determines both its module and workspace.
