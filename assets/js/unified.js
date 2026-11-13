@@ -184,7 +184,7 @@ function updateHeading(){
  updateBreadcrumbs();
  $("pageActions").innerHTML=state.page==="results"?'<button class="btn secondary" type="button" id="refreshPage">Refresh</button>':state.page==="account"?"":state.page==="dashboard"||state.page==="lab_analytics"
   ?'<button class="btn secondary" type="button" id="refreshPage">Refresh</button>'
-  :'<button class="btn secondary" type="button" id="refreshPage">Refresh</button><button class="btn secondary" type="button" id="exportPage">Export CSV</button><button class="btn primary" type="button" id="newRecord">'+(state.page==="selections"?"Run Selection":state.page==="testing_orders"?"Order a Test":state.page==="testing_documents"?"Upload Document":state.page==="occupational_health"?"Order Physical":state.page==="compliance"?"Add Compliance Record":state.page==="audits"?"Start New Entrant Audit":state.page==="return_to_duty"?"Create RTD Case":"Add "+esc(title))+'</button>';
+  :'<button class="btn secondary" type="button" id="refreshPage">Refresh</button><button class="btn secondary" type="button" id="exportPage">Export CSV</button><button class="btn primary" type="button" id="newRecord">'+(state.page==="selections"?"Run Selection":state.page==="testing_orders"?"Order a Test":state.page==="testing_documents"?"Upload Document":state.page==="occupational_health"?"Order Physical":state.page==="compliance"?"Add Compliance Record":state.page==="audits"?"Start New Entrant Audit":state.page==="return_to_duty"?"Create RTD Case":state.page==="policies"?"Create Policy":"Add "+esc(title))+'</button>';
 }
 function switchPage(page,push=true){
  if(page==="clearinghouse")page="compliance";
@@ -2335,6 +2335,167 @@ async function saveRTDCase(form){
  }catch(err){error.textContent=err.message;save.disabled=false}
 }
 
+
+const POLICY_CATEGORIES=[["drug_alcohol","Drug & Alcohol"],["safety","Safety"],["driver","Driver / DOT"],["workplace","Workplace"],["privacy","Privacy & Confidentiality"],["training","Training"],["other","Other"]];
+function policyList(records){
+ const search=state.search.toLowerCase(),filter=state.statusFilter;
+ const filtered=records.filter(r=>{
+  const d=r.data||{};return (!search||[d.name,d.company_name,d.category,d.description,d.version].some(v=>String(v||"").toLowerCase().includes(search)))&&
+   (!filter||d.status===filter);
+ });
+ const items=filtered.map(r=>{
+  const d=r.data||{},sent=(d.sent_history||[]).at(-1);
+  return '<div class="policy-directory-row"><span class="results-row-icon">'+navIcon("policies")+'</span>'+
+   '<span class="policy-directory-main"><strong>'+esc(d.name||"Untitled policy")+'</strong>'+
+   '<small>'+esc(d.company_name||"Company not linked")+' · v'+esc(d.version||"1.0")+' · '+esc(statusLabel(d.category||"other"))+'</small></span>'+
+   '<span class="policy-last-sent">'+(sent?'Sent '+esc(new Date(sent.sent_at).toLocaleDateString()):"Not sent")+'</span>'+
+   '<span class="mgmt-status '+statusClass(d.status)+'">'+esc(statusLabel(d.status||"draft"))+'</span>'+
+   '<div class="policy-directory-actions"><button class="btn secondary" type="button" data-view="'+esc(r.id)+'">View</button>'+
+   (["owner","admin","editor"].includes(activeWorkspace()?.role||"")?'<button type="button" class="btn secondary" data-edit="'+esc(r.id)+'">Edit</button>'+
+   '<button type="button" class="btn primary" data-policy-send="'+esc(r.id)+'"'+(d.status!=="active"?" disabled":"")+'>Send</button>':"")+
+   '</div></div>';
+ }).join("");
+ $("pageContent").innerHTML='<div class="results-workspace policy-workspace">'+
+ '<section class="results-intro"><span class="results-intro-icon">'+navIcon("policies")+'</span><div>'+
+ '<strong>Employer policy library</strong><p>Write, format, preview, edit and send company-specific policies. Save drafts or publish a version before emailing the employer contact.</p></div></section>'+
+ '<section class="results-list"><div class="directory-toolbar"><div class="directory-search">'+
+ '<input id="recordSearch" type="search" value="'+esc(state.search)+'" aria-label="Search policies" placeholder="Search policies, companies or categories"></div>'+
+ '<select id="statusFilter" aria-label="Filter policy status"><option value="">All statuses</option>'+
+ ["draft","active","archived"].map(v=>'<option value="'+v+'"'+(filter===v?" selected":"")+'>'+esc(statusLabel(v))+'</option>').join("")+'</select>'+
+ '<span class="directory-total">'+filtered.length+' policies</span></div>'+
+ (items||'<div class="directory-empty"><div class="directory-empty-icon">'+navIcon("policies")+'</div><h2>No policies created</h2>'+
+ '<p>Start by choosing a company and writing its first custom policy.</p>'+
+ (["owner","admin","editor"].includes(activeWorkspace()?.role||"")?'<button class="btn primary" type="button" data-create="1">Create a Policy</button>':"")+'</div>')+
+ '</section></div>';
+}
+function policyEditor(record,mode,canWrite){
+ const d=record?.data||{},view=mode==="view",heading='<div class="program-head"><span class="program-head-icon">'+navIcon("policies")+'</span>'+
+ '<div><strong>'+esc(d.name||"New policy")+'</strong><small>'+esc(d.company_name||"Select an employer or owner-operator")+'</small></div>'+
+ (record?recordStatus(record):'<span class="mgmt-status pending">Draft</span>')+'</div>';
+ if(view){
+  const history=(d.sent_history||[]).slice(-12).reverse();
+  $("pageContent").innerHTML='<div class="policy-document-view">'+heading+
+  '<div class="policy-document-meta"><span>Version '+esc(d.version||"1.0")+'</span><span>'+esc(statusLabel(d.category||"other"))+'</span>'+
+  '<span>Effective '+esc(d.effective_date||"Not set")+'</span><span>'+esc(d.company_name||"Company not linked")+'</span></div>'+
+  '<div class="policy-paper"><h1>'+esc(d.name||"Policy")+'</h1>'+
+  '<div class="policy-paper-content">'+(d.html||'<p>No policy text saved.</p>')+'</div></div>'+
+  '<section class="policy-delivery-history"><h2>Delivery history</h2>'+
+  (history.length?history.map(h=>'<p>'+esc(new Date(h.sent_at).toLocaleString())+' · '+esc(h.recipient)+' · v'+esc(h.version)+' (revision '+esc(h.revision)+')</p>').join(""):
+  '<p>No emails sent for this policy.</p>')+'</section>'+
+  '<footer class="management-editor-actions"><button type="button" class="btn secondary" data-back-list>Back to Policies</button>'+
+  (canWrite?'<button type="button" class="btn secondary" data-manage-edit="'+esc(record.id)+'">Edit Policy</button>'+
+   '<button type="button" class="btn primary" data-policy-send="'+esc(record.id)+'"'+(d.status!=="active"?" disabled":"")+'>Send to Employer</button>':"")+'</footer></div>';
+  return;
+ }
+ const options=(options,value)=>options.map(([id,title])=>'<option value="'+id+'"'+(id===(value||"")?" selected":"")+'>'+esc(title)+'</option>').join("");
+ const toolbar='<div class="policy-toolbar" role="toolbar" aria-label="Policy formatting">'+
+ '<select id="policyHeading" aria-label="Text style"><option value="p">Paragraph</option><option value="h1">Heading 1</option><option value="h2">Heading 2</option><option value="h3">Heading 3</option></select>'+
+ [["bold","Bold"],["italic","Italic"],["underline","Underline"],["strikeThrough","Strike"],["insertUnorderedList","Bullets"],["insertOrderedList","Numbered"],["justifyLeft","Align left"],["justifyCenter","Center"]]
+ .map(([cmd,label])=>'<button type="button" title="'+label+'" aria-label="'+label+'" data-policy-command="'+cmd+'">'+(cmd==="bold"?"<b>B</b>":cmd==="italic"?"<i>I</i>":cmd==="underline"?"<u>U</u>":cmd==="strikeThrough"?"<s>S</s>":cmd==="insertUnorderedList"?"• List":cmd==="insertOrderedList"?"1. List":cmd==="justifyLeft"?"⇤":cmd==="justifyCenter"?"≡":"Format")+'</button>').join("")+
+ '<label class="policy-toolbar-color">Color <input type="color" id="policyTextColor" value="#01122f" aria-label="Text color"></label>'+
+ '<input type="url" id="policyLinkUrl" placeholder="https:// link URL" aria-label="Hyperlink URL">'+
+ '<button type="button" id="policyInsertLink">Add link</button><button type="button" id="policyRemoveFormat">Clear formatting</button>'+
+ '</div>';
+ $("pageContent").innerHTML='<div class="policy-editor-shell">'+heading+
+ '<form id="policyForm">'+
+ '<section class="management-section"><header class="management-section-header"><h2>Policy information</h2></header>'+
+ '<div class="manage-form-grid">'+
+ '<label class="manage-field"><span>Policy title *</span><input name="name" required maxlength="200" value="'+esc(d.name||"")+'" placeholder="Example: Drug and Alcohol Testing Policy"></label>'+
+ '<label class="manage-field"><span>Employer / Owner-Operator *</span><select name="company_id" id="policyCompany" required disabled><option value="">Loading companies…</option></select></label>'+
+ '<label class="manage-field"><span>Policy category</span><select name="category">'+options(POLICY_CATEGORIES,d.category||"other")+'</select></label>'+
+ '<label class="manage-field"><span>Version</span><input name="version" maxlength="30" value="'+esc(d.version||"1.0")+'"></label>'+
+ '<label class="manage-field"><span>Effective date</span><input name="effective_date" type="date" value="'+esc(d.effective_date||"")+'"></label>'+
+ '<label class="manage-field"><span>Publication status</span><select name="status">'+options([["draft","Draft"],["active","Active / Ready to Send"],["archived","Archived"]],d.status||"draft")+'</select></label>'+
+ '<label class="manage-field policy-wide"><span>Summary (optional)</span><textarea name="description" rows="2" maxlength="500" placeholder="Short overview for the company">'+esc(d.description||"")+'</textarea></label>'+
+ '</div></section>'+
+ '<section class="management-section"><header class="management-section-header"><h2>Policy document editor</h2><p>Format the document as you would a blog article. Policies are company-specific, and saved content can be edited or previewed.</p></header>'+
+ toolbar+
+ '<div id="policyRichEditor" class="policy-rich-editor" contenteditable="true" role="textbox" aria-multiline="true" aria-label="Policy body" data-placeholder="Start writing your policy here…">'+(d.html||"<h2>Policy purpose</h2><p></p>")+'</div>'+
+ '<p class="policy-editor-hint">Choose text to apply formatting. Links must begin with https:// or http://. Paste adds plain text for safe formatting.</p>'+
+ '</section><p id="policyFormError" class="manage-form-error" role="alert"></p>'+
+ '<footer class="management-editor-actions"><button type="button" class="btn secondary" data-back-list>Cancel</button>'+
+ '<button type="submit" class="btn primary" id="policySave" disabled>'+(record?"Save Changes":"Create Policy")+'</button></footer></form></div>';
+ const editor=$("policyRichEditor");
+ editor.addEventListener("paste",e=>{
+  e.preventDefault();document.execCommand("insertText",false,e.clipboardData.getData("text/plain"));
+ });
+ void loadPolicyCompanies(record);
+}
+async function loadPolicyCompanies(record){
+ const m=state.management,seq=state.sequence,context=state.context;
+ try{
+  const kinds=context==="dot"?["employers","owner_operators"]:["employers"];
+  const lists=await Promise.all(kinds.map(async kind=>{
+   const key=cacheKey(kind),cached=state.cache.get(key);
+   if(cached&&Date.now()-cached.time<30000)return cached.records||[];
+   const res=await api("list",{tenant_id:state.tenantId,operating_context:context,kind});
+   state.cache.set(key,{records:res.records||[],time:Date.now()});return res.records||[];
+  }));
+  if(m!==state.management||seq!==state.sequence)return;
+  const companies=lists.flat(),select=$("policyCompany"),save=$("policySave");
+  if(!select||!save)return;
+  select.innerHTML='<option value="">Select associated company</option>'+
+    companies.map(c=>'<option value="'+esc(c.id)+'">'+esc(c.data?.legal_name||"Company")+'</option>').join("");
+  if(record?.data?.company_id&&companies.some(c=>c.id===record.data.company_id))select.value=record.data.company_id;
+  select.disabled=!companies.length;save.disabled=!select.value;
+  select.addEventListener("change",()=>save.disabled=!select.value);
+  if(!companies.length)$("policyFormError").textContent="Add an employer or owner-operator before writing its policy.";
+ }catch(error){if(m===state.management&&$("policyFormError"))$("policyFormError").textContent=error.message}
+}
+async function savePolicy(form){
+ const btn=$("policySave"),error=$("policyFormError");
+ if(!btn||btn.disabled||!form.reportValidity())return;
+ const editor=$("policyRichEditor"),html=editor?.innerHTML||"";
+ if(!editor?.textContent?.trim()||editor.textContent.trim().length<15){
+  error.textContent="Write the policy content before saving.";return;
+ }
+ const values=Object.fromEntries(new FormData(form).entries());
+ btn.disabled=true;error.textContent="";
+ try{
+  const result=await api("policy_save",{tenant_id:state.tenantId,operating_context:state.context,
+   id:state.management?.id||null,data:{...values,html}});
+  state.cache.delete(cacheKey());
+  leaveManagement();message("Policy saved as version "+(values.version||"1.0")+".");
+  void loadRecords(state.sequence,true);
+ }catch(e){error.textContent=e.message;btn.disabled=false}
+}
+async function confirmPolicySend(id){
+ const policy=(state.cache.get(cacheKey())?.records||[]).find(r=>r.id===id);
+ if(!policy){message("Policy not found. Reload the page.",true);return}
+ if(policy.data?.status!=="active"){message("Save the policy as Active before sending.",true);return}
+ try{
+  const recipient=await api("policy_delivery_details",{tenant_id:state.tenantId,operating_context:state.context,id});
+  state.policyDelivery={id,email:recipient.recipient_email};
+  $("modalTitle").textContent="Send policy to employer";
+  $("modalDescription").textContent="Confirm delivery of the saved policy version to the company’s authorized contact.";
+  $("recordFields").innerHTML='<div class="official-result-confirm">'+
+   '<p><b>Policy:</b> '+esc(policy.data?.name||"Policy")+'</p>'+
+   '<p><b>Company:</b> '+esc(recipient.company_name)+'</p>'+
+   '<p><b>Version:</b> '+esc(policy.data?.version||"1.0")+'</p>'+
+   '<p><b>Recipient:</b> '+esc(recipient.recipient_email)+'</p>'+
+   '<p>The employer will receive the full formatted policy in a branded email. This action will be recorded in delivery history.</p></div>';
+  $("recordForm").dataset.mode="send-policy";
+  $("saveRecord").hidden=false;$("saveRecord").disabled=false;$("saveRecord").textContent="Confirm and Send Policy";
+  $("formMessage").textContent="";$("modal").hidden=false;document.body.classList.add("modal-open");
+ }catch(error){message(error.message,true)}
+}
+async function deliverPolicy(){
+ const recipient=state.policyDelivery,btn=$("saveRecord");
+ if(!recipient?.id||!recipient.email)return;
+ btn.disabled=true;
+ try{
+  const result=await api("policy_send",{tenant_id:state.tenantId,operating_context:state.context,
+   id:recipient.id,confirm_recipient:recipient.email});
+  closeModal();state.policyDelivery=null;
+  message(result.warning||"Policy sent to "+result.recipient_email+".");
+  state.cache.delete(cacheKey());void loadRecords(state.sequence,true);
+ }catch(e){$("formMessage").textContent=e.message;btn.disabled=false}
+}
+function applyPolicyFormatting(command){
+ const editor=$("policyRichEditor");if(!editor)return;
+ editor.focus();document.execCommand(command,false,null);
+}
+
 function renderManagementPage(){
  const m=state.management;
  if(!m||m.section!==state.page)return;
@@ -2362,6 +2523,7 @@ function renderManagementPage(){
  if(state.page==="compliance"){renderComplianceManagement(record,m.action,canWrite);return;}
  if(state.page==="audits"){renderAuditManagement(record,m.action,canWrite);return;}
  if(state.page==="return_to_duty"){renderRTDManagement(record,m.action,canWrite);return;}
+ if(state.page==="policies"){policyEditor(record,m.action,canWrite);return;}
  if(state.page==="programs"){
   renderProgramManagement(record,m.action,canWrite);
   return;
@@ -2654,6 +2816,7 @@ function showRecords(records){
  if(state.page==="compliance"){complianceDirectory(records);return}
  if(state.page==="audits"){auditList(records);return}
  if(state.page==="return_to_duty"){rtdCasesList(records);return}
+ if(state.page==="policies"){policyList(records);return}
  if(state.page==="occupational_health"){physicalOrderList(records);return}
  const count=records.length,query=state.search.trim().toLowerCase();
  const statuses=[...new Set(records.map(r=>String(r.data?.status||"").trim()).filter(Boolean))].sort();
@@ -2715,6 +2878,7 @@ async function saveRecord(event){
  if(mode==="pool-add-member"||mode==="pool-remove-member"){await savePoolMember();return}
  if(mode==="selection-run"){await runSelection();return}
  if(mode==="send-official-result"){await sendOfficialResult();return}
+ if(mode==="send-policy"){await deliverPolicy();return}
  if(mode==="archive"){await performArchive();return}
  if(mode==="profile"){await saveProfile();return}
  if(mode==="view"){closeModal();return}
@@ -2885,6 +3049,18 @@ function bindEvents(){
    }
    return;
   }
+  const sendPolicy=target.closest("[data-policy-send]");
+  if(sendPolicy){void confirmPolicySend(sendPolicy.dataset.policySend);return}
+  const format=target.closest("[data-policy-command]");
+  if(format){applyPolicyFormatting(format.dataset.policyCommand);return}
+  if(target.closest("#policyInsertLink")){
+   const input=$("policyLinkUrl"),url=input?.value?.trim()||"";
+   if(!/^https?:\\/\\/[^\\s]+$/i.test(url)){message("Enter a valid http:// or https:// URL.",true);return}
+   applyPolicyFormatting("createLink");
+   document.execCommand("createLink",false,url);
+   input.value="";return;
+  }
+  if(target.closest("#policyRemoveFormat")){applyPolicyFormatting("removeFormat");return}
   const auditSave=target.closest("[data-audit-item-save]"),auditDownload=target.closest("[data-audit-download]");
   if(auditSave){void saveAuditItem(auditSave.dataset.auditItemSave,auditSave);return}
   if(auditDownload){void downloadAuditEvidence(auditDownload);return}
@@ -3000,7 +3176,9 @@ function bindEvents(){
   else if(target.closest("[data-manage-edit]"))openManagement("edit",target.closest("[data-manage-edit]").dataset.manageEdit);
  });
  $("pageContent").addEventListener("change",e=>{
-  if(e.target.matches("[data-audit-upload]")){void uploadAuditEvidence(e.target);return}
+  if(e.target.id==="policyHeading"){const editor=$("policyRichEditor");if(editor){editor.focus();document.execCommand("formatBlock",false,e.target.value)}return}
+ if(e.target.id==="policyTextColor"){const editor=$("policyRichEditor");if(editor){editor.focus();document.execCommand("foreColor",false,e.target.value)}return}
+ if(e.target.matches("[data-audit-upload]")){void uploadAuditEvidence(e.target);return}
  if(e.target.id==="selectionPool"){void selectionPreviewPool();return}
   if(e.target.name==="physical_type"&&e.target.closest("#physicalOrderForm")){const next=e.target.value==="DOT"?"dot":"nondot";if(next!==state.context){changeContext(next);openManagement("new");}return}
  if(e.target.id==="drugCompany"){refreshDrugDonors();return}
@@ -3020,7 +3198,7 @@ function bindEvents(){
  });
  $("recordFields").addEventListener("click",e=>{const b=e.target.closest("[data-modal-download]");if(b)void openDocumentFile(b.dataset.modalDownload)});
  $("recordForm").addEventListener("submit",saveRecord);
- $("pageContent").addEventListener("submit",e=>{if(e.target.id==="testingDocForm"){e.preventDefault();void submitTestingDocument(e.target);return}if(e.target.id==="drugOrderForm"){e.preventDefault();void submitDrugOrder(e.target);return}if(e.target.id==="physicalOrderForm"){e.preventDefault();void submitPhysicalOrder(e.target);return}if(e.target.id==="auditForm"){e.preventDefault();void saveAudit(e.target);return}if(e.target.id==="rtdCaseForm"){e.preventDefault();void saveRTDCase(e.target);return}if(e.target.id==="managementForm"){e.preventDefault();void submitManagement(e.target)}});
+ $("pageContent").addEventListener("submit",e=>{if(e.target.id==="testingDocForm"){e.preventDefault();void submitTestingDocument(e.target);return}if(e.target.id==="drugOrderForm"){e.preventDefault();void submitDrugOrder(e.target);return}if(e.target.id==="physicalOrderForm"){e.preventDefault();void submitPhysicalOrder(e.target);return}if(e.target.id==="auditForm"){e.preventDefault();void saveAudit(e.target);return}if(e.target.id==="rtdCaseForm"){e.preventDefault();void saveRTDCase(e.target);return}if(e.target.id==="policyForm"){e.preventDefault();void savePolicy(e.target);return}if(e.target.id==="managementForm"){e.preventDefault();void submitManagement(e.target)}});
  for(const id of ["modalClose","cancelModal","modalDismiss"])$(id).addEventListener("click",closeModal);
  document.addEventListener("keydown",e=>{if(e.key==="Escape"){if(!$("modal").hidden)closeModal();$("accountDropdown").hidden=true;$("accountTrigger").setAttribute("aria-expanded","false")}});
  const setFont=n=>{state.font=Math.max(13,Math.min(21,n));document.documentElement.style.fontSize=state.font+"px";localStorage.setItem("workforce_unified_font",String(state.font))};
