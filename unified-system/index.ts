@@ -84,6 +84,20 @@ Deno.serve(async request=>{
   const canWrite=["owner","admin","editor"].includes(role);
   const context=body.operating_context==="nondot"?"nondot":"dot";
   const companyKind=(kind:string)=>kind==="employers"||kind==="owner_operators";
+  if(action==="program_rules"){
+   const result=await db.from("regulatory_rules")
+    .select("dot_agency,rule_name,effective_date,end_date,drug_rate,alcohol_rate,version")
+    .eq("program_type","DOT").eq("status","active")
+    .lte("effective_date",new Date().toISOString().slice(0,10))
+    .order("effective_date",{ascending:false}).order("version",{ascending:false}).limit(60);
+   if(result.error)throw result.error;
+   const selected=new Map<string,unknown>();
+   for(const row of result.data||[]){
+    if(row.end_date&&row.end_date<new Date().toISOString().slice(0,10))continue;
+    if(!selected.has(row.dot_agency))selected.set(row.dot_agency,row);
+   }
+   return respond({ok:true,rules:[...selected.values()]});
+  }
   if(action==="list"){
    const kind=text(body.kind,64);
    if(kind!=="all"&&!ALLOWED.has(kind))return respond({error:"Unknown application module"},400);
