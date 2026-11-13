@@ -44,7 +44,7 @@ Deno.serve(async request=>{
   if(action==="list"){
    const [orders,testing]=await Promise.all([commercial().order("created_at",{ascending:false}).limit(250),requests().order("created_at",{ascending:false}).limit(250)]);
    if(orders.error||testing.error)throw orders.error||testing.error;
-   const rows=[...(orders.data||[]).map(shapeOrder),...(testing.data||[]).filter(r=>!r.data?._legacy_id).map(shapeRequest)].sort((a,b)=>String(b.date||"").localeCompare(String(a.date||"")));
+   const rows=[...(orders.data||[]).map(shapeOrder),...(testing.data||[]).map(shapeRequest)].sort((a,b)=>String(b.date||"").localeCompare(String(a.date||"")));
    return reply({ok:true,orders:rows.slice(0,350),stats:{orders:rows.length,paid:rows.filter(r=>r.type==="purchase"&&r.payment_status==="paid").length,spend:rows.filter(r=>r.type==="purchase"&&r.payment_status==="paid").reduce((n,r)=>n+Number(r.total||0),0),testing_requests:rows.filter(r=>r.type==="testing_request").length}});
   }
   if(!["detail","document"].includes(action)||!uuid(body.id))return reply({error:"Unknown order action"},400);
@@ -58,7 +58,7 @@ Deno.serve(async request=>{
   }else{
    const found=await requests().eq("id",body.id).maybeSingle();
    if(found.error)throw found.error;
-   if(!found.data||found.data.data?._legacy_id)return reply({error:"Testing request not found"},404);
+   if(!found.data)return reply({error:"Testing request not found"},404);
    record=shapeRequest(found.data);
   }
   if(action==="detail")return reply({ok:true,order:record});
