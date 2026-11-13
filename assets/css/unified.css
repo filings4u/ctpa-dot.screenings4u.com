@@ -1045,3 +1045,30 @@ body.modal-open{overflow:hidden}
 @media(max-width:600px){.audit-list-row{gap:9px;padding:14px;flex-wrap:wrap}.audit-list-name{flex-basis:calc(100% - 60px)}.audit-list-row .results-row-view{display:none}.audit-summary-grid{grid-template-columns:1fr 1fr}.audit-summary-grid>div,.audit-checklist-head,.audit-checklist-item{padding:15px}.audit-item-details{grid-template-columns:1fr}.audit-checklist-group>h3{padding:15px}.audit-editor .management-section-header{padding:15px}.audit-editor .manage-form-grid{padding:0 15px 20px}}
 
 .audit-item-description{font-size:.76rem;color:#647d93;line-height:1.55;margin:4px 0 0;max-width:850px}
+
+
+/* DOT Return-to-Duty case manager: one unified page, no legacy components */
+.rtd-workspace{display:grid;gap:17px;min-width:0}
+.rtd-case-row{display:flex;align-items:center;gap:15px;width:100%;border:0;border-top:1px solid #e5ecf3;background:#fff;padding:17px 22px;text-align:left;color:#01122f;cursor:pointer}
+.rtd-case-row:hover,.rtd-case-row:focus-visible{background:#f6f9fc}
+.rtd-case-person{display:grid;flex:1;min-width:0;gap:5px}
+.rtd-case-person strong{font-size:.87rem;font-weight:850;overflow-wrap:anywhere}
+.rtd-case-person small{font-size:.75rem;color:#66809a;overflow-wrap:anywhere}
+.rtd-case-progress{font-size:.76rem;font-weight:800;color:#305372;min-width:135px}
+.rtd-case-profile{display:grid;min-width:0;background:#fff;border:1px solid #dce6ee;border-radius:13px;overflow:hidden}
+.rtd-case-profile .management-section{border-bottom:1px solid #e6ecf2}
+.rtd-case-profile .management-section-header{padding:20px 25px}
+.rtd-case-profile .manage-form-grid{padding:0 25px 23px}
+.rtd-case-profile .rtd-notes{grid-column:1/-1}
+.rtd-case-profile textarea{min-height:110px;resize:vertical}
+.rtd-policy-note{padding:16px 25px;background:#fff9e7;border-bottom:1px solid #f5e8b9;font-size:.79rem;line-height:1.65;color:#594a1b}
+.rtd-privacy-note{color:#61768e;font-size:.77rem;line-height:1.55;margin:0;padding:0 25px 20px}
+.rtd-stage-track{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.rtd-stage-item{display:flex;align-items:center;gap:9px;border:1px solid #e1e9f2;background:#f8fafc;border-radius:9px;padding:13px;font-size:.79rem;color:#344e68;font-weight:730}
+.rtd-stage-item.current{border-color:#fdc102;background:#fff9e6;color:#01122f;font-weight:850}
+.rtd-stage-dot{width:9px;height:9px;background:#a9bdcc;border-radius:100%;flex:none}
+.rtd-stage-item.current .rtd-stage-dot{background:#fdc102}
+.rtd-case-profile .manage-form-error{color:#a32934;padding:0 25px}
+.rtd-case-profile #rtdSave:disabled{cursor:not-allowed;opacity:.55}
+@media(max-width:950px){.rtd-case-progress{display:none}.rtd-stage-track{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:620px){.rtd-case-row{padding:14px;flex-wrap:wrap}.rtd-case-row .results-row-view{display:none}.rtd-case-person{flex-basis:calc(100% - 58px)}.rtd-case-row .mgmt-status{margin-left:50px}.rtd-case-profile .management-section-header,.rtd-policy-note{padding:15px}.rtd-case-profile .manage-form-grid{padding:0 15px 18px}.rtd-stage-track{grid-template-columns:1fr}.rtd-privacy-note{padding:0 15px 15px}}
