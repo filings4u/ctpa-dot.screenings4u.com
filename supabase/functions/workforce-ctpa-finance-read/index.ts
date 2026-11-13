@@ -48,14 +48,14 @@ Deno.serve(async req=>{
  const base=()=>db.from(source).select("*").eq("tenant_id",tenant).eq("operating_context",context);
  if(action==="list_bills"||action==="list_settlements"){
   const isSettlement=action==="list_settlements";
-  const q=await db.from(isSettlement?"workforce_ctpa_settlements":"workforce_ctpa_workforce_bills").select(isSettlement?"id,settlement_number,period_start,period_end,issued_at,paid_at,status,gross,adjustments,net,payment_reference":"id,invoice_number,title,issued_at,due_at,recipient_name,total,amount_paid,status").eq("tenant_id",tenant).eq("operating_context",context).in("status",isSettlement?["pending","paid"]:["open","paid","void"]).order("issued_at",{ascending:false}).limit(500);
+  const q=await db.from(isSettlement?"workforce_ctpa_settlements":"workforce_ctpa_workforce_bills").select(isSettlement?"id,settlement_number,period_start,period_end,issued_at,paid_at,status,gross,adjustments,net,payment_reference":"id,invoice_number,title,issued_at,due_at,recipient_name,total,amount_paid,status").eq("tenant_id",tenant).eq("operating_context",context).in("status",isSettlement?["paid"]:["open","paid","void"]).order("issued_at",{ascending:false}).limit(500);
   if(q.error)throw q.error;
   return send({ok:true,rows:q.data||[]});
  }
  if(!["bill_detail","bill_pdf","settlement_detail","settlement_pdf"].includes(action)||!valid(body.id))return send({error:"Unknown billing operation"},400);
  const isSet=action.startsWith("settlement");
  const table=isSet?"workforce_ctpa_settlements":"workforce_ctpa_workforce_bills";
- const r=await db.from(table).select("*").eq("id",body.id).eq("tenant_id",tenant).eq("operating_context",context).in("status",isSet?["pending","paid"]:["open","paid","void"]).maybeSingle();
+ const r=await db.from(table).select("*").eq("id",body.id).eq("tenant_id",tenant).eq("operating_context",context).in("status",isSet?["paid"]:["open","paid","void"]).maybeSingle();
  if(r.error)throw r.error;if(!r.data)return send({error:"Record not found"},404);
  if(action.endsWith("detail"))return send({ok:true,record:r.data});
  const base64=isSet?await settlementPdf(r.data):await createPdf(r.data);
