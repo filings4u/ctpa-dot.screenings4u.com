@@ -272,6 +272,90 @@ Deno.serve(async request=>{
    if(q.error)throw q.error;
    return q.data||null;
   };
+
+  // Native DOT return-to-duty case management. This deliberately does not call legacy
+  // SAP/RTD functions or treat manually entered milestones as verified laboratory results.
+  if(action==="rtd_save"){
+   if(context!=="dot")return respond({error:"DOT return-to-duty cases are available in the DOT workspace"},403);
+   if(!canWrite)return respond({error:"You cannot edit return-to-duty cases"},403);
+   const input=payload(body.data);
+   if(!input||JSON.stringify(input).length>15000)return respond({error:"Invalid return-to-duty case"},400);
+   const companyId=text(input.company_id,50),personId=text(input.person_id,50);
+   if(!uuid(companyId)||!uuid(personId))return respond({error:"Choose an employer and employee"},400);
+   const [company,person]=await Promise.all([
+    collection.select("id,data").eq("id",companyId).eq("tenant_id",tenantId)
+     .in("kind",["employers","owner_operators"]).eq("operating_context","dot").is("archived_at",null).maybeSingle(),
+    collection.select("id,data").eq("id",personId).eq("tenant_id",tenantId)
+     .eq("kind","people").eq("operating_context","dot").is("archived_at",null).maybeSingle()
+   ]);
+   if(company.error)throw company.error;
+   if(person.error)throw person.error;
+   if(!company.data||!person.data||person.data.data?.company_id!==companyId)
+    return respond({error:"Employee must belong to the selected DOT company"},400);
+   const agency=text(input.agency,30);
+   if(!["FMCSA","FAA","FRA","FTA","PHMSA","USCG"].includes(agency))return respond({error:"Select a DOT agency"},400);
+   const violation=text(input.violation,40);
+   if(!["verified_positive_drug","positive_alcohol","refusal","other_dot_violation"].includes(violation))
+    return respond({error:"Select a valid violation category"},400);
+   const stage=text(input.status,40)||"removed_from_duty";
+   const stages=["removed_from_duty","sap_initial","education_treatment","sap_followup","rtd_test_pending","rtd_test_review","eligible_for_return","follow_up","completed"];
+   if(!stages.includes(stage))return respond({error:"Invalid RTD milestone"},400);
+   const d=(key:string)=>text(input[key],10);
+   for(const key of ["violation_date","sap_initial_date","sap_followup_date","rtd_test_date","return_date"]){
+    const value=d(key);
+    if(value&&(!/^\d{4}-\d{2}-\d{2}$/.test(value)||!Number.isFinite(Date.parse(value+"T12:00:00Z"))))
+     return respond({error:"Invalid date in "+key},400);
+   }
+   const initial=d("sap_initial_date"),followup=d("sap_followup_date"),testDate=d("rtd_test_date"),returnDate=d("return_date");
+   const testResult=text(input.rtd_test_result,30)||"not_verified";
+   if(!["not_verified","pending","verified_negative","alcohol_below_002","not_satisfactory","cancelled"].includes(testResult))
+    return respond({error:"Choose a valid return-to-duty test verification status"},400);
+   const initialDone=!!initial,educationDone=input.education_completed===true,followupDone=!!followup;
+   const testDone=!!testDate&&["verified_negative","alcohol_below_002"].includes(testResult);
+   if((stages.indexOf(stage)>=2&&!initialDone)||
+      (stages.indexOf(stage)>=3&&!educationDone)||
+      (stages.indexOf(stage)>=4&&!followupDone)||
+      (stages.indexOf(stage)>=6&&!testDone))
+    return respond({error:"Complete the SAP and verified RTD test milestones before advancing this case"},409);
+   if(agency!=="FMCSA"&&testResult==="alcohol_below_002"&&violation==="verified_positive_drug")
+    return respond({error:"A qualifying drug RTD test must be verified negative"},400);
+   const minimum=Number(input.first_year_tests_required||6),months=Number(input.plan_months||12),done=Number(input.follow_up_completed||0);
+   if(!Number.isSafeInteger(minimum)||minimum<6||minimum>120||
+      !Number.isSafeInteger(months)||months<12||months>60||
+      !Number.isSafeInteger(done)||done<0||done>120)
+    return respond({error:"Follow-up plan must require at least six tests over at least twelve months (maximum sixty months)"},400);
+   if(stage==="completed"&&(!returnDate||done<minimum))
+    return respond({error:"Return-to-duty and required follow-up testing must be documented before completion"},409);
+   if(stages.indexOf(stage)>=7&&!returnDate)return respond({error:"Enter the actual return-to-duty date before follow-up tracking"},409);
+   const existingId=body.id||null;
+   const existing=existingId?await collection.select("id,data").eq("id",existingId).eq("tenant_id",tenantId)
+    .eq("kind","return_to_duty").eq("operating_context","dot").is("archived_at",null).maybeSingle():null;
+   if(existing?.error)throw existing.error;
+   if(existingId&&!existing?.data)return respond({error:"RTD case not found"},404);
+   const current=existing?.data?.data||{};
+   const safe={
+    name:text(input.name,120)||text(current.name,120)||"RTD-"+crypto.randomUUID().slice(0,8).toUpperCase(),
+    company_id:companyId,employer:text(company.data.data?.legal_name,180),
+    person_id:personId,employee:[text(person.data.data?.first_name,90),text(person.data.data?.last_name,90)].filter(Boolean).join(" "),
+    agency,violation,violation_date:d("violation_date"),status:stage,
+    sap_name:text(input.sap_name,160),sap_initial_date:initial,
+    education_completed:educationDone,sap_followup_date:followup,
+    rtd_test_date:testDate,rtd_test_result:testResult,
+    return_date:returnDate,first_year_tests_required:minimum,
+    plan_months:months,follow_up_completed:done,
+    notes:text(input.notes,4000),case_source:"workforce_unified_native_rtd"
+   };
+   // Do not keep scheduled follow-up test dates or an employee-visible SAP testing schedule here.
+   const updated=existing?.data?
+    await collection.update({data:{...current,...safe},updated_by:user.id,updated_at:new Date().toISOString()})
+     .eq("id",existingId).eq("tenant_id",tenantId).eq("kind","return_to_duty")
+     .eq("operating_context","dot").is("archived_at",null).select("id").single():
+    await collection.insert({tenant_id:tenantId,kind:"return_to_duty",operating_context:"dot",
+     data:safe,created_by:user.id,updated_by:user.id}).select("id").single();
+   if(updated.error)throw updated.error;
+   return respond({ok:true,id:updated.data.id,status:stage});
+  }
+
   if(action==="audit_catalog"){
    return respond({ok:true,items:auditChecklist});
   }
@@ -858,6 +942,7 @@ Deno.serve(async request=>{
    if(kind==="testing_orders")return respond({error:"Use the drug testing order submission workflow"},403);
    if(kind==="results")return respond({error:"Results are issued and finalized by Testing Operations and cannot be edited here"},403);
    if(kind==="audits")return respond({error:"Use the native New Entrant Audit workflow"},403);
+   if(kind==="return_to_duty")return respond({error:"Use the secure native RTD workflow"},403);
    const data=payload(body.data);
    if(!data||Object.keys(data).length>40||JSON.stringify(data).length>60000)
     return respond({error:"Invalid or oversized record"},400);
