@@ -64,7 +64,7 @@ const CONFIG={
  demo_sessions:["Demo Sessions","Manage demonstration session records.","name|Demo name|text|required;scheduled_at|Session date|date;attendee|Attendee|text;status|Status|select:scheduled,completed,cancelled"],
  orders:["Order History","View actual Workforce Testing purchases, receipts, and order summaries."],
  price_list:["Price List","View your assigned Workforce Testing service rates."],
- services:["Services","Manage enabled service records.","name|Service name|text|required;description|Description|textarea;status|Status|select:active,inactive"],
+ services:["Services","View the compensation Workforce pays your C/TPA for performed services."],
  billing:["Billing","Manage organization billing records.","name|Billing reference|text|required;amount|Amount|number;due_date|Due date|date;status|Status|select:open,paid,void"],
  invoices:["Invoices","Manage employer invoice records.","name|Invoice number|text|required;client|Client|text;amount|Amount|number;due_date|Due date|date;status|Status|select:draft,sent,paid,void"],
  subscriptions:["Subscriptions","View and manage subscription records.","name|Subscription name|text|required;plan|Plan|text;renewal_date|Renewal date|date;status|Status|select:active,cancelled"],
@@ -179,7 +179,7 @@ function updateHeading(){
  const title=label(state.page);
  $("topTitle").textContent=title;$("pageTitle").textContent=title;
  updateBreadcrumbs();
- if(["reports","lab_supplies","lab_tracking","orders","price_list"].includes(state.page)){$("pageActions").innerHTML=state.page==="lab_supplies"?'<button class="btn secondary" type="button" id="refreshPage">Refresh catalog</button>':state.page==="lab_tracking"?'<button class="btn secondary" type="button" id="refreshPage">Refresh tracking</button>':["orders","price_list"].includes(state.page)?'<button class="btn secondary" type="button" id="refreshPage">Refresh</button><button class="btn secondary" type="button" id="exportPage">Export CSV</button>':"";return}
+ if(["reports","lab_supplies","lab_tracking","orders","price_list","services"].includes(state.page)){$("pageActions").innerHTML=state.page==="lab_supplies"?'<button class="btn secondary" type="button" id="refreshPage">Refresh catalog</button>':state.page==="lab_tracking"?'<button class="btn secondary" type="button" id="refreshPage">Refresh tracking</button>':["orders","price_list","services"].includes(state.page)?'<button class="btn secondary" type="button" id="refreshPage">Refresh</button><button class="btn secondary" type="button" id="exportPage">Export CSV</button>':"";return}
  $("pageActions").innerHTML=state.page==="results"?'<button class="btn secondary" type="button" id="refreshPage">Refresh</button>':state.page==="account"?"":state.page==="dashboard"||state.page==="lab_analytics"
   ?'<button class="btn secondary" type="button" id="refreshPage">Refresh</button>'
   :'<button class="btn secondary" type="button" id="refreshPage">Refresh</button><button class="btn secondary" type="button" id="exportPage">Export CSV</button><button class="btn primary" type="button" id="newRecord">'+(state.page==="selections"?"Run Selection":state.page==="testing_orders"?"Order a Test":state.page==="testing_documents"?"Upload Document":state.page==="occupational_health"?"Order Physical":state.page==="compliance"?"Add Compliance Record":state.page==="audits"?"Start New Entrant Audit":state.page==="return_to_duty"?"Create RTD Case":state.page==="policies"?"Create Policy":state.page==="documents"?"Upload Private Document":state.page==="lab_accounts"?"Request Lab Account":"Add "+esc(title))+'</button>';
@@ -202,6 +202,7 @@ function switchPage(page,push=true){
  if(page==="lab_tracking"){void openTracking();return}
  if(page==="orders"){void openHistoryPortal();return}
  if(page==="price_list"){void openRatesPortal();return}
+ if(page==="services"){void openProviderServices();return}
  const stored=state.cache.get(cacheKey());
  if(stored){showRecords(stored.records);if(Date.now()-stored.time>30000)void loadRecords(seq,true)}
  else {$("pageContent").innerHTML='<section class="panel"><div class="loading-line"><span class="spinner"></span>Loading authorized records…</div></section>';void loadRecords(seq,false)}
@@ -213,6 +214,7 @@ function openHistoryPortal(){
  return window.WorkforceOrderHistory.open({tenantId,context,supabase:state.supabase,active:()=>state.page==="orders"&&state.tenantId===tenantId&&state.context===context});
 }
 function openRatesPortal(){const tenantId=state.tenantId,context=state.context;if(!window.WorkforceRateSheet){$("pageContent").textContent="Rate sheet unavailable. Refresh the page.";return}return window.WorkforceRateSheet.open({tenantId,context,supabase:state.supabase,active:()=>state.page==="price_list"&&state.tenantId===tenantId&&state.context===context})}
+function openProviderServices(){const tenantId=state.tenantId,context=state.context;if(!window.WorkforceProviderServices){$("pageContent").textContent="Provider services unavailable. Refresh the page.";return}return window.WorkforceProviderServices.open({tenantId,context,supabase:state.supabase,active:()=>state.page==="services"&&state.tenantId===tenantId&&state.context===context})}
 function changeContext(next){
  if(!["dot","nondot"].includes(next)||next===state.context)return;
  state.context=next;sessionStorage.setItem("workforce_unified_context",next);
@@ -3635,7 +3637,7 @@ function startApp(){
  if(desired==="lab_orders")history.replaceState(null,"","/unified.html?page=testing_orders"+(search.get("manage")==="new"?"&manage=new":""));
  if(desired==="lab_results"||desired==="lab_documents")history.replaceState(null,"","/unified.html?page="+(desired==="lab_results"?"results":"testing_documents"));
  switchPage(desired==="lab_results"?"results":desired==="lab_documents"?"testing_documents":desired==="lab_orders"?"testing_orders":desired==="enrollments"?"programs":desired==="clearinghouse"?"compliance":CONFIG[desired]?desired:"dashboard",false);
- const action=["lab_supplies","lab_tracking","orders","price_list"].includes(desired)?null:["lab_orders","lab_results","lab_documents"].includes(desired)?(desired==="lab_orders"&&search.get("manage")==="new"?"new":null):search.get("manage"),id=["lab_orders","lab_results","lab_documents"].includes(desired)?null:search.get("record");
+ const action=["lab_supplies","lab_tracking","orders","price_list","services"].includes(desired)?null:["lab_orders","lab_results","lab_documents"].includes(desired)?(desired==="lab_orders"&&search.get("manage")==="new"?"new":null):search.get("manage"),id=["lab_orders","lab_results","lab_documents"].includes(desired)?null:search.get("record");
  if(MANAGEMENT_ACTIONS.has(action)){
   const apply=()=>{if(state.page===(desired==="lab_orders"?"testing_orders":desired))openManagement(action,id,false)};
   const cached=state.cache.get(cacheKey());
@@ -3697,8 +3699,8 @@ function bindEvents(){
  $("pageActions").addEventListener("click",e=>{
   if(e.target.closest("[data-back-list]")){leaveManagement();return}
   if(e.target.closest("#newRecord")){openManagement("new");return}
-  if(e.target.closest("#refreshPage")){void (state.page==="lab_analytics"?renderLabAnalytics(true):state.page==="lab_supplies"?openSupplyStore():state.page==="lab_tracking"?openTracking():state.page==="orders"?openHistoryPortal():state.page==="price_list"?openRatesPortal():loadRecords(state.sequence,true,true));return}
-  if(e.target.closest("#exportPage")){if(state.page==="orders"){window.WorkforceOrderHistory?.exportCsv();return}if(state.page==="price_list"){window.WorkforceRateSheet?.exportCsv();return}exportRecords();return}
+  if(e.target.closest("#refreshPage")){void (state.page==="lab_analytics"?renderLabAnalytics(true):state.page==="lab_supplies"?openSupplyStore():state.page==="lab_tracking"?openTracking():state.page==="orders"?openHistoryPortal():state.page==="price_list"?openRatesPortal():state.page==="services"?openProviderServices():loadRecords(state.sequence,true,true));return}
+  if(e.target.closest("#exportPage")){if(state.page==="orders"){window.WorkforceOrderHistory?.exportCsv();return}if(state.page==="price_list"){window.WorkforceRateSheet?.exportCsv();return}if(state.page==="services"){window.WorkforceProviderServices?.exportCsv();return}exportRecords();return}
  });
  $("notice").addEventListener("click",e=>{if(e.target.closest(".notice-close"))message("")});
  $("pageContent").addEventListener("click",e=>{
