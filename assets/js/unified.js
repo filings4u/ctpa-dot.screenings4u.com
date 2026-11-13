@@ -36,7 +36,7 @@ const CONFIG={
  programs:["Programs","Manage regulatory testing programs, employers and enrollment.","name|Program name|text|required;program_type|Program type|select:DOT,NON-DOT;dot_agency|DOT agency|select:FMCSA,FAA,FRA,FTA,PHMSA,USCG;regulatory_authority|Regulatory authority|text;testing_panel|Testing panel|text;testing_method|Testing method|select:urine,oral fluid,blood,breath,hair;drug_random_rate|Annual random drug rate (%)|number;alcohol_random_rate|Annual random alcohol rate (%)|number;testing_frequency|Selection frequency|select:monthly,quarterly,semiannual,annual;effective_date|Effective date|date;status|Status|select:active,draft,inactive;regulatory_category|Regulatory category|text;notes|Program notes|textarea"],
  pools:["Pools","Manage random testing pools, eligibility and program assignments.","name|Pool name|text|required;pool_type|Pool type|select:consortium,employer;dot_agency|DOT agency|select:FMCSA,FAA,FRA,FTA,PHMSA,USCG;drug_testing_rate|Annual drug selection rate (%)|number;alcohol_testing_rate|Annual alcohol selection rate (%)|number;selection_schedule|Selection schedule|select:monthly,quarterly,semiannual,annual;effective_date|Effective date|date;status|Status|select:active,draft,inactive;notes|Internal notes|textarea"],
  selections:["Selections","Secure random selection records and results.","name|Selection reference|text|required;pool_name|Pool name|text;selection_date|Selection date|date;status|Status|select:locked,completed"],
- testing_orders:["Testing Orders","Create and manage testing requests.","name|Order reference|text|required;employee_name|Employee / donor|text;employer|Employer|text;test_type|Test type|text;reason|Testing reason|text;status|Status|select:draft,ordered,scheduled,completed,cancelled"],
+ testing_orders:["Testing Orders","Submit testing requests to Workforce Testing Operations.","name|Reference|text|required;employee|Donor|text;employer|Company|text;test_type|Test type|text;status|Status|select:awaiting_schedule,scheduled,completed,cancelled"],
  testing_documents:["Testing Documents","Manage testing-related documents.","title|Document title|text|required;document_type|Document type|text;order_reference|Order reference|text;document_file|Upload document|file;status|Status|select:pending,complete"],
  results:["Results","Track confidential test result metadata.","name|Result reference|text|required;order_reference|Order reference|text;status|Status|select:pending,received,reviewed;reported_at|Date reported|date;notes|Notes|textarea"],
  occupational_health:["Occupational Health","Manage occupational health service requests.","name|Service reference|text|required;employee_name|Employee name|text;service|Service|text;appointment_date|Appointment date|date;status|Status|select:requested,scheduled,completed"],
@@ -354,6 +354,8 @@ function managementUrl(action,id=null,section=state.page){
 function openManagement(action,id=null,push=true){
  if(!MANAGEMENT_ACTIONS.has(action)||!CONFIG[state.page]||["dashboard","account"].includes(state.page))return;
  if(state.page==="selections"&&action==="edit")action="view";
+ if(state.page==="testing_orders"&&action==="edit")action="view";
+ if(state.page==="testing_orders"&&action==="new")drugOrderId=crypto.randomUUID();
  const records=state.cache.get(cacheKey())?.records||[];
  const record=id?records.find(r=>r.id===id):null;
  if(action!=="new"&&!record){message("Record not available. Refresh the management page.",true);return}
@@ -1383,6 +1385,94 @@ async function runSelection(){
   message(result.reused?"Existing event opened.":"Selection completed and locked.");
  }catch(error){$("formMessage").textContent=error.message;button.disabled=false}
 }
+
+let drugOrderId=null;
+async function loadDrugOrderOptions(){
+ const m=state.management,seq=state.sequence;
+ const company=$("drugCompany"),person=$("drugPerson");
+ if(!company||!person)return;
+ try{
+  const kinds=state.context==="dot"?["employers","owner_operators","people"]:["employers","people"];
+  const refs=await poolReferenceRecords(kinds);
+  if(seq!==state.sequence||state.management!==m)return;
+  state.drugCompanies=[...(refs.employers||[]),...(refs.owner_operators||[])].filter(r=>r.operating_context===state.context&&r.data?.status==="active");
+  state.drugPeople=refs.people||[];
+  company.innerHTML='<option value="">Select company</option>'+state.drugCompanies.map(r=>'<option value="'+esc(r.id)+'">'+esc(r.data?.legal_name||"Company")+'</option>').join("");
+  company.disabled=false;
+  if(state.companyDraft?.page==="testing_orders"&&state.drugCompanies.some(r=>r.id===state.companyDraft.companyId))
+   company.value=state.companyDraft.companyId;
+  refreshDrugDonors();
+  $("drugOrderHint").textContent=state.drugCompanies.length?"Select a company and an active donor to place an order.":"No active companies are available in this workspace.";
+ }catch(e){$("drugOrderHint").textContent=e.message}
+}
+function refreshDrugDonors(){
+ const companyId=$("drugCompany")?.value,person=$("drugPerson");if(!person)return;
+ const choices=(state.drugPeople||[]).filter(r=>r.data?.company_id===companyId&&r.data?.status==="active");
+ person.innerHTML='<option value="">Select a donor</option>'+choices.map(r=>'<option value="'+esc(r.id)+'">'+
+  esc([r.data?.first_name,r.data?.last_name].filter(Boolean).join(" ")||"Person")+'</option>').join("");
+ person.disabled=!companyId;
+ $("drugDonorHint").textContent=companyId?(choices.length?choices.length+" available donor(s)":"No active people are linked to this company. Add the donor on the People page."):"Select a company first.";
+}
+function renderDrugOrder(record){
+ const d=record?.data||{};
+ const header='<div class="program-head"><span class="program-head-icon">'+navIcon("testing_orders")+'</span><div><strong>'+
+  esc(record?d.name||"Testing order":"Order a drug or alcohol test")+'</strong><small>'+
+  esc(record?"Processing handled by Workforce Testing Operations":"Company and donor-linked testing request")+'</small></div>'+
+  (record?recordStatus(record):"")+'</div>';
+ if(record){
+  $("pageContent").innerHTML='<div class="drug-order-workspace">'+header+
+   managementOverviewGroup("Testing order",[
+    ["Order number",d.name],["Company",d.employer],["Donor",d.employee],["Test type",d.test_type],
+    ["Testing reason",d.reason],["Specimen",d.specimen_type],["Panel",d.panel_name],
+    ["DOT agency",d.dot_agency],["Priority",d.priority],["Requested date",d.requested_date],
+    ["Processing status",d.status],["Instructions",d.notes]])+
+   '<div class="drug-order-handoff"><strong>Testing Operations</strong><span>Order submitted to the Testing Portal for scheduling and processing.</span></div>'+
+   '<footer class="program-actions"><button type="button" class="btn secondary" data-back-list>Back to Testing Orders</button></footer></div>';
+  return;
+ }
+ const choose=(id,values,placeholder)=>'<select id="'+id+'" required><option value="">'+placeholder+'</option>'+
+  values.map(([v,label])=>'<option value="'+esc(v)+'">'+esc(label)+'</option>').join("")+'</select>';
+ const input=(id,label,control)=>'<label class="drug-order-field"><span>'+label+'</span>'+control+'</label>';
+ const section=(label,items)=>'<section class="drug-order-section"><h2>'+label+'</h2><div class="drug-order-grid">'+items+'</div></section>';
+ const reasons=[["pre_employment","Pre-employment"],["random","Random"],["reasonable_suspicion","Reasonable suspicion"],
+ ["post_accident","Post-accident"],["return_to_duty","Return-to-duty"],["follow_up","Follow-up"],["other","Other"]];
+ const panels=state.context==="dot"?[["DOT 5 Panel","DOT 5 Panel"],["DOT Breath Alcohol","DOT Breath Alcohol"],["DOT Drug and Alcohol","DOT Drug and Alcohol"]]:
+ [["5 Panel","5 Panel"],["10 Panel","10 Panel"],["12 Panel","12 Panel"],["14 Panel","14 Panel"],["Breath Alcohol","Breath Alcohol"]];
+ const agency=state.context==="dot"?section("DOT requirements",input("agency","DOT agency *",
+   choose("drugAgency",["FMCSA","FAA","FRA","FTA","PHMSA","USCG"].map(x=>[x,x]),"Select agency"))):"";
+ $("pageContent").innerHTML='<div class="drug-order-workspace">'+header+'<form id="drugOrderForm">'+
+  section("Company and donor",input("company","Company *",'<select id="drugCompany" required disabled><option>Loading companies…</option></select>')+
+   input("person","Employee / donor *",'<select id="drugPerson" required disabled><option>Select company first</option></select>')+
+   '<p id="drugDonorHint" class="drug-order-hint">Select company first.</p>')+
+  section("Testing service",input("type","Test type *",choose("drugType",[["drug","Drug"],["alcohol","Alcohol"],["drug_and_alcohol","Drug and alcohol"]],"Select test type"))+
+   input("reason","Reason for testing *",choose("drugReason",reasons,"Select reason"))+
+   input("panel","Panel *",choose("drugPanel",panels,"Select panel"))+
+   input("specimen","Collection method *",choose("drugSpecimen",[["urine","Urine"],["oral_fluid","Oral fluid"],["breath","Breath alcohol"],["saliva","Saliva"]],"Select method"))+
+   input("priority","Priority *",choose("drugPriority",[["normal","Standard"],["urgent","Urgent"]],"Select priority"))+
+   input("date","Requested collection date",'<input id="drugDate" type="date">'))+
+  agency+section("Order instructions",'<label class="drug-order-field full"><span>Instructions for testing staff</span><textarea id="drugNotes" rows="4" maxlength="2000"></textarea></label>')+
+  '<div class="drug-order-handoff"><strong>Processing handoff</strong><span>Submit to the Testing Portal as Awaiting Scheduling. This action does not collect payment or issue a donor pass.</span></div>'+
+  '<p id="drugError" class="manage-form-error" role="alert"></p>'+
+  '<footer class="program-actions"><button class="btn secondary" type="button" data-back-list>Cancel</button>'+
+   '<button class="btn primary" type="submit" id="drugSubmit">Submit testing order</button></footer></form>'+
+  '<p class="drug-order-hint" id="drugOrderHint">Loading company and donor records…</p></div>';
+ drugOrderId=drugOrderId||crypto.randomUUID();void loadDrugOrderOptions();
+}
+async function submitDrugOrder(form){
+ if(!form.reportValidity())return;
+ const button=$("drugSubmit");button.disabled=true;$("drugError").textContent="";
+ const payload={tenant_id:state.tenantId,operating_context:state.context,
+  request_id:drugOrderId||crypto.randomUUID(),company_id:$("drugCompany").value,person_id:$("drugPerson").value,
+  test_type:$("drugType").value,reason:$("drugReason").value,panel_name:$("drugPanel").value,
+  specimen_type:$("drugSpecimen").value,dot_agency:$("drugAgency")?.value||"",
+  priority:$("drugPriority").value,requested_date:$("drugDate").value,notes:$("drugNotes").value};
+ try{
+  const res=await api("testing_order_submit",payload);drugOrderId=null;state.cache.delete(cacheKey());
+  await loadRecords(state.sequence,true);
+  openManagement("view",res.id);
+  message("Testing order "+res.case_number+" submitted for processing.");
+ }catch(e){$("drugError").textContent=e.message;button.disabled=false}
+}
 function renderManagementPage(){
  const m=state.management;
  if(!m||m.section!==state.page)return;
@@ -1416,6 +1506,7 @@ function renderManagementPage(){
   return;
  }
  if(state.page==="selections"){renderSelections(record);return;}
+ if(state.page==="testing_orders"){renderDrugOrder(record);return;}
  if(m.action==="view"){
   const d=record.data||{};
   const sections=isEmployer?[
@@ -1983,6 +2074,7 @@ function bindEvents(){
  });
  $("pageContent").addEventListener("change",e=>{
   if(e.target.id==="selectionPool"){void selectionPreviewPool();return}
+  if(e.target.id==="drugCompany"){refreshDrugDonors();return}
   if(e.target.id==="statusFilter"){
    state.statusFilter=e.target.value;state.pageIndex=0;
    showRecords(state.cache.get(cacheKey())?.records||[]);
@@ -1997,7 +2089,7 @@ function bindEvents(){
  });
  $("recordFields").addEventListener("click",e=>{const b=e.target.closest("[data-modal-download]");if(b)void openDocumentFile(b.dataset.modalDownload)});
  $("recordForm").addEventListener("submit",saveRecord);
- $("pageContent").addEventListener("submit",e=>{if(e.target.id==="managementForm"){e.preventDefault();void submitManagement(e.target)}});
+ $("pageContent").addEventListener("submit",e=>{if(e.target.id==="drugOrderForm"){e.preventDefault();void submitDrugOrder(e.target);return}if(e.target.id==="managementForm"){e.preventDefault();void submitManagement(e.target)}});
  for(const id of ["modalClose","cancelModal","modalDismiss"])$(id).addEventListener("click",closeModal);
  document.addEventListener("keydown",e=>{if(e.key==="Escape"){if(!$("modal").hidden)closeModal();$("accountDropdown").hidden=true;$("accountTrigger").setAttribute("aria-expanded","false")}});
  const setFont=n=>{state.font=Math.max(13,Math.min(21,n));document.documentElement.style.fontSize=state.font+"px";localStorage.setItem("workforce_unified_font",String(state.font))};
