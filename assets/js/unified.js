@@ -154,14 +154,26 @@ function renderNav(){
   btn.setAttribute("aria-pressed",String(active));
  });
  $("contextPill").textContent=state.context==="dot"?"DOT":"NON-DOT";
- $("contextEyebrow").textContent=state.context==="dot"?"DOT OPERATIONS":"NON-DOT OPERATIONS";
+}
+function updateBreadcrumbs(action=null){
+ const name=label(state.page),group=navGroupForPage(state.page);
+ const parts=[{name:"Dashboard",page:state.page==="dashboard"?null:"dashboard"}];
+ if(state.page!=="dashboard"){
+  if(group)parts.push({name:group,page:null});
+  parts.push({name,page:action?state.page:null});
+ }
+ if(action)parts.push({name:(action==="new"?"Add ":action==="edit"?"Edit ":"View ")+name,page:null});
+ $("pageBreadcrumbs").innerHTML=parts.map((item,i)=>
+  (i?'<span class="crumb-separator" aria-hidden="true">/</span>':"")+
+  (item.page?'<button type="button" data-page="'+esc(item.page)+'">'+esc(item.name)+'</button>':
+   '<span'+(i===parts.length-1?' aria-current="page"':'')+'>'+esc(item.name)+'</span>')).join("");
 }
 function updateHeading(){
  const title=label(state.page);
  $("topTitle").textContent=title;$("pageTitle").textContent=title;
- $("pageSummary").textContent=CONFIG[state.page]?.[1]||"Manage records in the unified system.";
+ updateBreadcrumbs();
  $("pageActions").innerHTML=state.page==="account"?"":state.page==="dashboard"
-  ?'<button class="btn secondary" type="button" id="refreshPage">Refresh overview</button>'
+  ?'<button class="btn secondary" type="button" id="refreshPage">Refresh</button>'
   :'<button class="btn secondary" type="button" id="refreshPage">Refresh</button><button class="btn secondary" type="button" id="exportPage">Export CSV</button><button class="btn primary" type="button" id="newRecord">Add '+esc(title)+'</button>';
 }
 function switchPage(page,push=true){
@@ -204,8 +216,7 @@ async function renderAccount(){
  const w=activeWorkspace();
  const email=user?.email||"";
  const person=[user?.user_metadata?.first_name,user?.user_metadata?.last_name].filter(Boolean).join(" ")||email;
- $("pageContent").innerHTML='<section class="panel"><h2>Account Information</h2>'+
-  '<p>This is your authenticated Workforce account. Your C/TPA operates as one company; employer clients are managed under Employers.</p>'+
+ $("pageContent").innerHTML='<section class="panel">'+
   '<div class="account-details"><div><small>Account</small><strong>'+esc(person)+'</strong></div>'+
   '<div><small>Email</small><strong>'+esc(email)+'</strong></div>'+
   '<div><small>C/TPA Company</small><strong>'+esc(w?.name||"Workforce C/TPA")+'</strong></div>'+
@@ -218,15 +229,15 @@ function renderDashboard(records){
  const byType=new Map();for(const r of records)byType.set(r.kind,(byType.get(r.kind)||0)+1);
  const metrics=[["employers","Employers"],["people","People"],["programs","Programs"],["testing_orders","Testing Orders"]];
  $("pageContent").innerHTML='<div class="metric-grid">'+metrics.map(([kind,txt])=>
-  '<div class="metric"><small>'+txt+'</small><strong>'+String(byType.get(kind)||0)+'</strong><span>'+esc(state.context==="dot"?"DOT":"NON-DOT")+' records</span></div>').join("")+
-  '</div><section class="panel"><div class="section-heading"><h2>Current organization activity</h2><span class="pill">'+esc(activeWorkspace()?.name||"Organization")+'</span></div>'+
-  (records.length?'<p>'+records.length+' active records across '+byType.size+' modules in this operating context.</p>'+
+  '<div class="metric"><small>'+txt+'</small><strong>'+String(byType.get(kind)||0)+'</strong></div>').join("")+
+  '</div><section class="panel"><div class="section-heading"><h2>Activity</h2><span class="pill">'+esc(activeWorkspace()?.name||"Organization")+'</span></div>'+
+  (records.length?''+
   '<div class="table-scroll"><table class="data-table"><thead><tr><th>Module</th><th>Records</th><th></th></tr></thead><tbody>'+
   [...byType].sort((a,b)=>b[1]-a[1]).map(([kind,total])=>'<tr><td class="record-name">'+esc(label(kind))+'</td><td>'+total+'</td><td><button class="btn secondary" type="button" data-goto="'+esc(kind)+'">View</button></td></tr>').join("")+'</tbody></table></div>'
-  :'<div class="empty"><h2>No records in this operating context</h2><p>This new system starts empty. Existing portal data has not been migrated.</p><button type="button" class="btn primary" data-goto="employers">Manage Employers</button></div>')+'</section>'+
- '<section class="panel"><h2>Management workspaces</h2><div class="management-shortcuts">'+
+  :'<div class="empty"><p>No records yet.</p><button type="button" class="btn primary" data-goto="employers">Manage Employers</button></div>')+'</section>'+
+ '<section class="panel"><div class="management-shortcuts">'+
  [["employers","Employers"],["people","People"],["programs","Programs"],["testing_orders","Testing Orders"],["documents","Documents"],["invoices","Invoices"],["support","Support"]].map(([key,name])=>
- '<button type="button" class="management-shortcut" data-goto="'+key+'"><strong>'+name+'</strong><span>Open management page</span></button>').join("")+'</div></section>';
+ '<button type="button" class="management-shortcut" data-goto="'+key+'"><strong>'+name+'</strong></button>').join("")+'</div></section>';
 }
 
 const MANAGEMENT_ACTIONS=new Set(["new","view","edit"]);
@@ -270,13 +281,13 @@ function renderManagementPage(){
  }
  const title=m.action==="new"?"Add "+label(state.page):m.action==="edit"?"Edit "+label(state.page):"View "+label(state.page);
  $("pageTitle").textContent=title;$("topTitle").textContent=title;
- $("pageSummary").textContent=m.action==="view"?"Review the full record and its account information.":"Complete and manage the record for your C/TPA company.";
- $("pageActions").innerHTML='<button class="btn secondary" type="button" data-back-list>Back to '+esc(label(state.page))+'</button>';
- const overview='<div class="manage-breadcrumb"><button type="button" data-back-list>'+esc(label(state.page))+'</button><span>/</span><strong>'+esc(title)+'</strong></div>';
+ updateBreadcrumbs(m.action);
+ $("pageActions").innerHTML='<button class="btn secondary" type="button" data-back-list>Back</button>';
+ const overview="";
  const detail=record?'<div class="record-management-meta"><span>Record ID: '+esc(record.id)+'</span><span>Context: '+esc(record.operating_context.toUpperCase())+'</span><span>Updated: '+esc(new Date(record.updated_at).toLocaleString())+'</span></div>':'';
  if(m.action==="view"){
   const rows=Object.entries(record?.data||{});
-  $("pageContent").innerHTML=overview+'<section class="panel manage-panel"><div class="manage-section-head"><h2>'+esc(recordTitle(record))+'</h2><span class="pill">'+esc(record.operating_context.toUpperCase())+'</span></div>'+
+  $("pageContent").innerHTML=overview+'<section class="panel manage-panel">'+
    '<dl class="manage-details">'+rows.map(([key,value])=>'<div><dt>'+esc(fields(state.page).find(f=>f.name===key)?.label||key.replaceAll("_"," "))+'</dt><dd>'+esc(value??"—")+'</dd></div>').join("")+'</dl>'+detail+
    '<div class="manage-actions"><button type="button" class="btn secondary" data-back-list>Back to List</button>'+
    (["owner","admin","editor"].includes(activeWorkspace()?.role||"")?'<button type="button" class="btn primary" data-manage-edit="'+esc(record.id)+'">Edit Record</button>':'')+'</div></section>';
@@ -285,7 +296,7 @@ function renderManagementPage(){
  const inputs=fields(state.page).map(f=>managementField(f,record?.data?.[f.name]??"")).join("");
  const shared=!record&&["owner","admin"].includes(activeWorkspace()?.role||"");
  const context=record?.operating_context||state.context;
- $("pageContent").innerHTML=overview+'<section class="panel manage-panel"><div class="manage-section-head"><div><h2>'+esc(title)+'</h2><p>Manage company records in one portal.</p></div><span class="pill">'+esc(state.context.toUpperCase())+'</span></div>'+
+ $("pageContent").innerHTML=overview+'<section class="panel manage-panel">'+
   '<form id="managementForm"><div class="manage-form-grid">'+inputs+'<label class="manage-field manage-context"><span>Record context</span><select name="record_context"'+(record?' disabled':'')+'>'+
   '<option value="'+esc(context)+'">'+esc(context.toUpperCase())+'</option>'+(shared?'<option value="shared">Shared: DOT and NON-DOT</option>':'')+'</select></label></div>'+
   detail+'<p class="manage-form-error" id="managementError" role="alert"></p><div class="manage-actions">'+
@@ -322,9 +333,7 @@ function showRecords(records){
  const canWrite=["owner","admin","editor"].includes(activeWorkspace()?.role||"");
  $("newRecord")?.toggleAttribute("disabled",!canWrite);
  const columns=fields(state.page).slice(0,3);
- $("pageContent").innerHTML='<section class="panel"><div class="context-note">Operating context: <strong>'+
-  esc(state.context==="dot"?"DOT":"NON-DOT")+'</strong>. Shared records appear in both views. All changes are stored within this organization only.</div>'+
-  '<div class="toolbar"><input id="recordSearch" type="search" aria-label="Search records" placeholder="Search records" value="'+esc(state.search)+'"><span class="search-meta">'+count+' records</span></div>'+
+ $("pageContent").innerHTML='<section class="panel"><div class="toolbar"><input id="recordSearch" type="search" aria-label="Search records" placeholder="Search records" value="'+esc(state.search)+'"><span class="search-meta">'+count+' records</span></div>'+
   (visible.length?'<div class="table-scroll"><table class="data-table"><thead><tr><th>Record</th>'+
    columns.map(c=>'<th>'+esc(c.label)+'</th>').join("")+'<th>Updated</th><th>Actions</th></tr></thead><tbody>'+
    visible.map(r=>'<tr><td class="record-name">'+esc(recordTitle(r))+'<br><small>'+esc(r.operating_context==="shared"?"Shared":r.operating_context==="dot"?"DOT":"NON-DOT")+'</small></td>'+
@@ -332,9 +341,7 @@ function showRecords(records){
     '<td>'+esc(new Date(r.updated_at).toLocaleDateString())+'</td><td><div class="row-actions">'+
     '<button type="button" data-view="'+esc(r.id)+'">View</button>'+(canWrite?'<button type="button" data-edit="'+esc(r.id)+'">Edit</button><button type="button" data-archive="'+esc(r.id)+'">Archive</button>':"")+
     '</div></td></tr>').join("")+'</tbody></table></div>'
-  :'<div class="empty"><h2>'+esc(query?"No matching records":"No "+label(state.page).toLowerCase()+" records")+'</h2><p>'+
-    (query?"Try a different search.":"There are no records in this module for the selected operating context.")+
-    '</p>'+(canWrite&&!query?'<button class="btn primary" type="button" data-create="1">Add record</button>':"")+'</div>')+'</section>';
+  :'<div class="empty"><p>'+esc(query?"No matching records.":"No records yet.")+'</p>'+(canWrite&&!query?'<button class="btn primary" type="button" data-create="1">Add record</button>':"")+'</div>')+'</section>';
 }
 function closeModal(){$("modal").hidden=true;document.body.classList.remove("modal-open");state.editing=null;$("recordForm").dataset.mode=""}
 async function saveRecord(event){
@@ -438,6 +445,10 @@ function bindEvents(){
   e.preventDefault();const b=e.currentTarget.querySelector("button");b.disabled=true;
   try{const name=String(new FormData(e.currentTarget).get("name")||"").trim();await api("create_workspace",{name});await initializeWorkspaces()}
   catch(error){$("setupMessage").textContent=error.message}finally{b.disabled=false}
+ });
+ $("pageBreadcrumbs").addEventListener("click",e=>{
+  const page=e.target.closest("[data-page]")?.dataset.page;
+  if(page==="dashboard")switchPage(page);
  });
  $("sidebarNavigation").addEventListener("click",e=>{
   const groupButton=e.target.closest("[data-nav-group]");
