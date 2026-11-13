@@ -2960,7 +2960,8 @@ function startApp(){
  void updateAccountMenu();
  const search=new URLSearchParams(location.search);
  const desired=search.get("page")||"dashboard";
- switchPage(["enrollments"].includes(desired)?"programs":desired==="clearinghouse"?"compliance":CONFIG[desired]?desired:"dashboard",false);
+ if(desired==="enrollments")history.replaceState(null,"","/unified.html?page=programs");
+ switchPage(desired==="enrollments"?"programs":desired==="clearinghouse"?"compliance":CONFIG[desired]?desired:"dashboard",false);
  const action=search.get("manage"),id=search.get("record");
  if(MANAGEMENT_ACTIONS.has(action)){
   const apply=()=>{if(state.page===desired)openManagement(action,id,false)};
