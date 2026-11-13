@@ -96,6 +96,17 @@ Deno.serve(async request=>{
    if(result.error)throw result.error;
    return respond({ok:true,tenant_id:tenantId,operating_context:context,records:result.data||[],limit:1000});
   }
+  if(action==="lab_summary"){
+   const types=["lab_accounts","lab_orders","lab_tracking","lab_results","lab_documents","lab_supplies","lab_analytics"];
+   const counts=await Promise.all(types.map(async kind=>{
+    const q=await collection.select("id",{count:"exact",head:true})
+     .eq("tenant_id",tenantId).eq("kind",kind)
+     .in("operating_context",[context,"shared"]).is("archived_at",null);
+    if(q.error)throw q.error;
+    return {kind,count:q.count||0};
+   }));
+   return respond({ok:true,counts});
+  }
   const documentKinds=new Set(["documents","testing_documents","lab_documents"]);
   if(action==="document_link"){
    const kind=text(body.kind,64);
