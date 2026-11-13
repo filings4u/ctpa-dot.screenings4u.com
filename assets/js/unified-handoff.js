@@ -1,7 +1,7 @@
 (async()=>{
 "use strict";
 const SELECTOR="https://workforceapps.screenings4u.com/selector.html";
-const URL="https://elpbnytpciqnbexiaebp.supabase.co";
+const SUPABASE_URL="https://elpbnytpciqnbexiaebp.supabase.co";
 const KEY="sb_publishable_xVI6Mjkk1bNVMGHZCPuK6w_8FSHKdkC";
 const status=document.getElementById("handoffStatus");
 const setStatus=value=>{if(status)status.textContent=value};
@@ -12,7 +12,7 @@ try{
  if(!window.supabase?.createClient)throw new Error("Sign-in library unavailable.");
  // The central selector issues this short-lived, single-use authentication code.
  // No legacy C/TPA organization, workspace or subscription service is called.
- const response=await fetch(URL+"/functions/v1/portal-session-handoff",{
+ const response=await fetch(SUPABASE_URL+"/functions/v1/portal-session-handoff",{
   method:"POST",cache:"no-store",
   headers:{"Content-Type":"application/json",apikey:KEY},
   body:JSON.stringify({action:"redeem",code})
@@ -21,7 +21,7 @@ try{
  if(!response.ok||!result.token_hash)throw new Error(result.error||"Unable to complete Workforce sign-in.");
  const validTarget=["ctpa_dot","ctpa_workforce"].includes(result.target_portal);
  if(!validTarget)throw new Error("The selected portal is not Workforce C/TPA.");
- const client=window.supabase.createClient(URL,KEY,{
+ const client=window.supabase.createClient(SUPABASE_URL,KEY,{
   auth:{storageKey:"s4u_ctpa_dot_auth",persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}
  });
  setStatus("Confirming your existing Workforce account…");
