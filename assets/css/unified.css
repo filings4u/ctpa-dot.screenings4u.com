@@ -1415,3 +1415,27 @@ body.modal-open{overflow:hidden}
 
 /* Workforce C/TPA assigned rate sheet */
 .rates-page{max-width:1450px;margin:auto;padding:24px 26px 50px;color:#01122F}.rates-hero{display:flex;justify-content:space-between;align-items:center;gap:25px;background:#fff;border:1px solid #d9e3ee;border-radius:14px;padding:28px;margin-bottom:18px}.rates-hero small{color:#506c8b;letter-spacing:.08em;font-size:11px;font-weight:800}.rates-hero h2{font-size:25px;margin:9px 0}.rates-hero p{font-size:14px;color:#64758b;max-width:730px;line-height:1.6;margin:0}.rates-hero>span{background:#fff1b7;padding:10px 15px;border-radius:25px;font-size:12px;font-weight:800;white-space:nowrap}.rates-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:15px;margin-bottom:18px}.rates-stats>div{border:1px solid #d9e3ee;background:#fff;border-radius:13px;padding:20px;display:grid;gap:8px}.rates-stats small{color:#63768e;font-size:12px}.rates-stats strong{font-size:29px}.rates-panel{border:1px solid #d9e3ee;background:#fff;border-radius:14px;overflow:hidden}.rates-toolbar{display:flex;gap:14px;padding:20px;border-bottom:1px solid #e8edf4}.rates-toolbar input,.rates-toolbar select{font:inherit;color:#01122F;border:1px solid #cbd8e6;border-radius:9px;padding:12px 15px;background:#fff}.rates-toolbar input{flex:1;min-width:0}.rates-toolbar select{min-width:215px}.rates-scroll{overflow-x:auto}.rates-scroll table{width:100%;border-collapse:collapse;text-align:left;min-width:780px}.rates-scroll th{background:#f7f9fc;padding:14px;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:#657991}.rates-scroll td{border-top:1px solid #edf1f6;padding:15px 14px;font-size:13px;color:#435b76}.rates-scroll td strong{color:#01122F}.rates-scroll td:first-child small{display:block;color:#7b8da0;font-size:11px;margin-top:5px;max-width:430px}.rates-status{font-size:11px;background:#eef4fa;border-radius:20px;padding:6px 10px;white-space:nowrap}.rates-empty{text-align:center;padding:64px 20px;color:#6a7c91}.rates-disclaimer{color:#6b7a8d;font-size:12px;margin-top:20px;line-height:1.6}.rates-loading,.rates-error{padding:35px;background:#fff;border:1px solid #d9e3ee;border-radius:14px;margin:22px}@media(max-width:700px){.rates-page{padding:15px}.rates-hero{flex-direction:column;align-items:flex-start;padding:20px}.rates-hero h2{font-size:22px}.rates-stats{gap:8px}.rates-stats>div{padding:12px}.rates-stats strong{font-size:22px}.rates-toolbar{flex-direction:column}.rates-toolbar select{min-width:0}}
+
+
+/* Standalone C/TPA provider compensation rates */
+.provider-root{max-width:1450px;margin:0 auto;padding:22px 26px 48px;color:#01122F}
+.provider-intro{display:flex;align-items:center;justify-content:space-between;gap:24px;padding:26px;background:#fff;border:1px solid #dce5ee;border-radius:14px;margin-bottom:17px}
+.provider-intro small{font-size:11px;font-weight:800;letter-spacing:.08em;color:#58718d}.provider-intro h2{font-size:25px;margin:8px 0 12px}
+.provider-intro p{font-size:14px;color:#66778d;line-height:1.6;max-width:800px;margin:0}
+.provider-context{white-space:nowrap;background:#fff1b7;padding:10px 14px;font-size:12px;font-weight:800;border-radius:24px}
+.provider-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:15px;margin-bottom:17px}
+.provider-stats article{background:#fff;border:1px solid #dce5ee;border-radius:13px;padding:21px;display:grid;gap:9px}
+.provider-stats small{font-size:12px;font-weight:700;color:#63768c}.provider-stats strong{font-size:27px}
+.provider-panel{background:#fff;border:1px solid #dce5ee;border-radius:14px;overflow:hidden}
+.provider-controls{display:flex;gap:12px;padding:19px;border-bottom:1px solid #e6edf4}
+.provider-controls input,.provider-controls select{font:inherit;border:1px solid #c9d7e6;border-radius:8px;padding:12px;color:#01122F;background:#fff}
+.provider-controls input{flex:1;min-width:0}.provider-controls select{min-width:220px}
+.provider-table-wrap{overflow-x:auto}.provider-table-wrap table{width:100%;border-collapse:collapse;min-width:780px;text-align:left}
+.provider-table-wrap th{padding:14px;background:#f7f9fc;color:#60778f;font-size:11px;text-transform:uppercase;letter-spacing:.045em}
+.provider-table-wrap td{padding:15px 14px;border-top:1px solid #edf1f5;color:#435a73;font-size:13px;vertical-align:top}
+.provider-table-wrap td strong{color:#01122F}.provider-table-wrap td:first-child small{display:block;font-size:11px;line-height:1.6;color:#71859b;max-width:420px;margin-top:6px}
+.provider-chip{display:inline-flex;background:#edf3fa;padding:6px 10px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap}
+.provider-empty{text-align:center;padding:58px 24px}.provider-empty strong{font-size:18px}.provider-empty p{color:#677a90;font-size:13px;line-height:1.6}
+.provider-note{font-size:12px;color:#687a91;line-height:1.55;margin-top:18px}
+.provider-loading,.provider-error{padding:34px;background:#fff;border:1px solid #dce5ee;border-radius:14px;margin:22px}
+@media(max-width:760px){.provider-root{padding:15px}.provider-intro{padding:20px;align-items:flex-start;flex-direction:column}.provider-intro h2{font-size:22px}.provider-stats{gap:8px}.provider-stats article{padding:14px}.provider-stats strong{font-size:22px}.provider-controls{flex-direction:column}.provider-controls select{min-width:0}}
