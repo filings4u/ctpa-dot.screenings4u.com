@@ -667,3 +667,34 @@ body.modal-open{overflow:hidden}
  .person-actions{padding:14px 17px}
  .person-actions .btn{min-width:0}
 }
+
+/* Unified DOT and NON-DOT testing program management. */
+.program-management{background:#fff;border:1px solid #dce5ee;border-radius:13px;overflow:hidden;width:100%;min-width:0}
+.program-head{display:flex;align-items:center;gap:14px;padding:23px 25px;border-bottom:1px solid #e6edf3}
+.program-head-icon{display:grid;place-items:center;width:46px;height:46px;flex:0 0 46px;background:#eef3f9;color:#184576;border-radius:11px}
+.program-head-icon .nav-svg{width:23px;height:23px}
+.program-head>div{display:grid;flex:1;gap:5px;min-width:0}
+.program-head strong{font-size:1.17rem;color:#01122f;font-weight:850;overflow-wrap:anywhere}
+.program-head small{font-size:.74rem;color:#6d8097}
+.program-management-grid{display:grid;grid-template-columns:minmax(0,2fr) minmax(250px,.8fr);gap:0;align-items:start}
+.program-primary{border-right:1px solid #e5ecf3;min-width:0}
+.program-primary .management-section-header{padding:20px 23px 0}
+.program-primary .management-section .manage-form-grid{padding:16px 23px 23px;gap:17px 20px}
+.program-primary .profile-section{padding:22px 23px;border-bottom:1px solid #e9edf2;border-right:0}
+.program-primary .profile-fields{grid-template-columns:repeat(2,minmax(0,1fr))}
+.program-related{padding:19px 16px}
+.program-related h2{font-size:.87rem;font-weight:850;margin:0 0 14px;color:#01122f}
+.program-related-links{display:grid;gap:4px}
+.program-related-links button{display:flex;align-items:center;gap:10px;width:100%;padding:12px 10px;text-align:left;font-size:.79rem;font-weight:760;border:0;border-radius:8px;background:transparent;color:#193859}
+.program-related-links button:hover{background:#f3f7fb}
+.program-related-links button .nav-svg{width:16px;height:16px;color:#426482}
+.program-related-links button span:nth-child(2){flex:1}
+.program-rule-guidance{display:flex;align-items:center;flex-wrap:wrap;gap:9px;margin:17px 23px;padding:14px 16px;border:1px solid #e7d9a0;border-radius:9px;background:#fffaf0;color:#675217;font-size:.76rem;line-height:1.55}
+.program-rule-guidance strong{color:#443b1c}
+.program-rule-guidance button{border:1px solid #c7a434;background:#fff;color:#433614;border-radius:7px;padding:6px 11px;font-size:.72rem;font-weight:850;margin-left:auto;cursor:pointer}
+.program-rule-guidance button:hover{background:#fff1b7}
+.program-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap;padding:16px 23px;background:#fafbfd;border-top:1px solid #e7edf3}
+.program-management select:disabled{background:#f4f7fa;color:#61728a}
+.program-management .manage-field small{font-weight:500;font-size:.72rem;color:#6e8095}
+@media(max-width:950px){.program-management-grid{grid-template-columns:1fr}.program-primary{border-right:0}.program-related{border-top:1px solid #e5ecf3}}
+@media(max-width:600px){.program-head{padding:17px}.program-primary .management-section-header{padding:17px 17px 0}.program-primary .management-section .manage-form-grid{padding:15px 17px;grid-template-columns:1fr}.program-rule-guidance{margin:14px 17px}.program-actions{padding:14px 17px}}
