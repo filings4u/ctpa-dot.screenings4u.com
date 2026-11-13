@@ -40,7 +40,7 @@ const CONFIG={
  testing_documents:["Testing Documents","Secure management of all drug and alcohol testing files.","title|Document title|text|required;document_type|Document category|text;order_reference|Testing order|text;status|Status|select:received,verified,archived"],
  results:["Results","Track confidential test result metadata.","name|Result reference|text|required;order_reference|Order reference|text;status|Status|select:pending,received,reviewed;reported_at|Date reported|date;notes|Notes|textarea"],
  occupational_health:["Occupational Health","Order DOT and NON-DOT physicals and track Testing Operations processing."],
- compliance:["Compliance","Manage compliance cases and required actions.","name|Case title|text|required;employer|Employer|text;due_date|Due date|date;priority|Priority|select:low,normal,high;status|Status|select:open,in_progress,complete"],
+ compliance:["Compliance","Record employer and employee compliance findings, outcomes, notes and follow-up actions.","name|Case title|text|required;scope|Record applies to|select:company,employee;category|Compliance category|select:review,finding,violation,corrective_action,audit,other;review_date|Review date|date;outcome|Compliance outcome|select:pending,compliant,non_compliant,needs_review,not_applicable;findings|Findings and results|textarea|required;notes|Internal notes|textarea;corrective_action|Corrective action / follow-up|textarea;due_date|Follow-up due date|date;priority|Priority|select:low,normal,high,urgent;status|Status|select:open,in_progress,resolved,closed"],
  audits:["New Entrant Audits","Manage audit preparation and document milestones.","name|Audit title|text|required;carrier|Carrier|text;dot_number|USDOT number|text;due_date|Due date|date;status|Status|select:draft,in_progress,submitted,complete"],
  clearinghouse:["Clearinghouse","Track Clearinghouse-related workflow tasks.","name|Task title|text|required;employer|Employer|text;reference|Reference|text;due_date|Due date|date;status|Status|select:open,in_progress,complete"],
  return_to_duty:["Return to Duty","Manage Return-to-Duty and follow-up tracking.","name|Case reference|text|required;agency|DOT agency|text;employee|Employee|text;status|Status|select:opened,in_progress,follow_up,complete;notes|Notes|textarea"],
@@ -185,7 +185,7 @@ function updateHeading(){
  updateBreadcrumbs();
  $("pageActions").innerHTML=state.page==="results"?'<button class="btn secondary" type="button" id="refreshPage">Refresh</button>':state.page==="account"?"":state.page==="dashboard"||state.page==="lab_analytics"
   ?'<button class="btn secondary" type="button" id="refreshPage">Refresh</button>'
-  :'<button class="btn secondary" type="button" id="refreshPage">Refresh</button><button class="btn secondary" type="button" id="exportPage">Export CSV</button><button class="btn primary" type="button" id="newRecord">'+(state.page==="selections"?"Run Selection":state.page==="testing_orders"?"Order a Test":state.page==="testing_documents"?"Upload Document":state.page==="occupational_health"?"Order Physical":"Add "+esc(title))+'</button>';
+  :'<button class="btn secondary" type="button" id="refreshPage">Refresh</button><button class="btn secondary" type="button" id="exportPage">Export CSV</button><button class="btn primary" type="button" id="newRecord">'+(state.page==="selections"?"Run Selection":state.page==="testing_orders"?"Order a Test":state.page==="testing_documents"?"Upload Document":state.page==="occupational_health"?"Order Physical":state.page==="compliance"?"Add Compliance Record":"Add "+esc(title))+'</button>';
 }
 function switchPage(page,push=true){
  if(!CONFIG[page])page="dashboard";
@@ -1875,6 +1875,112 @@ async function submitPhysicalOrder(form){
  }catch(error){errorBox.textContent=error.message;button.disabled=false}
 }
 
+
+const COMPLIANCE_SECTIONS=[
+ ["Compliance record",["name","scope","category","review_date","outcome"]],
+ ["Findings and follow-up",["findings","notes","corrective_action","due_date","priority","status"]]
+];
+function complianceDirectory(records){
+ const search=state.search.trim().toLowerCase(),filter=state.statusFilter;
+ const visible=records.filter(r=>{const d=r.data||{};return (!search||[d.name,d.employer,d.employee_name,d.findings,d.notes,d.category,d.outcome].some(v=>String(v||"").toLowerCase().includes(search)))&&(!filter||d.status===filter)});
+ const entries=visible.map(r=>{const d=r.data||{};
+ return '<button class="compliance-record-row" type="button" data-view="'+esc(r.id)+'">'+
+ '<span class="results-row-icon">'+navIcon("compliance")+'</span>'+
+ '<span class="compliance-record-title"><strong>'+esc(d.name||"Compliance record")+'</strong>'+
+ '<small>'+esc(d.employer||"Company unavailable")+(d.employee_name?" · "+esc(d.employee_name):" · Company-wide")+'</small></span>'+
+ '<span class="compliance-record-outcome">'+esc(statusLabel(d.outcome))+'</span>'+
+ '<span class="mgmt-status '+statusClass(d.status)+'">'+esc(statusLabel(d.status))+'</span>'+
+ '<span class="results-row-view">View record</span></button>';
+ }).join("");
+ const statuses=["open","in_progress","resolved","closed"];
+ $("pageContent").innerHTML='<div class="results-workspace compliance-workspace">'+
+ '<section class="results-intro"><span class="results-intro-icon">'+navIcon("compliance")+'</span><div>'+
+ '<strong>Employer and employee compliance</strong><p>Record compliance findings, review outcomes, internal notes and corrective actions against the correct company and employee. These are C/TPA case notes, not official MRO results.</p></div></section>'+
+ '<section class="results-list"><div class="directory-toolbar"><div class="directory-search">'+
+ '<input id="recordSearch" aria-label="Search compliance records" type="search" value="'+esc(state.search)+'" placeholder="Search company, employee, findings or case"></div>'+
+ '<select id="statusFilter" aria-label="Filter compliance status"><option value="">All statuses</option>'+
+ statuses.map(v=>'<option value="'+v+'"'+(filter===v?" selected":"")+'>'+esc(statusLabel(v))+'</option>').join("")+'</select>'+
+ '<span class="directory-total">'+visible.length+' records</span></div>'+
+ (entries||'<div class="directory-empty"><div class="directory-empty-icon">'+navIcon("compliance")+'</div>'+
+ '<h2>No compliance records yet</h2><p>Create a compliance record associated with an employer, and optionally an employee.</p>'+
+ (["owner","admin","editor"].includes(activeWorkspace()?.role||"")?'<button type="button" class="btn primary" data-create="1">Add Compliance Record</button>':"")+'</div>')+
+ '</section></div>';
+}
+function renderComplianceManagement(record,mode,canWrite){
+ const d=record?.data||{},view=mode==="view";
+ const name=d.name||"New compliance record";
+ const header='<div class="program-head"><span class="program-head-icon">'+navIcon("compliance")+'</span><div><strong>'+esc(name)+'</strong>'+
+ '<small>'+esc(d.employer||"Company association required")+(d.employee_name?" · "+esc(d.employee_name):"")+'</small></div>'+
+ (record?recordStatus(record):'<span class="mgmt-status pending">New record</span>')+'</div>';
+ if(view){
+  const item=(label,value)=>'<div class="official-result-field"><small>'+esc(label)+'</small><strong>'+esc(value||"Not provided")+'</strong></div>';
+  $("pageContent").innerHTML='<div class="results-workspace compliance-profile">'+header+
+   '<section class="official-result-section"><h2>Employer and employee</h2><div class="official-result-grid">'+
+   item("Company",d.employer)+item("Employee",d.employee_name||"Company-wide")+item("Record scope",statusLabel(d.scope))+'</div></section>'+
+   '<section class="official-result-section"><h2>Compliance assessment</h2><div class="official-result-grid">'+
+   item("Category",statusLabel(d.category))+item("Outcome",statusLabel(d.outcome))+item("Review date",d.review_date)+
+   item("Priority",statusLabel(d.priority))+item("Case status",statusLabel(d.status))+item("Follow-up deadline",d.due_date)+'</div></section>'+
+   '<section class="official-result-section"><h2>Findings and results</h2><p class="compliance-note">'+esc(d.findings||"Not provided")+'</p></section>'+
+   '<section class="official-result-section"><h2>Internal case notes</h2><p class="compliance-note">'+esc(d.notes||"No notes recorded")+'</p></section>'+
+   '<section class="official-result-section"><h2>Corrective actions and follow-up</h2><p class="compliance-note">'+esc(d.corrective_action||"No follow-up recorded")+'</p></section>'+
+   '<footer class="program-actions"><button type="button" class="btn secondary" data-back-list>Back to Compliance</button>'+
+   (canWrite?'<button type="button" class="btn primary" data-manage-edit="'+esc(record.id)+'">Edit Record</button>':"")+'</footer></div>';
+  return;
+ }
+ const definitions=fields("compliance");
+ const blocks=COMPLIANCE_SECTIONS.map(([title,names])=>managementSection(title,names.map(name=>definitions.find(f=>f.name===name)).filter(Boolean),record)).join("");
+ const companySection='<section class="management-section compliance-association"><header class="management-section-header"><h2>Employer and employee</h2></header>'+
+ '<div class="manage-form-grid"><label class="manage-field"><span>Associated company <span class="required-mark">*</span></span>'+
+ '<select id="complianceCompany" name="company_selection" required disabled><option value="">Loading authorized companies…</option></select></label>'+
+ '<label class="manage-field"><span>Associated employee</span>'+
+ '<select id="compliancePerson" name="person_selection" disabled><option value="">Company-wide record</option></select></label></div>'+
+ '<p class="compliance-helper">The employee list contains only people assigned to the selected company. Company-wide findings do not require an employee.</p></section>';
+ $("pageContent").innerHTML='<div class="compliance-profile">'+header+
+ '<form id="managementForm">'+companySection+blocks+
+ '<p id="managementError" class="manage-form-error" role="alert"></p>'+
+ '<footer class="management-editor-actions"><button type="button" class="btn secondary" data-back-list>Cancel</button>'+
+ '<button type="submit" id="managementSave" class="btn primary" disabled>'+(record?"Save changes":"Create compliance record")+'</button></footer></form></div>';
+ const sf=$("managementForm").elements.namedItem("status");if(sf&&!sf.value)sf.value="open";
+ const pf=$("managementForm").elements.namedItem("priority");if(pf&&!pf.value)pf.value="normal";
+ const of=$("managementForm").elements.namedItem("outcome");if(of&&!of.value)of.value="pending";
+ const scope=$("managementForm").elements.namedItem("scope");if(scope&&!scope.value)scope.value="company";
+ void hydrateComplianceCompanies(record);
+}
+async function hydrateComplianceCompanies(record){
+ const m=state.management,seq=state.sequence,context=state.context;
+ try{
+  const kinds=context==="dot"?["employers","owner_operators","people"]:["employers","people"];
+  const responses=await Promise.all(kinds.map(async kind=>{
+   const key=cacheKey(kind),old=state.cache.get(key);
+   if(old&&Date.now()-old.time<30000)return old.records;
+   const result=await api("list",{tenant_id:state.tenantId,operating_context:context,kind});
+   state.cache.set(key,{records:result.records||[],time:Date.now()});return result.records||[];
+  }));
+  if(state.management!==m||seq!==state.sequence||state.context!==context)return;
+  const companies=kinds.flatMap((k,i)=>k==="people"?[]:responses[i]);
+  const people=responses[kinds.indexOf("people")];
+  const company=$("complianceCompany"),person=$("compliancePerson"),save=$("managementSave");
+  if(!company||!person||!save)return;
+  company.innerHTML='<option value="">Select employer or owner-operator</option>'+
+   companies.map(r=>'<option value="'+esc(r.id)+'">'+esc(r.data?.legal_name||"Company")+'</option>').join("");
+  if(record?.data?.company_id&&companies.some(r=>r.id===record.data.company_id))company.value=record.data.company_id;
+  company.disabled=!companies.length;
+  const sync=()=>{
+   const related=people.filter(p=>p.data?.company_id===company.value);
+   const selected=person.value||record?.data?.person_id||"";
+   person.innerHTML='<option value="">Company-wide record</option>'+
+    related.map(p=>'<option value="'+esc(p.id)+'">'+esc([p.data?.first_name,p.data?.last_name].filter(Boolean).join(" ")||"Person")+'</option>').join("");
+   if(selected&&related.some(p=>p.id===selected))person.value=selected;
+   person.disabled=!company.value;
+   save.disabled=!company.value;
+   record=null;
+  };
+  company.addEventListener("change",sync);
+  sync();
+  if(!companies.length)$("managementError").textContent="Add an employer before creating compliance records.";
+ }catch(error){if(state.management===m&&$("managementError"))$("managementError").textContent="Unable to load company and employee options: "+error.message}
+}
+
 function renderManagementPage(){
  const m=state.management;
  if(!m||m.section!==state.page)return;
@@ -1899,6 +2005,7 @@ function renderManagementPage(){
   renderPersonManagement(record,m.action,canWrite);
   return;
  }
+ if(state.page==="compliance"){renderComplianceManagement(record,m.action,canWrite);return;}
  if(state.page==="programs"){
   renderProgramManagement(record,m.action,canWrite);
   return;
@@ -2066,6 +2173,27 @@ async function submitManagement(form,continueEditing=false){
   if(state.context==="nondot")data.dot_agency="";
   if(!data.status)data.status="active";
  }
+ if(state.page==="compliance"){
+  const companyId=data.company_selection||"",personId=data.person_selection||"";
+  const companySelect=form.querySelector("#complianceCompany"),personSelect=form.querySelector("#compliancePerson");
+  if(!companySelect||companySelect.disabled||!personSelect){
+   $("managementError").textContent="Company options are not ready.";button.disabled=false;return;
+  }
+  const kinds=state.context==="dot"?["employers","owner_operators"]:["employers"];
+  const companies=kinds.flatMap(kind=>state.cache.get(cacheKey(kind))?.records||[]);
+  const company=companies.find(r=>r.id===companyId&&r.operating_context===state.context);
+  const people=state.cache.get(cacheKey("people"))?.records||[];
+  const person=personId?people.find(r=>r.id===personId&&r.data?.company_id===companyId):null;
+  if(!company||(personId&&!person)){
+   $("managementError").textContent="Choose a valid employer and employee association.";button.disabled=false;return;
+  }
+  if(data.scope==="employee"&&!person){
+   $("managementError").textContent="Choose an employee for employee-specific compliance.";button.disabled=false;return;
+  }
+  delete data.company_selection;delete data.person_selection;
+  data.company_id=company.id;data.employer=company.data?.legal_name||"";
+  data.person_id=person?.id||"";data.employee_name=person?[person.data?.first_name,person.data?.last_name].filter(Boolean).join(" "):"";
+ }
  if(state.page==="people"){
   const selected=data.company_selection||"";
   const companyControl=form.querySelector("#personCompanySelect");
@@ -2167,6 +2295,7 @@ function showRecords(records){
  if(state.page==="testing_documents"){testingDocumentsList(records);return}
  if(state.page==="results"){resultsManagementList(records);return}
  if(state.page==="people"){peopleCompanyList(records);return}
+ if(state.page==="compliance"){complianceDirectory(records);return}
  if(state.page==="occupational_health"){physicalOrderList(records);return}
  const count=records.length,query=state.search.trim().toLowerCase();
  const statuses=[...new Set(records.map(r=>String(r.data?.status||"").trim()).filter(Boolean))].sort();
