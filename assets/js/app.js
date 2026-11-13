@@ -667,11 +667,30 @@ async function writePageCache(p,data,search=location.search){try{if(isDynamicPag
 async function clearPageCache(){PAGE_MEMORY.clear();PAGE_INFLIGHT.clear();try{if('caches'in window)await caches.delete(PAGE_CACHE_NAME)}catch{}}
 const PAGE_MEMORY=new Map();
 const PAGE_INFLIGHT=new Map();
+const PAGE_REVALIDATED=new Map();
+let revalidateTimer=null;
+function schedulePageRevalidation(p,search,routeSequence){
+  const key=memoryCacheKey(p,search),now=Date.now();
+  if(now-(PAGE_REVALIDATED.get(key)||0)<60000)return;
+  clearTimeout(revalidateTimer);
+  revalidateTimer=setTimeout(async()=>{
+    if(routeSequence!==navigationSequence||page()!==p||location.search!==search)return;
+    const focused=document.activeElement;
+    if(focused?.matches?.('input,textarea,select,[contenteditable="true"]'))return;
+    PAGE_REVALIDATED.set(key,Date.now());
+    try{
+      const data=await loadPageDataCached(p,search,{force:true});
+      if(routeSequence===navigationSequence&&page()===p&&location.search===search&&
+       !document.activeElement?.matches?.('input,textarea,select,[contenteditable="true"]'))
+        await render(window.portalCtx,data);
+    }catch(error){console.warn('Background page refresh unavailable',error)}
+  },350);
+}
 function memoryCacheKey(p,search=location.search){return cacheIdentity(p,search)}
 async function getCachedPageData(p,search=location.search){
   const key=memoryCacheKey(p,search),m=PAGE_MEMORY.get(key);
   if((workspace()?.surface==='nondot'&&NONDOT_PAGES[norm(p)])||p==='lab_services'||isLaboratoryPage(p))
-    return m&&Date.now()-m.saved_at<30000?m.data:null;
+    return m&&Date.now()-m.saved_at<5*60*1000?m.data:null;
   if(m&&Date.now()-m.saved_at<PAGE_CACHE_MAX_AGE)return m.data;
   const d=await readPageCache(p,search);
   if(d!==null)PAGE_MEMORY.set(key,{saved_at:Date.now(),data:d});
@@ -1033,9 +1052,9 @@ async function navigatePortal(url,{replace=false,pop=false}={}){
  const dataRequest=cached===null&&!requiresModuleFirst?loadPageDataCached(targetPage,targetSearch,{force:false}):null;
  await prepare;
  if(!stillCurrent())return;
- if(cached!==null){await render(window.portalCtx,cached);return}
+ if(cached!==null){await render(window.portalCtx,cached);if(stillCurrent())schedulePageRevalidation(targetPage,targetSearch,sequence);return}
  const data=await (dataRequest||loadPageDataCached(targetPage,targetSearch,{force:false}));
- if(stillCurrent())await render(window.portalCtx,data);
+ if(stillCurrent()){PAGE_REVALIDATED.set(memoryCacheKey(targetPage,targetSearch),Date.now());await render(window.portalCtx,data)}
 }
 
 async function switchOperatingWorkspace(desired){
