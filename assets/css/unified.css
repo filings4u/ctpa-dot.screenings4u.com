@@ -715,3 +715,21 @@ body.modal-open{overflow:hidden}
 .program-enrollment-empty{font-size:.78rem;color:#6a7f95;margin:6px 0 12px}
 .program-enrollment-select{width:100%;padding:11px 12px;min-height:43px;background:#fff;border:1px solid #ccd8e6;border-radius:8px;color:#01122f;font-size:.82rem}
 @media(max-width:600px){.program-enrollments-heading{padding:16px;flex-wrap:wrap}.program-enrollment-list{padding:8px 16px 14px}}
+
+/* Pool-management roster, history and action controls. */
+.pool-list-row{display:flex;align-items:center;justify-content:space-between;gap:13px;padding:13px 0;border-bottom:1px solid #e9eef4}
+.pool-list-row:last-child{border-bottom:0}
+.pool-list-row>span{display:grid;gap:5px;min-width:0;flex:1}
+.pool-list-row>span strong{font-size:.81rem;color:#102d4b;font-weight:800;overflow-wrap:anywhere}
+.pool-list-row>span small{color:#6c8197;font-size:.73rem}
+.pool-list-row>div{display:flex;flex-wrap:wrap;gap:7px}
+.pool-list-row button{border:1px solid #d6e0eb;border-radius:7px;background:#fff;padding:7px 10px;font-size:.72rem;color:#244767;font-weight:780;cursor:pointer}
+.pool-list-row button:hover{background:#f3f7fb}
+.pool-list-row button.pool-remove{color:#9c3838;background:#fff6f5;border-color:#f0dbd9}
+.pool-selection-item{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;padding:13px 0;border:0;border-bottom:1px solid #eaf0f4;text-align:left;background:transparent;color:#102e4c;font-size:.8rem;font-weight:800;cursor:pointer}
+.pool-selection-item:last-child{border-bottom:0}
+.pool-selection-item:hover{color:#9a7600}
+.pool-selection-item small{font-size:.73rem;font-weight:700;color:#6b8098;text-transform:capitalize}
+.program-management:has(#poolRoster) .program-enrollments{border-bottom:1px solid #e9eef3}
+.program-management:has(#poolRoster) .program-enrollments:last-child{border-bottom:0}
+@media(max-width:600px){.pool-list-row{align-items:flex-start;flex-direction:column}.pool-list-row>div{width:100%;justify-content:flex-end}}
