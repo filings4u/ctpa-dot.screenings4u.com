@@ -1439,3 +1439,36 @@ body.modal-open{overflow:hidden}
 .provider-note{font-size:12px;color:#687a91;line-height:1.55;margin-top:18px}
 .provider-loading,.provider-error{padding:34px;background:#fff;border:1px solid #dce5ee;border-radius:14px;margin:22px}
 @media(max-width:760px){.provider-root{padding:15px}.provider-intro{padding:20px;align-items:flex-start;flex-direction:column}.provider-intro h2{font-size:22px}.provider-stats{gap:8px}.provider-stats article{padding:14px}.provider-stats strong{font-size:22px}.provider-controls{flex-direction:column}.provider-controls select{min-width:0}}
+
+
+/* Standalone Workforce C/TPA Employer Billing */
+.eb-root{max-width:1450px;margin:0 auto;padding:22px 26px 54px;color:#01122F}
+.eb-header{display:flex;justify-content:space-between;align-items:center;gap:22px;background:white;border:1px solid #dce5ef;border-radius:15px;padding:25px 27px;margin-bottom:18px}
+.eb-header small{font-weight:800;letter-spacing:.09em;font-size:11px;color:#52708e}.eb-header h2{font-size:25px;margin:8px 0 10px}.eb-header p{color:#65788d;margin:0;line-height:1.6;max-width:760px}
+.eb-header>span{font-size:12px;font-weight:800;white-space:nowrap;border-radius:24px;background:#fff0b5;padding:10px 15px}
+.eb-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:15px;margin-bottom:18px}
+.eb-stats article{border:1px solid #dce5ef;background:#fff;border-radius:12px;padding:20px;display:grid;gap:9px}.eb-stats small{font-size:12px;color:#65788d;font-weight:700}.eb-stats strong{font-size:27px;overflow-wrap:anywhere}
+.eb-panel{background:#fff;border:1px solid #dce5ef;border-radius:14px;overflow:hidden}
+.eb-toolbar{padding:20px;border-bottom:1px solid #e9eef5;display:flex;gap:10px}
+.eb-toolbar input,.eb-toolbar select,.eb-fields input,.eb-fields select,.eb-fields textarea,.eb-line input,.eb-bottom input,.eb-bottom select,.eb-bottom textarea{background:white;border:1px solid #ccd8e6;color:#01122F;padding:11px 13px;font:inherit;border-radius:8px;min-width:0;width:100%}
+.eb-toolbar input{flex:1}.eb-toolbar select{max-width:185px}.eb-table{overflow-x:auto}.eb-table table{border-collapse:collapse;min-width:850px;width:100%;text-align:left}
+.eb-table th{background:#f6f9fc;font-size:11px;text-transform:uppercase;color:#617792;padding:13px;letter-spacing:.04em}.eb-table td{border-top:1px solid #ebeff5;padding:14px;font-size:12px;color:#425975}
+.eb-table td strong{color:#01122F}.eb-badge{display:inline-flex;border-radius:20px;padding:5px 10px;background:#edf3f9;font-weight:700;text-transform:capitalize}
+.eb-actions{display:flex;flex-wrap:wrap;gap:6px}.eb-actions button{border:1px solid #cdd9e7;border-radius:7px;background:white;color:#01122F;cursor:pointer;padding:7px 10px;font-weight:700}
+.eb-empty{text-align:center;padding:70px 22px}.eb-empty strong{font-size:19px}.eb-empty p{color:#6e7e92}
+.eb-editor{padding:24px}.eb-editor>header,.eb-detail>header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:25px}.eb-editor h3,.eb-detail h3{font-size:21px;margin:0}
+.eb-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-bottom:20px}
+.eb-fields label,.eb-bottom label,.eb-line label{font-weight:700;color:#354f6e;font-size:12px;display:grid;gap:7px}.eb-fields .wide{grid-column:span 2}
+.eb-section{display:flex;align-items:center;justify-content:space-between;border-top:1px solid #e7edf5;margin:26px 0 15px;padding-top:24px}.eb-section h4{margin:0;font-size:16px}
+.eb-line{display:grid;grid-template-columns:minmax(220px,2fr) repeat(3,minmax(95px,1fr)) auto;gap:10px;align-items:end;padding:12px 0;border-bottom:1px solid #e9eef3}
+.eb-remove{background:#fff;border:1px solid #cdd9e6;border-radius:8px;padding:11px;color:#01122F;cursor:pointer}
+.eb-bottom{display:grid;grid-template-columns:minmax(0,1fr) minmax(260px,340px);gap:25px;margin:24px 0}
+.eb-logo{background:#f7f9fc;border:1px solid #dce4ee;border-radius:11px;padding:17px;margin-top:19px}.eb-logo p{font-size:12px;color:#61738b}.eb-logo input{width:100%;margin-bottom:13px}.eb-logo img{max-height:90px;max-width:220px;object-fit:contain;margin-top:12px}
+.eb-totals{background:#f7f9fc;border:1px solid #dce4ee;border-radius:12px;padding:19px;display:grid;gap:13px}.eb-totals>div{display:flex;align-items:center;justify-content:space-between;padding-top:9px;border-top:1px solid #e0e7f0}.eb-totals .eb-grand{font-size:19px;font-weight:800;border-top:2px solid #01122F;padding-top:16px}
+.eb-editor footer{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:15px;padding:20px 0 0;border-top:1px solid #e5ecf4}.eb-editor footer span{color:#556c84;margin-right:auto}
+.eb-detail{padding:24px}.eb-detail .eb-fields>div{display:grid;gap:6px}.eb-detail .eb-fields small{color:#65768d}.eb-detail .eb-fields strong{overflow-wrap:anywhere}
+.eb-detail-total{text-align:right;margin:20px 0;display:grid;gap:10px;color:#465e78}.eb-detail-total strong{font-size:21px;color:#01122F}
+.eb-detail-buttons{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:10px;padding-top:17px;border-top:1px solid #e7edf4}
+.eb-loading,.eb-error{border:1px solid #dce5ef;border-radius:12px;background:white;padding:34px;margin:22px}
+@media(max-width:1060px){.eb-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.eb-line{grid-template-columns:minmax(0,1fr) repeat(3,100px)}.eb-line .eb-remove{grid-column:span 4}}
+@media(max-width:730px){.eb-root{padding:14px}.eb-header{flex-direction:column;align-items:flex-start;padding:20px}.eb-toolbar{flex-direction:column}.eb-toolbar select{max-width:none}.eb-editor,.eb-detail{padding:16px}.eb-fields,.eb-bottom{grid-template-columns:1fr}.eb-fields .wide{grid-column:auto}.eb-line{grid-template-columns:repeat(2,minmax(0,1fr))}.eb-line label.wide{grid-column:span 2}.eb-line .eb-remove{grid-column:span 2}.eb-stats{gap:8px}.eb-stats article{padding:14px}.eb-stats strong{font-size:22px}}
