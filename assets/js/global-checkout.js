@@ -2,7 +2,7 @@
 const C=window.PORTAL_CONFIG||{};let db=null,stripe=null,elements=null,paymentElement=null,payment=null,ctx=null;
 const $=id=>document.getElementById(id),money=v=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(Number(v||0)),fmt=v=>{if(!v)return'—';const d=new Date(v);return Number.isNaN(d.getTime())?String(v):new Intl.DateTimeFormat('en-US',{month:'short',day:'numeric',year:'numeric'}).format(d)},esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 document.addEventListener('DOMContentLoaded',init);
-async function init(){try{db=window.S4UGetSupabaseClient?window.S4UGetSupabaseClient():null;if(!db)throw Error('Supabase client not found.');const {data}=await db.auth.getSession();if(!data?.session?.user){location.replace('https://workforceapps.screenings4u.com/');return}const q=new URLSearchParams(location.search),mode=q.get('mode')||'renew';if(mode==='new_entrant')return initNewEntrant(q);if(mode==='invoice')return initInvoice(q);if(mode==='feature')return initFeature(q);if(mode==='order')return initOrder(q);await initRenewal(q);}catch(e){msg(e.message||'Unable to initialize checkout.','error')}}
+async function init(){try{db=window.S4UGetSupabaseClient?window.S4UGetSupabaseClient():null;if(!db)throw Error('Supabase client not found.');const {data}=await db.auth.getSession();if(!data?.session?.user){location.replace('https://workforceapps.screenings4u.com/');return}const q=new URLSearchParams(location.search),mode=q.get('mode')||'renew';if(mode==='new_entrant')return initNewEntrant(q);if(mode==='invoice')return initInvoice(q);if(mode==='feature')return initFeature(q);if(mode==='order')return initOrder(q);if(mode==='supplies')return initSupplies(q);await initRenewal(q);}catch(e){msg(e.message||'Unable to initialize checkout.','error')}}
 async function invoke(name,body={}){const {data:{session}}=await db.auth.getSession();if(!session)throw Error('Authentication required.');const r=await fetch(`${C.workforceUrl}/functions/v1/${name}`,{method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${session.access_token}`,'apikey':C.workforceKey},body:JSON.stringify(window.S4UCTPAPayload?window.S4UCTPAPayload(body):body)});const d=await r.json().catch(()=>({}));if(!r.ok||d.error)throw Error(d.error||`Request failed (${r.status}).`);return d}
 async function initRenewal(q){ctx=await invoke('global-checkout-actions',{action:'context',subscription_id:q.get('subscription_id')||undefined,portal_code:C.portalCode});const s=ctx.subscription||{},p=ctx.plan||{},org=ctx.organization||ctx.ctpa||ctx.employer||{};$('pageTitle').textContent='Renew Subscription';$('pageText').textContent='Review the current subscription and complete the renewal securely.';$('summaryType').textContent='Subscription Renewal';$('summaryAccount').textContent=org.dba_name||org.legal_name||org.name||'Account';$('summaryRef').textContent=s.order_reference||String(s.id||'').slice(0,12)||'—';$('summaryTotal').textContent=money(ctx.base_amount);$('accountDetails').innerHTML=details([['Plan',p.name||p.code],['Status',s.status],['Billing',s.billing_frequency||p.billing_model?.frequency||'Monthly'],['Started',fmt(s.start_date)],['Current renewal',fmt(s.renewal_date||s.stripe_current_period_end)],['Account type',ctx.account_type]]);$('lineItems').innerHTML=`<div class="line"><div><strong>${esc(p.name||'DOT Subscription')}</strong><span>${esc(p.description||'Software subscription renewal')}</span></div><div class="amount">${money(ctx.base_amount)}</div></div>`;$('payButton').disabled=false;$('payButton').textContent=`Renew for ${money(ctx.base_amount)}`;$('payButton').onclick=prepareRenewal;}
 async function prepareRenewal(){const b=$('payButton');b.disabled=true;try{msg('Preparing secure payment…','ok');const d=await invoke('global-checkout-actions',{action:'prepare_subscription_renewal',subscription_id:ctx.subscription.id,portal_code:C.portalCode});payment=d.payment;stripe=window.Stripe(d.publishable_key);elements=stripe.elements({clientSecret:d.client_secret});paymentElement=elements.create('payment',{layout:'tabs'});$('paymentHost').innerHTML='<div id="paymentElement"></div><button class="pay" id="submitPayment">Pay & Renew Subscription</button>';paymentElement.mount('#paymentElement');$('submitPayment').onclick=submitRenewal;b.style.display='none';msg('Secure payment is ready.','ok')}catch(e){b.disabled=false;msg(e.message||'Unable to prepare payment.','error')}}
@@ -82,6 +82,67 @@ async function initNewEntrant(q){
   }catch(err){button.disabled=false;msg(err.message||'Unable to prepare payment','error')}
  };
 }
+
+async function initSupplies(q){
+ const id=q.get("order_id"),tenant=q.get("tenant_id"),operating_context=q.get("context")==="nondot"?"nondot":"dot";
+ if(!id||!/^[0-9a-f-]{36}$/i.test(id)||!tenant||!/^[0-9a-f-]{36}$/i.test(tenant))
+  throw Error("Return to Supplies and create a valid checkout order.");
+ const request={tenant_id:tenant,operating_context,order_id:id};
+ const back="/unified.html?page=lab_supplies";
+ $("checkoutBack").href=back;$("checkoutBack").textContent="Back to Supplies";
+ const response=await invoke("workforce-unified-portal",{action:"supplies_get_order",...request});
+ const o=response.order||{},lines=o.order_items||[];
+ const paid=o.payment_status==="paid";
+ $("pageTitle").textContent="Supply order checkout";
+ $("pageText").textContent="Review collection supplies and pay upfront before your order is released for processing by Workforce Testing Operations.";
+ $("summaryType").textContent="Laboratory supplies";
+ $("summaryAccount").textContent=o.company_name||"C/TPA";
+ $("summaryRef").textContent=o.order_number||"—";
+ $("summaryTotal").textContent=money(o.total);
+ $("accountDetails").innerHTML=details([["Order",o.order_number],["Recipient",o.company_name],["Status",o.status],
+  ["Payment",o.payment_status],["Shipping address",[
+   o.metadata?.shipping?.address_line1,o.metadata?.shipping?.city,o.metadata?.shipping?.state,o.metadata?.shipping?.postal_code].filter(Boolean).join(", ")]]);
+ $("lineItems").innerHTML=lines.map(x=>'<div class="line"><div><strong>'+esc(x.metadata?.name||"Collection supply")+
+  '</strong><span>Quantity '+esc(x.quantity||1)+'</span></div><div class="amount">'+money(Number(x.unit_price||0)*Number(x.quantity||1))+'</div></div>').join("");
+ $("payButton").hidden=true;
+ if(paid){
+  $("paymentHost").innerHTML='<div class="complete">Payment verified. Your supplies order is ready for Workforce Testing Operations processing.</div>';
+  msg("Order paid successfully.","ok");return;
+ }
+ // If Stripe redirected back after authentication, confirm using the backend's
+ // independently verified payment-intent status, not URL query parameters.
+ if(q.get("payment_intent")){
+  try{
+   const result=await invoke("workforce-unified-portal",{action:"supplies_confirm_payment",...request});
+   if(result.paid){
+    $("paymentHost").innerHTML='<div class="complete">Payment verified. Your order is queued for processing.</div>';
+    msg("Payment completed successfully.","ok");return;
+   }
+  }catch(err){msg("The payment has not been verified yet. You can check your order status or retry payment.","error")}
+ }
+ const prepared=await invoke("workforce-unified-portal",{action:"supplies_prepare_payment",...request});
+ if(prepared.paid){location.reload();return}
+ stripe=window.Stripe(prepared.publishable_key);
+ elements=stripe.elements({clientSecret:prepared.client_secret});
+ paymentElement=elements.create("payment",{layout:"accordion"});
+ $("paymentHost").innerHTML='<div id="supplyPaymentElement"></div><button type="button" id="supplyPay" class="pay">Pay '+money(o.total)+' now</button>';
+ paymentElement.mount("#supplyPaymentElement");
+ $("supplyPay").onclick=async()=>{
+  const button=$("supplyPay");button.disabled=true;$("paymentError").textContent="";
+  try{
+   if(elements.submit){const result=await elements.submit();if(result?.error)throw result.error}
+   const confirmation=await stripe.confirmPayment({elements,redirect:"if_required",confirmParams:{return_url:location.href}});
+   if(confirmation.error)throw confirmation.error;
+   const verified=await invoke("workforce-unified-portal",{action:"supplies_confirm_payment",...request});
+   if(!verified.paid)throw Error("Payment has not yet been verified");
+   $("paymentHost").innerHTML='<div class="complete">Payment verified. Your order has been submitted for processing.</div>'+
+    '<p><a href="'+back+'">Return to Supplies</a></p>';
+   msg("Payment confirmed by Stripe.","ok");
+  }catch(err){$("paymentError").textContent=err.message||"Unable to complete payment.";button.disabled=false}
+ };
+ msg("Secure payment is ready.","ok");
+}
+
 async function initOrder(q){const id=q.get('order_id')||q.get('id');if(!id)throw Error('Order id is required.');const d=await invoke('ctpa-dot-store-order',{action:'get_order',order_id:id});ctx=d;const o=d.order||{},items=o.order_items||[];$('pageTitle').textContent=`Pay Order ${o.order_number||''}`;$('pageText').textContent='Review your Workforce order and complete payment securely.';$('summaryType').textContent='C/TPA Store Order';$('summaryAccount').textContent=o.company_name||d.organization?.dba_name||d.organization?.legal_name||'C/TPA Account';$('summaryRef').textContent=o.order_number||o.id?.slice(0,12)||'—';$('summaryTotal').textContent=money(o.total);$('accountDetails').innerHTML=details([['Order',o.order_number],['Status',o.status],['Payment',o.payment_status],['Contact',o.customer_email],['Company',o.company_name],['Tracking',o.tracking_number]]);$('lineItems').innerHTML=items.map(x=>`<div class="line"><div><strong>${esc(x.metadata?.name||'Order item')}</strong><span>Qty ${esc(x.quantity||1)}</span></div><div class="amount">${money(Number(x.unit_price||0)*Number(x.quantity||1))}</div></div>`).join('')||'<p class="muted">No order items found.</p>';if(o.payment_status==='paid'){$('paymentHost').innerHTML='<div class="complete">This order has already been paid.</div>';$('payButton').disabled=true;$('payButton').textContent='Paid';return}$('payButton').disabled=false;$('payButton').textContent=`Pay ${money(o.total)}`;$('payButton').onclick=prepareOrderPayment;}
 async function prepareOrderPayment(){const b=$('payButton');b.disabled=true;try{msg('Preparing secure payment…','ok');const d=await invoke('ctpa-dot-store-order',{action:'prepare_payment',order_id:ctx.order.id});payment={id:d.payment_intent_id};stripe=window.Stripe(d.publishable_key);elements=stripe.elements({clientSecret:d.client_secret});paymentElement=elements.create('payment',{layout:'tabs'});$('paymentHost').innerHTML='<div id="paymentElement"></div><button class="pay" id="submitPayment">Pay Order</button>';paymentElement.mount('#paymentElement');$('submitPayment').onclick=submitOrderPayment;b.style.display='none';msg('Secure payment is ready.','ok')}catch(e){b.disabled=false;msg(e.message||'Unable to prepare payment.','error')}}
 async function submitOrderPayment(){const b=$('submitPayment');b.disabled=true;$('paymentError').textContent='';try{if(elements.submit){const s=await elements.submit();if(s?.error)throw s.error}const r=await stripe.confirmPayment({elements,redirect:'if_required',confirmParams:{return_url:location.href}});if(r.error)throw r.error;const d=await invoke('ctpa-dot-store-order',{action:'confirm_payment',order_id:ctx.order.id});$('paymentHost').innerHTML='<div class="complete">Payment completed successfully. Your order is now being processed.</div>';$('summaryRef').textContent=d.order?.order_number||$('summaryRef').textContent;msg('Order payment completed.','ok')}catch(e){$('paymentError').textContent=e.message||'Payment failed.';b.disabled=false}}
