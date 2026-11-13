@@ -1370,3 +1370,45 @@ body.modal-open{overflow:hidden}
 .analytics-loading,.analytics-error{background:#fff;border:1px solid #dce5f0;padding:36px;border-radius:14px;margin:20px}
 @media(max-width:1080px){.analytics-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:760px){.analytics-root{padding:15px}.analytics-hero{align-items:stretch;flex-direction:column;padding:21px}.analytics-main-grid{grid-template-columns:1fr}.analytics-panel{padding:19px}.analytics-hero h2{font-size:23px}.analytics-kpis{gap:9px}.analytics-kpi{padding:16px;min-height:116px}.analytics-kpi strong{font-size:24px}}
+
+
+/* Workforce C/TPA independent purchase history */
+.history-root{width:100%;max-width:1450px;margin:0 auto;padding:22px 26px 50px;color:#01122F}
+.history-hero,.history-panel,.history-kpis>div{background:#fff;border:1px solid #dbe5ee;border-radius:14px}
+.history-hero{padding:27px 29px;margin-bottom:18px}
+.history-hero small{font-size:11px;letter-spacing:.09em;font-weight:800;color:#45617e}
+.history-hero h2{font-size:25px;margin:8px 0}
+.history-hero p{font-size:14px;color:#65768b;line-height:1.6;margin:0}
+.history-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:18px}
+.history-kpis>div{padding:20px;display:grid;gap:11px}
+.history-kpis small{font-size:12px;font-weight:700;color:#60758f}
+.history-kpis strong{font-size:27px;overflow-wrap:anywhere}
+.history-panel{overflow:hidden}
+.history-controls{padding:20px 22px;display:flex;gap:12px;border-bottom:1px solid #e7edf4}
+.history-controls input,.history-controls select{border:1px solid #cfdae7;border-radius:9px;padding:12px 14px;background:#fff;color:#01122F;font:inherit}
+.history-controls input{flex:1;min-width:0}.history-controls select{min-width:190px}
+.history-scroll{overflow-x:auto}
+.history-scroll table{border-collapse:collapse;width:100%;text-align:left;min-width:850px}
+.history-scroll th{background:#f7f9fc;font-size:11px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:#61738b;padding:15px 13px}
+.history-scroll td{border-top:1px solid #eef2f6;padding:15px 13px;color:#34506d;font-size:13px;max-width:240px;overflow-wrap:anywhere}
+.history-scroll td strong{color:#01122F}.history-scroll td:first-child small{display:block;margin-top:6px;color:#6d8196}
+.history-status{display:inline-block;background:#edf4fc;border-radius:20px;padding:6px 10px;text-transform:capitalize;font-weight:700;font-size:11px}
+.history-empty{text-align:center;padding:65px 20px}.history-empty strong{font-size:19px}.history-empty p{font-size:13px;color:#63768e;margin:11px auto;max-width:500px}
+.history-loading,.history-error{background:#fff;border:1px solid #dbe5ee;border-radius:14px;padding:35px;margin:20px}
+.history-overlay{position:fixed;inset:0;z-index:10000;background:#01122F9c;display:flex;justify-content:center;align-items:center;padding:18px}
+.history-overlay[hidden]{display:none}
+.history-dialog{width:min(680px,100%);max-height:92vh;overflow:auto;background:white;border-radius:16px;box-shadow:0 20px 70px #0003}
+.history-dialog header{display:flex;align-items:center;justify-content:space-between;background:#01122F;color:white;padding:20px 26px}
+.history-dialog header h2{margin:0;font-size:20px;color:white}
+.history-dialog header button{background:transparent;border:0;color:#fff;font-size:28px;cursor:pointer}
+.history-dialog-body{padding:24px}
+.history-info{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px;margin-bottom:24px}
+.history-info>div{min-width:0;display:grid;gap:5px}
+.history-info small{color:#697c92;font-size:11px}
+.history-info strong{overflow-wrap:anywhere}
+.history-dialog-body h3{font-size:16px;margin:0 0 12px}
+.history-line{display:flex;justify-content:space-between;gap:12px;padding:11px 0;border-bottom:1px solid #ecf0f4;font-size:13px}
+.history-docs{display:flex;flex-wrap:wrap;gap:10px;margin:24px 0 8px}
+#historyPdfStatus{font-size:12px;color:#566b83}
+@media(max-width:900px){.history-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:650px){.history-root{padding:14px}.history-hero{padding:19px}.history-controls{flex-direction:column}.history-controls select{min-width:0}.history-info{gap:12px}.history-kpis>div{padding:15px}.history-kpis strong{font-size:23px}}
