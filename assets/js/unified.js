@@ -153,7 +153,7 @@ function renderNav(){
    '<button type="button" class="nav-group-toggle" data-nav-group="'+esc(title)+'" aria-controls="nav-group-'+index+
    '" aria-expanded="'+String(expanded)+'"><span>'+esc(title)+'</span><span class="group-indicator" aria-hidden="true">'+(expanded?"−":"+")+'</span></button>'+
    '<div class="nav-group-links" id="nav-group-'+index+'"'+(expanded?"":' hidden')+'>'+
-   modules.filter(id=>!(state.context==="nondot"&&["owner_operators","audits"].includes(id))).map(id=>'<button type="button" class="nav-item nav-child'+(state.page===id?" active":"")+
+   modules.filter(id=>!(state.context==="nondot"&&["owner_operators","audits","return_to_duty"].includes(id))).map(id=>'<button type="button" class="nav-item nav-child'+(state.page===id?" active":"")+
     '" data-page="'+esc(id)+'"'+(state.page===id?' aria-current="page"':"")+
     '><span class="symbol" aria-hidden="true">'+navIcon(id)+'</span><span>'+esc(label(id))+'</span></button>').join("")+'</div></section>';
  }).join("");
@@ -184,12 +184,12 @@ function updateHeading(){
  updateBreadcrumbs();
  $("pageActions").innerHTML=state.page==="results"?'<button class="btn secondary" type="button" id="refreshPage">Refresh</button>':state.page==="account"?"":state.page==="dashboard"||state.page==="lab_analytics"
   ?'<button class="btn secondary" type="button" id="refreshPage">Refresh</button>'
-  :'<button class="btn secondary" type="button" id="refreshPage">Refresh</button><button class="btn secondary" type="button" id="exportPage">Export CSV</button><button class="btn primary" type="button" id="newRecord">'+(state.page==="selections"?"Run Selection":state.page==="testing_orders"?"Order a Test":state.page==="testing_documents"?"Upload Document":state.page==="occupational_health"?"Order Physical":state.page==="compliance"?"Add Compliance Record":state.page==="audits"?"Start New Entrant Audit":"Add "+esc(title))+'</button>';
+  :'<button class="btn secondary" type="button" id="refreshPage">Refresh</button><button class="btn secondary" type="button" id="exportPage">Export CSV</button><button class="btn primary" type="button" id="newRecord">'+(state.page==="selections"?"Run Selection":state.page==="testing_orders"?"Order a Test":state.page==="testing_documents"?"Upload Document":state.page==="occupational_health"?"Order Physical":state.page==="compliance"?"Add Compliance Record":state.page==="audits"?"Start New Entrant Audit":state.page==="return_to_duty"?"Create RTD Case":"Add "+esc(title))+'</button>';
 }
 function switchPage(page,push=true){
  if(page==="clearinghouse")page="compliance";
  if(!CONFIG[page])page="dashboard";
- if(state.context==="nondot"&&["owner_operators","audits"].includes(page))page=page==="audits"?"dashboard":"employers";
+ if(state.context==="nondot"&&["owner_operators","audits","return_to_duty"].includes(page))page=page==="owner_operators"?"employers":"dashboard";
  state.page=page;state.search="";state.statusFilter="";state.pageIndex=0;state.companyFilter=null;state.companyDraft=null;state.management=null;state.pendingManagement=null;const seq=++state.sequence;
  if(push)history.pushState(null,"","/unified.html?page="+encodeURIComponent(page));
  if(isCompactViewport())$("sidebar").classList.remove("open");updateSidebarToggle();renderNav();updateHeading();message("");
@@ -203,7 +203,7 @@ function switchPage(page,push=true){
 function changeContext(next){
  if(!["dot","nondot"].includes(next)||next===state.context)return;
  state.context=next;sessionStorage.setItem("workforce_unified_context",next);
- const nextPage=next==="nondot"&&["owner_operators","audits"].includes(state.page)?(state.page==="audits"?"dashboard":"employers"):state.page;
+ const nextPage=next==="nondot"&&["owner_operators","audits","return_to_duty"].includes(state.page)?(state.page==="owner_operators"?"employers":"dashboard"):state.page;
  history.replaceState(null,"","/unified.html?page="+encodeURIComponent(nextPage)+"&context="+next);
  switchPage(nextPage,false);
 }
@@ -2178,6 +2178,163 @@ async function downloadAuditEvidence(button){
  }catch(err){message(err.message,true)}
 }
 
+
+const RTD_STAGES=[
+ ["removed_from_duty","Removed from duty"],
+ ["sap_initial","SAP initial evaluation"],
+ ["education_treatment","Education or treatment"],
+ ["sap_followup","SAP follow-up evaluation"],
+ ["rtd_test_pending","RTD testing required"],
+ ["rtd_test_review","RTD test review"],
+ ["eligible_for_return","Eligible for employer review"],
+ ["follow_up","Follow-up testing"],
+ ["completed","Completed"]
+];
+function rtdCasesList(records){
+ const term=state.search.trim().toLowerCase(),filter=state.statusFilter;
+ const filtered=records.filter(r=>{
+  const d=r.data||{};return (!term||[d.name,d.employer,d.employee,d.agency,d.status].some(x=>String(x||"").toLowerCase().includes(term)))&&
+  (!filter||d.status===filter);
+ });
+ const items=filtered.map(r=>{
+  const d=r.data||{};
+  return '<button type="button" class="rtd-case-row" data-view="'+esc(r.id)+'">'+
+    '<span class="results-row-icon">'+navIcon("return_to_duty")+'</span>'+
+    '<span class="rtd-case-person"><strong>'+esc(d.employee||"Employee")+'</strong><small>'+esc(d.employer||"Employer unavailable")+' · '+esc(d.agency||"DOT")+'</small></span>'+
+    '<span class="rtd-case-progress">'+esc(String(d.follow_up_completed||0))+' / '+esc(String(d.first_year_tests_required||6))+' follow-up tests</span>'+
+    '<span class="mgmt-status '+statusClass(d.status)+'">'+esc(statusLabel(d.status||"removed_from_duty"))+'</span>'+
+    '<span class="results-row-view">View case</span></button>';
+ }).join("");
+ $("pageContent").innerHTML='<div class="results-workspace rtd-workspace">'+
+ '<section class="results-intro"><span class="results-intro-icon">'+navIcon("return_to_duty")+'</span><div>'+
+ '<strong>DOT Return-to-Duty case management</strong>'+
+ '<p>Track employer-linked SAP evaluations, completion milestones, RTD test verification and employer-controlled follow-up testing. These are C/TPA case records—not government Clearinghouse transactions.</p></div></section>'+
+ '<section class="results-list"><div class="directory-toolbar"><div class="directory-search">'+
+ '<input type="search" id="recordSearch" value="'+esc(state.search)+'" placeholder="Search employees, companies and cases" aria-label="Search return-to-duty cases"></div>'+
+ '<select id="statusFilter" aria-label="Filter by case status"><option value="">All stages</option>'+
+ RTD_STAGES.map(([v,t])=>'<option value="'+v+'"'+(filter===v?" selected":"")+'>'+esc(t)+'</option>').join("")+'</select>'+
+ '<span class="directory-total">'+filtered.length+' cases</span></div>'+
+ (items||'<div class="directory-empty"><div class="directory-empty-icon">'+navIcon("return_to_duty")+'</div><h2>No return-to-duty cases yet</h2>'+
+ '<p>Create a case for an employee associated with a DOT employer or owner-operator.</p>'+
+ (["owner","admin","editor"].includes(activeWorkspace()?.role||"")?'<button type="button" class="btn primary" data-create="1">Create RTD case</button>':"")+'</div>')+
+ '</section></div>';
+}
+function renderRTDManagement(record,action,canWrite){
+ const d=record?.data||{},view=action==="view";
+ const labelText=(value,otherwise="Not recorded")=>esc(value===0?0:value||otherwise);
+ const heading='<div class="program-head"><span class="program-head-icon">'+navIcon("return_to_duty")+'</span>'+
+ '<div><strong>'+esc(d.name||"New Return-to-Duty case")+'</strong><small>'+esc(d.employee||"Select employee")+' · '+esc(d.employer||"Select employer")+'</small></div>'+
+ (record?recordStatus(record):'<span class="mgmt-status pending">New case</span>')+'</div>';
+ if(view){
+  const field=(name,value)=>'<div class="official-result-field"><small>'+esc(name)+'</small><strong>'+labelText(value)+'</strong></div>';
+  const stages=RTD_STAGES.map(([stage,title])=>'<div class="rtd-stage-item'+(d.status===stage?" current":"")+'"><span class="rtd-stage-dot"></span>'+esc(title)+'</div>').join("");
+  $("pageContent").innerHTML='<div class="rtd-case-profile">'+heading+
+   '<div class="rtd-policy-note">Internal RTD case record. An entered test status does not verify an MRO result or authorize safety-sensitive duties. The employer must independently verify required documentation and determine eligibility.</div>'+
+   '<section class="official-result-section"><h2>Employee and employer</h2><div class="official-result-grid">'+
+   field("Employer",d.employer)+field("Employee",d.employee)+field("DOT agency",d.agency)+field("Violation type",statusLabel(d.violation))+field("Violation date",d.violation_date)+'</div></section>'+
+   '<section class="official-result-section"><h2>RTD process status</h2><div class="rtd-stage-track">'+stages+'</div></section>'+
+   '<section class="official-result-section"><h2>SAP process</h2><div class="official-result-grid">'+
+   field("SAP",d.sap_name)+field("Initial evaluation",d.sap_initial_date)+field("Education / treatment",d.education_completed?"Reported completed":"Not confirmed")+
+   field("Follow-up evaluation",d.sap_followup_date)+'</div></section>'+
+   '<section class="official-result-section"><h2>RTD test and return</h2><div class="official-result-grid">'+
+   field("RTD test date",d.rtd_test_date)+field("Entered test verification",statusLabel(d.rtd_test_result))+
+   field("Return to safety-sensitive duty date",d.return_date)+'</div></section>'+
+   '<section class="official-result-section"><h2>Follow-up plan summary</h2><p class="rtd-privacy-note">The SAP establishes the testing requirement. Exact unannounced test dates and employee-facing test schedules are not shown here.</p><div class="official-result-grid">'+
+   field("First-year required tests",d.first_year_tests_required||6)+field("Plan duration (months)",d.plan_months||12)+
+   field("Completed tests",d.follow_up_completed||0)+'</div></section>'+
+   '<section class="official-result-section"><h2>Internal case notes</h2><p class="compliance-note">'+esc(d.notes||"No notes provided.")+'</p></section>'+
+   '<footer class="program-actions"><button type="button" class="btn secondary" data-back-list>Back to Return to Duty</button>'+
+   (canWrite?'<button type="button" class="btn primary" data-manage-edit="'+esc(record.id)+'">Update RTD case</button>':"")+'</footer></div>';
+  return;
+ }
+ const selected=(n,v)=>String(n)===String(v)?" selected":"";
+ const field=(title,name,type="text",extra="")=>
+ '<label class="manage-field"><span>'+esc(title)+'</span><input name="'+name+'" type="'+type+'" value="'+esc(d[name]||"")+'" '+extra+'></label>';
+ const choose=(title,name,choices,required=true)=>'<label class="manage-field"><span>'+esc(title)+(required?' *':'')+'</span><select name="'+name+'"'+(required?' required':'')+'>'+
+ '<option value="">Choose an option</option>'+choices.map(([v,t])=>'<option value="'+v+'"'+selected(v,d[name])+'>'+esc(t)+'</option>').join("")+'</select></label>';
+ const violationChoices=[["verified_positive_drug","Verified positive drug test"],["positive_alcohol","Alcohol violation"],["refusal","Refusal to test"],["other_dot_violation","Other DOT drug / alcohol violation"]];
+ const agencyChoices=["FMCSA","FAA","FRA","FTA","PHMSA","USCG"].map(v=>[v,v]);
+ const testResults=[["not_verified","Not verified"],["pending","Pending verification"],["verified_negative","Verified negative drug test"],["alcohol_below_002","Verified alcohol result below 0.02"],["not_satisfactory","Not satisfactory"],["cancelled","Cancelled"]];
+ $("pageContent").innerHTML='<div class="rtd-case-profile">'+heading+
+ '<div class="rtd-policy-note">This workspace records the employer’s RTD process. Record verified information only. Follow-up tests must be unannounced; do not enter the confidential dates or future schedule here.</div>'+
+ '<form id="rtdCaseForm">'+
+ '<section class="management-section"><header class="management-section-header"><h2>DOT employer and employee</h2></header><div class="manage-form-grid">'+
+ '<label class="manage-field"><span>DOT company *</span><select name="company_id" id="rtdCompany" required disabled><option value="">Loading DOT companies…</option></select></label>'+
+ '<label class="manage-field"><span>Employee *</span><select name="person_id" id="rtdPerson" required disabled><option value="">Select company first</option></select></label>'+
+ choose("DOT agency","agency",agencyChoices)+field("Case reference","name","text",'maxlength="120"')+
+ '</div></section>'+
+ '<section class="management-section"><header class="management-section-header"><h2>Violation and removal</h2></header><div class="manage-form-grid">'+
+ choose("Violation type","violation",violationChoices)+field("Violation date","violation_date","date")+
+ '</div></section>'+
+ '<section class="management-section"><header class="management-section-header"><h2>SAP evaluations and education</h2></header><div class="manage-form-grid">'+
+ field("SAP name","sap_name","text",'maxlength="160"')+field("SAP initial evaluation","sap_initial_date","date")+
+ '<label class="manage-field"><span>Education / treatment completion</span><select name="education_completed"><option value="false">Not confirmed</option><option value="true"'+(d.education_completed?' selected':'')+'>Completed per SAP direction</option></select></label>'+
+ field("SAP follow-up evaluation","sap_followup_date","date")+'</div></section>'+
+ '<section class="management-section"><header class="management-section-header"><h2>Return-to-duty testing</h2></header><div class="manage-form-grid">'+
+ field("RTD test date","rtd_test_date","date")+choose("Test verification status","rtd_test_result",testResults,false)+
+ field("Employer confirmed return date","return_date","date")+'</div>'+
+ '<p class="rtd-privacy-note">The test must meet applicable DOT requirements before the employer permits a return to safety-sensitive duties. Do not enter a verified result until the official result is available.</p></section>'+
+ '<section class="management-section"><header class="management-section-header"><h2>Confidential follow-up plan summary</h2></header><div class="manage-form-grid">'+
+ field("Tests required in the first 12 months","first_year_tests_required","number",'min="6" max="120" step="1"')+
+ field("Total plan duration (months)","plan_months","number",'min="12" max="60" step="1"')+
+ field("Follow-up tests completed","follow_up_completed","number",'min="0" max="120" step="1"')+
+ choose("Case stage","status",RTD_STAGES)+'</div><p class="rtd-privacy-note">Use the SAP-prescribed plan. At least six unannounced tests are required in the first 12 months of safety-sensitive work; additional testing may continue up to 60 months. Never share the confidential schedule with employees.</p></section>'+
+ '<section class="management-section"><header class="management-section-header"><h2>Internal notes</h2></header><div class="manage-form-grid">'+
+ '<label class="manage-field rtd-notes"><span>RTD coordination notes</span><textarea name="notes" rows="4" maxlength="4000">'+esc(d.notes||"")+'</textarea></label>'+
+ '</div></section><p id="rtdFormError" class="manage-form-error" role="alert"></p>'+
+ '<footer class="management-editor-actions"><button class="btn secondary" type="button" data-back-list>Cancel</button>'+
+ '<button class="btn primary" type="submit" id="rtdSave" disabled>'+(record?"Save RTD Changes":"Create RTD Case")+'</button></footer></form></div>';
+ for(const [name,value] of [["status","removed_from_duty"],["rtd_test_result","not_verified"],["first_year_tests_required","6"],["plan_months","12"],["follow_up_completed","0"],["education_completed","false"]]){
+  const control=$("rtdCaseForm")?.elements.namedItem(name);
+  if(control&&(!d[name]&&d[name]!==0)&&!control.value)control.value=value;
+ }
+ void loadRTDCompanies(record);
+}
+async function loadRTDCompanies(record){
+ const m=state.management,seq=state.sequence;
+ try{
+  const kinds=["employers","owner_operators","people"];
+  const lists=await Promise.all(kinds.map(async kind=>{
+   const key=cacheKey(kind),cached=state.cache.get(key);
+   if(cached&&Date.now()-cached.time<30000)return cached.records||[];
+   const res=await api("list",{tenant_id:state.tenantId,operating_context:"dot",kind});
+   state.cache.set(key,{records:res.records||[],time:Date.now()});return res.records||[];
+  }));
+  if(m!==state.management||seq!==state.sequence)return;
+  const companies=[...lists[0],...lists[1]],people=lists[2];
+  const company=$("rtdCompany"),person=$("rtdPerson"),submit=$("rtdSave");
+  if(!company||!person||!submit)return;
+  company.innerHTML='<option value="">Select DOT employer / owner-operator</option>'+
+   companies.map(r=>'<option value="'+esc(r.id)+'">'+esc(r.data?.legal_name||"Company")+'</option>').join("");
+  company.disabled=!companies.length;
+  if(record?.data?.company_id&&companies.some(r=>r.id===record.data.company_id))company.value=record.data.company_id;
+  const sync=()=>{
+   const selected=person.value||record?.data?.person_id||"";
+   const available=people.filter(r=>r.data?.company_id===company.value);
+   person.innerHTML='<option value="">Select employee</option>'+available.map(r=>
+    '<option value="'+esc(r.id)+'">'+esc([r.data?.first_name,r.data?.last_name].filter(Boolean).join(" ")||"Person")+'</option>').join("");
+   if(selected&&available.some(r=>r.id===selected))person.value=selected;
+   person.disabled=!company.value;submit.disabled=!company.value||!person.value;
+   record=null;
+  };
+  company.addEventListener("change",sync);person.addEventListener("change",()=>{submit.disabled=!company.value||!person.value});
+  sync();
+  if(!companies.length)$("rtdFormError").textContent="Create a DOT employer before opening an RTD case.";
+ }catch(err){if(m===state.management&&$("rtdFormError"))$("rtdFormError").textContent="Unable to load people and companies: "+err.message}
+}
+async function saveRTDCase(form){
+ const save=$("rtdSave"),error=$("rtdFormError");
+ if(!save||save.disabled||!form.reportValidity())return;
+ save.disabled=true;error.textContent="";
+ const input=Object.fromEntries(new FormData(form).entries());
+ input.education_completed=input.education_completed==="true";
+ try{
+  const r=await api("rtd_save",{tenant_id:state.tenantId,operating_context:"dot",id:state.management?.id||null,data:input});
+  state.cache.delete(cacheKey());leaveManagement();message("Return-to-duty case saved.");
+  void loadRecords(state.sequence,true);
+ }catch(err){error.textContent=err.message;save.disabled=false}
+}
+
 function renderManagementPage(){
  const m=state.management;
  if(!m||m.section!==state.page)return;
@@ -2204,6 +2361,7 @@ function renderManagementPage(){
  }
  if(state.page==="compliance"){renderComplianceManagement(record,m.action,canWrite);return;}
  if(state.page==="audits"){renderAuditManagement(record,m.action,canWrite);return;}
+ if(state.page==="return_to_duty"){renderRTDManagement(record,m.action,canWrite);return;}
  if(state.page==="programs"){
   renderProgramManagement(record,m.action,canWrite);
   return;
@@ -2495,6 +2653,7 @@ function showRecords(records){
  if(state.page==="people"){peopleCompanyList(records);return}
  if(state.page==="compliance"){complianceDirectory(records);return}
  if(state.page==="audits"){auditList(records);return}
+ if(state.page==="return_to_duty"){rtdCasesList(records);return}
  if(state.page==="occupational_health"){physicalOrderList(records);return}
  const count=records.length,query=state.search.trim().toLowerCase();
  const statuses=[...new Set(records.map(r=>String(r.data?.status||"").trim()).filter(Boolean))].sort();
@@ -2861,7 +3020,7 @@ function bindEvents(){
  });
  $("recordFields").addEventListener("click",e=>{const b=e.target.closest("[data-modal-download]");if(b)void openDocumentFile(b.dataset.modalDownload)});
  $("recordForm").addEventListener("submit",saveRecord);
- $("pageContent").addEventListener("submit",e=>{if(e.target.id==="testingDocForm"){e.preventDefault();void submitTestingDocument(e.target);return}if(e.target.id==="drugOrderForm"){e.preventDefault();void submitDrugOrder(e.target);return}if(e.target.id==="physicalOrderForm"){e.preventDefault();void submitPhysicalOrder(e.target);return}if(e.target.id==="auditForm"){e.preventDefault();void saveAudit(e.target);return}if(e.target.id==="managementForm"){e.preventDefault();void submitManagement(e.target)}});
+ $("pageContent").addEventListener("submit",e=>{if(e.target.id==="testingDocForm"){e.preventDefault();void submitTestingDocument(e.target);return}if(e.target.id==="drugOrderForm"){e.preventDefault();void submitDrugOrder(e.target);return}if(e.target.id==="physicalOrderForm"){e.preventDefault();void submitPhysicalOrder(e.target);return}if(e.target.id==="auditForm"){e.preventDefault();void saveAudit(e.target);return}if(e.target.id==="rtdCaseForm"){e.preventDefault();void saveRTDCase(e.target);return}if(e.target.id==="managementForm"){e.preventDefault();void submitManagement(e.target)}});
  for(const id of ["modalClose","cancelModal","modalDismiss"])$(id).addEventListener("click",closeModal);
  document.addEventListener("keydown",e=>{if(e.key==="Escape"){if(!$("modal").hidden)closeModal();$("accountDropdown").hidden=true;$("accountTrigger").setAttribute("aria-expanded","false")}});
  const setFont=n=>{state.font=Math.max(13,Math.min(21,n));document.documentElement.style.fontSize=state.font+"px";localStorage.setItem("workforce_unified_font",String(state.font))};
