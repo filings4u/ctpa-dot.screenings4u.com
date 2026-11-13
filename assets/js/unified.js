@@ -35,7 +35,7 @@ const CONFIG={
  pools:["Pools","Manage consortium and employer selection pools.","name|Pool name|text|required;employer|Employer|text;program|Program|text;frequency|Selection frequency|select:monthly,quarterly,annual;status|Status|select:active,inactive"],
  selections:["Selections","Review and record randomized selection activity.","name|Selection reference|text|required;pool|Pool|text;selection_date|Selection date|date;status|Status|select:scheduled,selected,completed;notes|Notes|textarea"],
  testing_orders:["Testing Orders","Create and manage testing requests.","name|Order reference|text|required;employee_name|Employee / donor|text;employer|Employer|text;test_type|Test type|text;reason|Testing reason|text;status|Status|select:draft,ordered,scheduled,completed,cancelled"],
- testing_documents:["Testing Documents","Manage testing-related document records.","title|Document title|text|required;order_reference|Order reference|text;document_type|Document type|text;file_url|File URL|url;status|Status|select:pending,complete"],
+ testing_documents:["Testing Documents","Manage testing-related documents.","title|Document title|text|required;document_type|Document type|text;order_reference|Order reference|text;document_file|Upload document|file;status|Status|select:pending,complete"],
  results:["Results","Track confidential test result metadata.","name|Result reference|text|required;order_reference|Order reference|text;status|Status|select:pending,received,reviewed;reported_at|Date reported|date;notes|Notes|textarea"],
  occupational_health:["Occupational Health","Manage occupational health service requests.","name|Service reference|text|required;employee_name|Employee name|text;service|Service|text;appointment_date|Appointment date|date;status|Status|select:requested,scheduled,completed"],
  compliance:["Compliance","Manage compliance cases and required actions.","name|Case title|text|required;employer|Employer|text;due_date|Due date|date;priority|Priority|select:low,normal,high;status|Status|select:open,in_progress,complete"],
@@ -44,14 +44,14 @@ const CONFIG={
  return_to_duty:["Return to Duty","Manage Return-to-Duty and follow-up tracking.","name|Case reference|text|required;agency|DOT agency|text;employee|Employee|text;status|Status|select:opened,in_progress,follow_up,complete;notes|Notes|textarea"],
  policies:["Policies","Manage compliance policy records.","name|Policy name|text|required;version|Version|text;effective_date|Effective date|date;status|Status|select:draft,active,archived"],
  enrollments:["Enrollments","Manage enrollment record status.","name|Enrollment name|text|required;participant|Participant|text;program|Program|text;status|Status|select:pending,active,complete"],
- documents:["Documents","Manage account and compliance document records.","title|Document title|text|required;document_type|Document type|text;file_url|Document URL|url;status|Status|select:requested,received,approved"],
+ documents:["Documents","Manage account and compliance documents.","title|Document title|text|required;document_type|Document type|text;document_file|Upload document|file;status|Status|select:requested,received,approved"],
  reports:["Reports","Maintain generated reporting records.","name|Report name|text|required;report_type|Report type|text;period|Reporting period|text;status|Status|select:draft,ready,archived"],
  lab_accounts:["Lab Accounts","Manage connected laboratory account records.","name|Account name|text|required;account_number|Account number|text;provider|Provider|text;status|Status|select:active,inactive"],
  lab_clients:["Laboratory Clients","Manage laboratory client accounts.","name|Client name|text|required;contact|Contact|text;email|Email|email;status|Status|select:active,inactive"],
  lab_orders:["Laboratory Orders","Manage laboratory order records.","name|Order reference|text|required;account|Lab account|text;donor|Donor|text;collection_date|Collection date|date;status|Status|select:requested,scheduled,collected,complete"],
  lab_tracking:["Laboratory Tracking","Track specimen and order movement.","name|Tracking reference|text|required;order_reference|Order reference|text;carrier|Carrier|text;tracking_number|Tracking number|text;status|Status|select:pending,in_transit,delivered"],
  lab_results:["Laboratory Results","Manage laboratory result records.","name|Lab result reference|text|required;order_reference|Order reference|text;status|Status|select:pending,reported,reviewed;reported_at|Reported at|date"],
- lab_documents:["Laboratory Documents","Manage laboratory document records.","title|Document title|text|required;account|Account|text;file_url|Document URL|url;status|Status|select:pending,received,complete"],
+ lab_documents:["Laboratory Documents","Manage laboratory documents.","title|Document title|text|required;account|Account|text;document_file|Upload document|file;status|Status|select:pending,received,complete"],
  lab_billing:["Laboratory Billing","Manage laboratory billing records.","name|Billing reference|text|required;account|Lab account|text;amount|Amount|number;due_date|Due date|date;status|Status|select:open,paid,void"],
  lab_supplies:["Laboratory Supplies","Manage laboratory supply requests.","name|Supply item|text|required;quantity|Quantity|number;account|Account|text;status|Status|select:requested,shipped,received"],
  lab_analytics:["Laboratory Analytics","Manage laboratory analytics reports.","name|Analysis name|text|required;period|Period|text;metric|Metric|text;value|Value|number"],
@@ -81,8 +81,9 @@ const label=id=>CONFIG[id]?.[0]||id.replaceAll("_"," ").replace(/\b\w/g,x=>x.toU
 const fields=id=>(CONFIG[id]?.[2]||"name|Name|text|required").split(";").map(x=>{const a=x.split("|");return {name:a[0],label:a[1]||a[0],type:a[2]||"text",required:a[3]==="required"}});
 const recordTitle=r=>{
  const d=r?.data||{};
- return d.name||d.title||d.legal_name||[d.first_name,d.last_name].filter(Boolean).join(" ")||d.account_number||r?.id||"Record";
+ return d.name||d.title||d.legal_name||[d.first_name,d.last_name].filter(Boolean).join(" ")||d.summary||d.file_name||d.invoice_number||d.order_reference||d.account_number||r?.id||"Record";
 };
+const DOCUMENT_PAGES=new Set(["documents","lab_documents","testing_documents"]);
 const cacheKey=(p=state.page)=>state.tenantId+"|"+state.context+"|"+p;
 function message(text,isError=false){
  const n=$("notice");if(!text){n.hidden=true;return}
@@ -266,7 +267,8 @@ function managementField(f,value=""){
  const required=f.required?" required":"";
  let control="";
  const name=esc(f.name),v=esc(value);
- if(f.type==="textarea")control='<textarea id="manage-'+name+'" name="'+name+'" rows="4"'+required+'>'+v+'</textarea>';
+ if(f.type==="file")control='<input id="manage-'+name+'" name="'+name+'" type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,.txt,.doc,.docx" aria-describedby="uploadHelp">';
+ else if(f.type==="textarea")control='<textarea id="manage-'+name+'" name="'+name+'" rows="4"'+required+'>'+v+'</textarea>';
  else if(f.type.startsWith("select:")){
   const values=f.type.slice(7).split(",");
   control='<select id="manage-'+name+'" name="'+name+'"'+required+'>'+
@@ -291,7 +293,8 @@ function renderManagementPage(){
  if(m.action==="view"){
   const rows=Object.entries(record?.data||{});
   $("pageContent").innerHTML=overview+'<section class="panel manage-panel">'+
-   '<dl class="manage-details">'+rows.map(([key,value])=>'<div><dt>'+esc(fields(state.page).find(f=>f.name===key)?.label||key.replaceAll("_"," "))+'</dt><dd>'+esc(value??"—")+'</dd></div>').join("")+'</dl>'+detail+
+   '<dl class="manage-details">'+rows.filter(([key])=>!key.startsWith("_")&&!["storage_bucket","storage_path","mime_type","file_url"].includes(key)).map(([key,value])=>'<div><dt>'+esc(fields(state.page).find(f=>f.name===key)?.label||key.replaceAll("_"," "))+'</dt><dd>'+esc(value??"—")+'</dd></div>').join("")+'</dl>'+detail+
+   (DOCUMENT_PAGES.has(state.page)&&record?.data?.storage_path?'<div class="document-file-actions"><button type="button" class="btn primary" data-open-file="'+esc(record.id)+'">View or Download File</button><span>'+esc(record.data.file_name||"Attached document")+'</span></div>':"")+
    '<div class="manage-actions"><button type="button" class="btn secondary" data-back-list>Back to List</button>'+
    (["owner","admin","editor"].includes(activeWorkspace()?.role||"")?'<button type="button" class="btn primary" data-manage-edit="'+esc(record.id)+'">Edit Record</button>':'')+'</div></section>';
   return;
@@ -302,6 +305,7 @@ function renderManagementPage(){
  $("pageContent").innerHTML=overview+'<section class="panel manage-panel">'+
   '<form id="managementForm"><div class="manage-form-grid">'+inputs+'<label class="manage-field manage-context"><span>Record context</span><select name="record_context"'+(record?' disabled':'')+'>'+
   '<option value="'+esc(context)+'">'+esc(context.toUpperCase())+'</option>'+(shared?'<option value="shared">Shared: DOT and NON-DOT</option>':'')+'</select></label></div>'+
+  (DOCUMENT_PAGES.has(state.page)?'<p class="upload-help" id="uploadHelp">Attach a PDF, image, text or Word document (up to 8 MB). Files are private.</p>':"")+
   detail+'<p class="manage-form-error" id="managementError" role="alert"></p><div class="manage-actions">'+
   '<button type="button" class="btn secondary" data-back-list>Cancel</button><button type="submit" class="btn primary" id="managementSave">'+
   (record?"Save Changes":"Create Record")+'</button></div></form></section>';
@@ -313,15 +317,38 @@ function leaveManagement(push=true){
  updateHeading();const stored=state.cache.get(cacheKey());
  if(stored)showRecords(stored.records);else void loadRecords();
 }
+async function uploadManagementFile(file){
+ if(file.size>8*1024*1024)throw Error("The document must be 8 MB or smaller.");
+ const allowed=["application/pdf","image/png","image/jpeg","image/webp","text/plain","application/msword","application/vnd.openxmlformats-officedocument.wordprocessingml.document"];
+ if(!allowed.includes(file.type))throw Error("Unsupported document type.");
+ const dataUrl=await new Promise((resolve,reject)=>{
+  const reader=new FileReader();reader.onload=()=>resolve(String(reader.result));reader.onerror=()=>reject(Error("Unable to read document."));reader.readAsDataURL(file);
+ });
+ const result=await api("upload_file",{tenant_id:state.tenantId,kind:state.page,
+  filename:file.name,mime_type:file.type,base64:String(dataUrl).split(",")[1]||""});
+ return {storage_bucket:result.storage_bucket,storage_path:result.storage_path,file_name:result.file_name,mime_type:result.mime_type,size_bytes:result.size_bytes};
+}
+async function openDocumentFile(id){
+ try{
+  const result=await api("document_link",{tenant_id:state.tenantId,operating_context:state.context,kind:state.page,id});
+  if(!result.url||!result.url.startsWith("https://"))throw Error("Document link unavailable.");
+  window.open(result.url,"_blank","noopener,noreferrer");
+ }catch(error){message(error.message,true)}
+}
 async function submitManagement(form){
  const m=state.management;
  if(!m||!form.reportValidity())return;
  const button=$("managementSave");button.disabled=true;
  const data=Object.fromEntries(new FormData(form).entries()),recordContext=data.record_context||state.context;
  delete data.record_context;
+ const file=data.document_file;delete data.document_file;
  for(const f of fields(state.page))if(f.type==="number"&&data[f.name]!=="")data[f.name]=Number(data[f.name]);
  $("managementError").textContent="";
  try{
+  if(DOCUMENT_PAGES.has(state.page)){
+   if(file instanceof File&&file.size)Object.assign(data,await uploadManagementFile(file));
+   else if(!m.id)throw Error("Select a document file before saving.");
+  }
   await api("save",{tenant_id:state.tenantId,operating_context:state.context,
    kind:state.page,record_context:recordContext,id:m.id||null,data});
   state.cache.delete(cacheKey());leaveManagement();
@@ -335,14 +362,16 @@ function showRecords(records){
  const visible=query?records.filter(r=>Object.values(r.data||{}).some(v=>String(v??"").toLowerCase().includes(query))):records;
  const canWrite=["owner","admin","editor"].includes(activeWorkspace()?.role||"");
  $("newRecord")?.toggleAttribute("disabled",!canWrite);
- const columns=fields(state.page).slice(0,3);
+ const columns=fields(state.page).filter(f=>f.type!=="file").slice(0,3);
  $("pageContent").innerHTML='<section class="panel"><div class="toolbar"><input id="recordSearch" type="search" aria-label="Search records" placeholder="Search records" value="'+esc(state.search)+'"><span class="search-meta">'+count+' records</span></div>'+
   (visible.length?'<div class="table-scroll"><table class="data-table"><thead><tr><th>Record</th>'+
    columns.map(c=>'<th>'+esc(c.label)+'</th>').join("")+'<th>Updated</th><th>Actions</th></tr></thead><tbody>'+
    visible.map(r=>'<tr><td class="record-name">'+esc(recordTitle(r))+'<br><small>'+esc(r.operating_context==="shared"?"Shared":r.operating_context==="dot"?"DOT":"NON-DOT")+'</small></td>'+
     columns.map(c=>'<td>'+esc(r.data?.[c.name]??"—")+'</td>').join("")+
     '<td>'+esc(new Date(r.updated_at).toLocaleDateString())+'</td><td><div class="row-actions">'+
-    '<button type="button" data-view="'+esc(r.id)+'">View</button>'+(canWrite?'<button type="button" data-edit="'+esc(r.id)+'">Edit</button><button type="button" data-archive="'+esc(r.id)+'">Archive</button>':"")+
+    '<button type="button" data-view="'+esc(r.id)+'">View</button>'+
+    (DOCUMENT_PAGES.has(state.page)&&r.data?.storage_path?'<button type="button" data-open-file="'+esc(r.id)+'">Download</button>':"")+
+    (canWrite?'<button type="button" data-edit="'+esc(r.id)+'">Edit</button><button type="button" data-archive="'+esc(r.id)+'">Archive</button>':"")+
     '</div></td></tr>').join("")+'</tbody></table></div>'
   :'<div class="empty"><p>'+esc(query?"No matching records.":"No records yet.")+'</p>'+(canWrite&&!query?'<button class="btn primary" type="button" data-create="1">Add record</button>':"")+'</div>')+'</section>';
 }
@@ -491,8 +520,9 @@ function bindEvents(){
  $("pageActions").addEventListener("click",e=>{if(e.target.closest("#newRecord"))openManagement("new");if(e.target.closest("#refreshPage"))void loadRecords(state.sequence,true);if(e.target.closest("#exportPage"))exportRecords()});
  $("pageContent").addEventListener("click",e=>{
   const target=e.target;
-  const view=target.closest("[data-view]"),edit=target.closest("[data-edit]"),archive=target.closest("[data-archive]"),create=target.closest("[data-create]"),goto=target.closest("[data-goto]"),retry=target.closest("#retryLoad");
-  if(view)openManagement("view",view.dataset.view);
+  const view=target.closest("[data-view]"),edit=target.closest("[data-edit]"),archive=target.closest("[data-archive]"),create=target.closest("[data-create]"),goto=target.closest("[data-goto]"),retry=target.closest("#retryLoad"),openFile=target.closest("[data-open-file]");
+  if(openFile)void openDocumentFile(openFile.dataset.openFile);
+  else if(view)openManagement("view",view.dataset.view);
   else if(edit)openManagement("edit",edit.dataset.edit);
   else if(archive)archiveRecord(archive.dataset.archive);
   else if(create)openManagement("new");
