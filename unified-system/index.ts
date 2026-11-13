@@ -443,9 +443,122 @@ Deno.serve(async request=>{
    if(log.error)return respond({ok:true,sent:true,warning:"Email sent, but delivery history could not be recorded."});
    return respond({ok:true,sent:true,delivery_id:log.data.id,recipient_email:contact});
   }
+
+  // Physicals are submitted by the unified C/TPA tenant and processed in the
+  // existing Occupational Health and Testing Operations queues.
+  if(action==="occupational_health_submit"){
+   if(!canWrite)return respond({error:"You cannot submit physical orders"},403);
+   const requestId=body.request_id,companyId=body.company_id,personId=body.person_id;
+   if(!uuid(requestId)||!uuid(companyId)||!uuid(personId))return respond({error:"Select an employer and employee"},400);
+   const examType=text(body.exam_type,30);
+   if(!["physical","recertification","return_to_duty","fit_for_duty","pre_employment"].includes(examType))
+    return respond({error:"Select a valid physical examination"},400);
+   const requestedDate=text(body.requested_date,10);
+   if(requestedDate&&(!/^\d{4}-\d{2}-\d{2}$/.test(requestedDate)||!Number.isFinite(Date.parse(requestedDate+"T12:00:00Z"))))
+    return respond({error:"Invalid preferred appointment date"},400);
+   const company=await collection.select("id,kind,operating_context,data").eq("tenant_id",tenantId)
+    .eq("id",companyId).in("kind",context==="dot"?["employers","owner_operators"]:["employers"])
+    .eq("operating_context",context).is("archived_at",null).maybeSingle();
+   if(company.error)throw company.error;
+   if(!company.data)return respond({error:"Choose an employer in the current workspace"},404);
+   const person=await collection.select("id,data").eq("tenant_id",tenantId)
+    .eq("id",personId).eq("kind","people").in("operating_context",[context,"shared"])
+    .is("archived_at",null).maybeSingle();
+   if(person.error)throw person.error;
+   if(!person.data||person.data.data?.company_id!==companyId)
+    return respond({error:"The employee must belong to the selected employer"},400);
+   const donorName=[text(person.data.data?.first_name,80),text(person.data.data?.last_name,80)].filter(Boolean).join(" ");
+   if(!donorName||!text(person.data.data?.first_name)||!text(person.data.data?.last_name))
+    return respond({error:"Employee first and last names are required"},400);
+   const companyName=text(company.data.data?.legal_name,180);
+   if(!companyName)return respond({error:"Employer legal name is required"},400);
+   const metadata={source:"workforce_ctpa_unified",unified_tenant_id:tenantId,
+    operating_context:context,company_id:companyId,person_id:personId,
+    request_id:requestId,requested_date:requestedDate,submission_channel:"ctpa_portal"};
+   const previous=await db.from("occupational_health_orders").select("id,reference_number,testing_case_id,status")
+    .contains("metadata",{source:"workforce_ctpa_unified",unified_tenant_id:tenantId,request_id:requestId})
+    .is("archived_at",null).limit(1).maybeSingle();
+   if(previous.error)throw previous.error;
+   if(previous.data?.testing_case_id)return respond({ok:true,id:previous.data.id,
+    reference_number:previous.data.reference_number,case_id:previous.data.testing_case_id,
+    status:previous.data.status,already_submitted:true});
+   const now=new Date().toISOString();
+   let order=previous.data;
+   if(!order){
+    const saved=await db.from("occupational_health_orders").insert({
+     source_type:"ctpa",recipient_portal:"ctpa",physical_type:context==="dot"?"DOT":"NON_DOT",
+     exam_type:examType,donor_name:donorName,donor_email:text(person.data.data?.email,180)||null,
+     donor_phone:text(person.data.data?.phone,60)||null,company_name:companyName,
+     notes:text(body.notes,2000)||null,status:"draft",metadata,
+     created_by:user.id,updated_by:user.id
+    }).select("id,reference_number,testing_case_id,status").single();
+    if(saved.error)throw saved.error;order=saved.data;
+   }
+   const caseId=crypto.randomUUID();
+   const caseNo="TST-"+crypto.randomUUID().replaceAll("-","").slice(0,10).toUpperCase();
+   const caseRow={
+    id:caseId,case_number:caseNo,customer_name:companyName,
+    customer_email:text(company.data.data?.contact_email||company.data.data?.email,180)||null,
+    company_name:companyName,donor_name:donorName,
+    donor_email:text(person.data.data?.email,180)||null,donor_phone:text(person.data.data?.phone,60)||null,
+    dot_test:context==="dot",dot_agency:context==="dot"?text(company.data.data?.dot_agency||"FMCSA",20):null,
+    test_reason:examType,test_type:context==="dot"?"DOT physical":"Non-DOT physical",
+    panel_name:context==="dot"?"DOT Occupational Physical":"NON-DOT Occupational Physical",
+    status:"awaiting_schedule",priority:"normal",notes:text(body.notes,2000)||null,
+    created_by:user.id,metadata:{source_domain:"occupational_health",source_type:"ctpa",
+     recipient_portal:"ctpa",occupational_health_order_id:order.id,
+     unified_tenant_id:tenantId,company_id:companyId,person_id:personId,
+     requested_date:requestedDate,operating_context:context,request_id:requestId}
+   };
+   const created=await db.from("testing_cases").insert(caseRow).select("id,case_number,status").single();
+   if(created.error){
+    if(!previous.data)await db.from("occupational_health_orders").delete().eq("id",order.id).eq("status","draft");
+    throw created.error;
+   }
+   const updated=await db.from("occupational_health_orders").update({
+    testing_case_id:caseId,status:"submitted",submitted_at:now,updated_by:user.id,updated_at:now
+   }).eq("id",order.id).eq("status","draft").is("testing_case_id",null).select("id,reference_number,status").maybeSingle();
+   if(updated.error||!updated.data){
+    await db.from("testing_cases").delete().eq("id",caseId);
+    if(updated.error)throw updated.error;
+    return respond({error:"Physical already submitted. Reload the order list."},409);
+   }
+   return respond({ok:true,id:updated.data.id,reference_number:updated.data.reference_number,
+    case_id:caseId,case_number:created.data.case_number,status:"submitted"});
+  }
+
   if(action==="list"){
    const kind=text(body.kind,64);
    if(kind!=="all"&&!ALLOWED.has(kind))return respond({error:"Unknown application module"},400);
+
+   if(kind==="occupational_health"){
+    const physicals=await db.from("occupational_health_orders")
+     .select("id,reference_number,physical_type,exam_type,donor_name,company_name,donor_email,donor_phone,notes,status,testing_case_id,donor_pass_id,metadata,created_at,updated_at")
+     .contains("metadata",{source:"workforce_ctpa_unified",unified_tenant_id:tenantId,operating_context:context})
+     .is("archived_at",null).order("created_at",{ascending:false}).limit(500);
+    if(physicals.error)throw physicals.error;
+    const ids=(physicals.data||[]).map((p:any)=>p.testing_case_id).filter(uuid);
+    const cases=ids.length?await db.from("testing_cases")
+     .select("id,case_number,status,scheduled_at,completed_at").in("id",ids):{data:[],error:null};
+    if(cases.error)throw cases.error;
+    const map=new Map((cases.data||[]).map((c:any)=>[c.id,c]));
+    return respond({ok:true,tenant_id:tenantId,operating_context:context,records:
+     (physicals.data||[]).map((p:any)=>{
+      const c:any=map.get(p.testing_case_id);
+      return {id:p.id,kind:"occupational_health",operating_context:context,
+       created_at:p.created_at,updated_at:p.updated_at,
+       data:{name:p.reference_number,reference:p.reference_number,
+        physical_type:p.physical_type,exam_type:p.exam_type,
+        employee_name:p.donor_name,employer:p.company_name,
+        donor_email:p.donor_email,donor_phone:p.donor_phone,
+        company_id:p.metadata?.company_id,person_id:p.metadata?.person_id,
+        requested_date:p.metadata?.requested_date,notes:p.notes,
+        status:c?.status||p.status,order_status:p.status,
+        testing_case_id:p.testing_case_id,case_number:c?.case_number,
+        scheduled_at:c?.scheduled_at,completed_at:c?.completed_at,donor_pass_ready:!!p.donor_pass_id}};
+     }),limit:500});
+   }
+
    if(kind==="owner_operators"&&context==="nondot")
     return respond({ok:true,tenant_id:tenantId,operating_context:context,records:[],limit:1000});
    let query=collection.select("id,kind,operating_context,data,created_at,updated_at")
