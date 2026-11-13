@@ -482,7 +482,6 @@ body.modal-open{overflow:hidden}
  .top-actions{gap:4px}
  .top-actions .page-actions{margin-right:2px}
  .top-actions .page-actions .btn{font-size:.71rem;padding:6px 8px;min-height:31px}
- .top-actions .page-actions #refreshPage,.top-actions .page-actions #exportPage{display:none}
  .top-actions .context-pill{margin-right:3px;padding:6px 8px;font-size:.67rem}
  .content{padding-top:14px}
 }
@@ -491,4 +490,17 @@ body.modal-open{overflow:hidden}
  .top-start strong{max-width:132px}
  .top-actions #fontDown,.top-actions #fontReset,.top-actions #fontUp{display:none}
  .top-actions .page-actions{max-width:128px}
+}
+
+/* Retain usable management actions on narrow screens. */
+@media(max-width:760px){
+ .topbar{flex-wrap:wrap}
+ .top-actions{flex:1 1 auto;min-width:0;flex-wrap:wrap}
+ .top-actions .page-actions{order:2;flex:0 0 100%;justify-content:flex-end;margin-right:0}
+}
+@media(max-width:500px){
+ .top-start{flex:1 1 125px}
+ .top-actions{flex:1 1 150px}
+ .top-actions .page-actions{max-width:none}
+ .top-actions .page-actions .btn{font-size:.71rem}
 }
