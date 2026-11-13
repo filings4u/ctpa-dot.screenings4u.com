@@ -83,6 +83,18 @@ async function initNewEntrant(q){
  };
 }
 
+async function invokeSupplies(body){
+ const {data:{session}}=await db.auth.getSession();
+ if(!session?.access_token)throw Error("Authentication required.");
+ const response=await fetch(`${C.workforceUrl}/functions/v1/workforce-ctpa-supplies`,{
+  method:"POST",cache:"no-store",
+  headers:{"Content-Type":"application/json","Authorization":"Bearer "+session.access_token,"apikey":C.workforceKey},
+  body:JSON.stringify(body)
+ });
+ const data=await response.json().catch(()=>({}));
+ if(!response.ok||data.error)throw Error(data.error||"Supplies checkout failed");
+ return data;
+}
 async function initSupplies(q){
  const id=q.get("order_id"),tenant=q.get("tenant_id"),operating_context=q.get("context")==="nondot"?"nondot":"dot";
  if(!id||!/^[0-9a-f-]{36}$/i.test(id)||!tenant||!/^[0-9a-f-]{36}$/i.test(tenant))
@@ -90,7 +102,7 @@ async function initSupplies(q){
  const request={tenant_id:tenant,operating_context,order_id:id};
  const back="/unified.html?page=lab_supplies";
  $("checkoutBack").href=back;$("checkoutBack").textContent="Back to Supplies";
- const response=await invoke("workforce-unified-portal",{action:"supplies_get_order",...request});
+ const response=await invokeSupplies({action:"supplies_get_order",...request});
  const o=response.order||{},lines=o.order_items||[];
  const paid=o.payment_status==="paid";
  $("pageTitle").textContent="Supply order checkout";
@@ -113,14 +125,14 @@ async function initSupplies(q){
  // independently verified payment-intent status, not URL query parameters.
  if(q.get("payment_intent")){
   try{
-   const result=await invoke("workforce-unified-portal",{action:"supplies_confirm_payment",...request});
+   const result=await invokeSupplies({action:"supplies_confirm_payment",...request});
    if(result.paid){
     $("paymentHost").innerHTML='<div class="complete">Payment verified. Your order is queued for processing.</div>';
     msg("Payment completed successfully.","ok");return;
    }
   }catch(err){msg("The payment has not been verified yet. You can check your order status or retry payment.","error")}
  }
- const prepared=await invoke("workforce-unified-portal",{action:"supplies_prepare_payment",...request});
+ const prepared=await invokeSupplies({action:"supplies_prepare_payment",...request});
  if(prepared.paid){location.reload();return}
  stripe=window.Stripe(prepared.publishable_key);
  elements=stripe.elements({clientSecret:prepared.client_secret});
@@ -133,7 +145,7 @@ async function initSupplies(q){
    if(elements.submit){const result=await elements.submit();if(result?.error)throw result.error}
    const confirmation=await stripe.confirmPayment({elements,redirect:"if_required",confirmParams:{return_url:location.href}});
    if(confirmation.error)throw confirmation.error;
-   const verified=await invoke("workforce-unified-portal",{action:"supplies_confirm_payment",...request});
+   const verified=await invokeSupplies({action:"supplies_confirm_payment",...request});
    if(!verified.paid)throw Error("Payment has not yet been verified");
    $("paymentHost").innerHTML='<div class="complete">Payment verified. Your order has been submitted for processing.</div>'+
     '<p><a href="'+back+'">Return to Supplies</a></p>';
