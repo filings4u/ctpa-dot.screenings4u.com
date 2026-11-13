@@ -802,6 +802,7 @@ async function submitManagement(form,continueEditing=false){
    kind:state.page,record_context:recordContext,id:m.id||null,data});
   state.cache.delete(cacheKey());state.companyDraft=null;
   if(continueEditing&&m.id){
+   button.disabled=false;
    message("Company details saved successfully.");
    void loadRecords(state.sequence,true);
   }else{
