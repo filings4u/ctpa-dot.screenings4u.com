@@ -218,7 +218,8 @@ function switchPage(page,push=true){
  if(page==="demo_sessions"){void openDemoBooking();return}
  if(page==="staff"){void openStaffDirectory();return}
  if(page==="integrations"){void openIntegrationsV2();return}
- if(page==="branding"||page==="collection_sites"){void openEnterpriseModule(page);return}\n if(page==="audit_history"){const tenantId=state.tenantId;window.WorkforceLoginActivity?.open({tenantId,supabase:state.supabase,active:()=>state.page==="audit_history"&&state.tenantId===tenantId});return}
+ if(page==="branding"||page==="collection_sites"){void openEnterpriseModule(page);return}
+ if(page==="audit_history"){const tenantId=state.tenantId;window.WorkforceLoginActivity?.open({tenantId,supabase:state.supabase,active:()=>state.page==="audit_history"&&state.tenantId===tenantId});return}
  const stored=state.cache.get(cacheKey());
  if(stored){showRecords(stored.records);if(Date.now()-stored.time>30000)void loadRecords(seq,true)}
  else {$("pageContent").innerHTML='<section class="panel"><div class="loading-line"><span class="spinner"></span>Loading authorized records…</div></section>';void loadRecords(seq,false)}
