@@ -44,7 +44,7 @@ function drawData(section,data){
   recordsTable(['Report','Status','Updated'],reports.slice(0,250).map(r=>row([r.report_number||r.testing_order?.order_number||r.order_number||'—',pretty(r.status||r.result_status),formatDate(r.updated_at||r.released_at)])));
 }
 function render(d){
- if(d?.ok!==true||d?.context!=='nondot')return '<section class="panel"><h2>NON-DOT access unavailable</h2><p>This workspace requires an independently authorized NON-DOT subscription and feature entitlement.</p></section>';
+ if(d?.ok!==true||d?.context!=='nondot')return '<section class="panel" role="alert"><h2>Unable to load NON-DOT records</h2><p>'+esc(d?.message||'The requested NON-DOT information is unavailable. Please retry or contact support.')+'</p></section>';
  if(location.pathname==='/nondot-workspace.html'||(location.pathname==='/dashboard.html'&&window.S4UCTPAWorkspace?.read()?.surface==='nondot')){
   const eligible=new Set(Array.isArray(d.available_sections)?d.available_sections:[]);
   const cards=sections.filter(x=>eligible.has(x.id)).map(x=>'<a class="card utility-card" href="/nondot-'+x.id+'.html"><h3>'+esc(x.label)+'</h3><p>'+esc(x.detail)+'</p><strong>Open NON-DOT module</strong></a>').join('');
@@ -142,7 +142,7 @@ function bind(data,submit){
    if(section==='people'){value.first_name=String(fd.get('first_name')||'').trim();value.last_name=String(fd.get('last_name')||'').trim();value.employee_number=String(fd.get('employee_number')||'').trim();}
    else value.name=String(fd.get('name')||'').trim();
    button.disabled=true;status.textContent='Saving changes…';
-   try{await submit({section,action:section==='people'?'update_employee':'update_program',[section==='people'?'employee':'program']:value});location.reload();}
+   try{await submit({section,action:section==='people'?'update_employee':'update_program',[section==='people'?'employee':'program']:value});await window.Portal.refresh();}
    catch(e){status.textContent=e?.message||'Update failed';button.disabled=false;}
   });
  }
@@ -154,7 +154,7 @@ function bind(data,submit){
    const id=String(fd.get('pool_id')||''),name=String(fd.get('name')||'').trim();
    if(!name){status.textContent='A pool name is required';return;}
    button.disabled=true;status.textContent='Saving draft pool…';
-   try{await submit({section:'pools',action:'update_pool',pool:{id,name}});location.reload();}
+   try{await submit({section:'pools',action:'update_pool',pool:{id,name}});await window.Portal.refresh();}
    catch(error){status.textContent=error?.message||'Unable to update pool';button.disabled=false;}
   });
  }
@@ -169,7 +169,7 @@ function bind(data,submit){
    if(status)status.textContent='Cancelling unfulfilled order…';
    try{
     await submit({section:'testing',action:'cancel_test_order',test:{id:button.dataset.orderId}});
-    location.reload();
+    await window.Portal.refresh();
    }catch(error){
     if(status)status.textContent=error?.message||'Unable to cancel order';
     button.disabled=false;
@@ -191,7 +191,7 @@ function bind(data,submit){
    try{
     await submit({section:'testing',action:'update_test_deadline',
       test:{id:form.querySelector('[name="order_id"]').value,collection_deadline:deadline.toISOString()}});
-    location.reload();
+    await window.Portal.refresh();
    }catch(error){status.textContent=error?.message||'Unable to update deadline';button.disabled=false;}
   });
  }
@@ -203,14 +203,14 @@ function bind(data,submit){
   memberForm.addEventListener('submit',async event=>{
    event.preventDefault();const button=memberForm.querySelector('button[type="submit"]');if(button.disabled)return;
    button.disabled=true;status.textContent='Adding pool membership…';
-   try{await submit({section:'pools',action:'add_pool_member',membership:{pool_id:pool.value,employee_id:employee.value}});location.reload();}
+   try{await submit({section:'pools',action:'add_pool_member',membership:{pool_id:pool.value,employee_id:employee.value}});await window.Portal.refresh();}
    catch(error){status.textContent=error?.message||'Unable to add employee';button.disabled=false;}
   });
   for(const button of document.querySelectorAll('.nondot-remove-member')){
    button.addEventListener('click',async()=>{
     if(button.disabled)return;
     button.disabled=true;status.textContent='Removing pool membership…';
-    try{await submit({section:'pools',action:'remove_pool_member',membership:{pool_id:button.dataset.poolId,employee_id:button.dataset.employeeId}});location.reload();}
+    try{await submit({section:'pools',action:'remove_pool_member',membership:{pool_id:button.dataset.poolId,employee_id:button.dataset.employeeId}});await window.Portal.refresh();}
     catch(error){status.textContent=error?.message||'Unable to remove membership';button.disabled=false;}
    });
   }
@@ -254,8 +254,8 @@ function bind(data,submit){
   try{
    await submit({section,action:section==='people'?'save_employee':section==='pools'?'save_pool':section==='testing'?'create_test_order':'save_program',
     [section==='people'?'employee':section==='pools'?'pool':section==='testing'?'test':'program']:record});
-   message.textContent='Saved. Refreshing your workspace…';
-   location.reload();
+   message.textContent='Saved. Updating workspace data…';
+   await window.Portal.refresh();
   }catch(error){
    message.textContent=error?.message||'Unable to save this record.';
    saveButton.disabled=false;
