@@ -73,7 +73,7 @@ try{
    saved_at:Date.now(),user_id:session.user.id,
    ctpa_id:saved.ctpa_id,subscription_id:saved.subscription_id,ctx:d
   }))}catch(_){}
-  location.replace(isNondot?'/nondot-workspace.html':'/dashboard.html');return;
+  location.replace('/dashboard.html');return;
  }
  // An incomplete handoff must return to the single Workforce selector.
  // Do not open a second organization chooser or guess which subscription to use.
