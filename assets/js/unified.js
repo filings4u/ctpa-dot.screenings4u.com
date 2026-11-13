@@ -2793,16 +2793,7 @@ function downloadCompanyCSV(){
 }
 function buildCompanyPDF(report){
  const ascii=v=>String(v??"").normalize("NFKD").replace(/[\u0300-\u036f]/g,"").replace(/[^\x20-\x7e]/g,"?");
- const escapePDF=v=>ascii(v).replace(/[\\()]/g,"\\
-const LAB_ACCOUNT_SERVICES=[["urine_drug","Urine drug testing"],["breath_alcohol","Alcohol testing"],["urine_drug_and_alcohol","Urine drug & alcohol"]];
-function labAccountsDirectory(records){
- const q=state.search.trim().toLowerCase();
- const filtered=records.filter(r=>{const d=r.data||{};return !q||[d.company_name,d.provider,d.account_number,d.service,d.status,d.order_reference].some(x=>String(x||"").toLowerCase().includes(q))});
- const rows=filtered.map(r=>{const d=r.data||{},issued=d.issued_by_testing===true&&d.ready_for_orders===true&&!!d.account_number;
-  return '<div class="lab-account-row"><span class="lab-account-avatar">'+navIcon("lab_accounts")+'</span>'+
-  '<span class="lab-account-primary"><strong>'+esc(d.company_name||"Employer")+'</strong><small>'+esc(LAB_ACCOUNT_SERVICES.find(x=>x[0]===d.service)?.[1]||"Lab account")+' · '+esc(state.context==="dot"?"DOT":"NON-DOT")+'</small></span>'+
-  '<span class="lab-account-number"><small>Laboratory account</small><strong>'+esc(d.account_number||"Awaiting issuance")+'</strong></span>'+
-  '<span class="lab-account-resale"><small>Resale price</small><strong>");
+ const escapePDF=v=>ascii(v).replace(/[\\()]/g,"\\function renderManagementPage(){");
  const pageWidth=842,pageHeight=595,margin=34,lineHeight=13,streams=[];
  const cols=report.columns||[],rows=report.rows||[];
  const colWidth=(pageWidth-2*margin)/Math.max(1,cols.length);
@@ -2871,6 +2862,97 @@ function downloadCompanyPDF(){
  downloadGeneratedFile(buildCompanyPDF(generatedReport),reportFilename(generatedReport,"pdf"));
 }
 
+
+const LAB_ACCOUNT_SERVICES=[["urine_drug","Urine drug testing"],["breath_alcohol","Alcohol testing"],["urine_drug_and_alcohol","Urine drug and alcohol"]];
+function labAccountList(records){
+ const q=state.search.trim().toLowerCase();
+ const shown=records.filter(r=>{const d=r.data||{};return !q||[d.company_name,d.account_number,d.service,d.provider,d.order_reference].some(v=>String(v||"").toLowerCase().includes(q))});
+ const entries=shown.map(r=>{const d=r.data||{},issued=d.issued_by_testing===true&&d.ready_for_orders===true&&d.account_number;
+ return '<div class="lab-account-row"><span class="lab-account-avatar">'+navIcon("lab_accounts")+'</span>'+
+ '<div class="lab-account-name"><strong>'+esc(d.company_name||"Employer")+'</strong><small>'+esc(LAB_ACCOUNT_SERVICES.find(x=>x[0]===d.service)?.[1]||"Laboratory service")+' · '+esc(r.operating_context==="dot"?"DOT":"NON-DOT")+'</small></div>'+
+ '<div class="lab-account-number"><small>Laboratory number</small><strong>'+esc(d.account_number||"Awaiting issuance")+'</strong></div>'+
+ '<div class="lab-account-resale"><small>Employer price</small><strong>$'+Number(d.resale_price||0).toFixed(2)+'</strong></div>'+
+ '<span class="mgmt-status '+(issued?"active":statusClass(d.status||"pending"))+'">'+esc(issued?"Issued / Ready":d.status==="unverified"?"Unverified":"Pending")+'</span>'+
+ '<div class="lab-account-actions"><button class="btn secondary" type="button" data-view="'+esc(r.id)+'">View</button>'+
+ (issued?'<button type="button" class="btn secondary" data-lab-copy="'+esc(r.id)+'">Copy</button>':"")+'</div></div>';
+ }).join("");
+ $("pageContent").innerHTML='<div class="lab-account-workspace">'+
+ '<section class="results-intro"><span class="results-intro-icon">'+navIcon("lab_accounts")+'</span><div><strong>Employer Lab Accounts</strong><p>Manage DOT and NON-DOT lab accounts purchased from and issued by Testing Operations. Record your selling prices and provide verified numbers to employers.</p></div></section>'+
+ '<div class="lab-account-summary"><div><small>Issued / ready</small><strong>'+records.filter(r=>r.data?.ready_for_orders&&r.data?.issued_by_testing).length+'</strong></div>'+
+ '<div><small>Pending requests</small><strong>'+records.filter(r=>r.data?.status==="requested").length+'</strong></div>'+
+ '<div><small>Accounts listed</small><strong>'+records.length+'</strong></div></div>'+
+ '<section class="results-list"><div class="directory-toolbar"><div class="directory-search"><input id="recordSearch" type="search" value="'+esc(state.search)+'" placeholder="Search employer, laboratory or account number" aria-label="Search lab accounts"></div>'+
+ '<span class="directory-total">'+shown.length+' accounts</span></div>'+
+ (entries||'<div class="directory-empty"><h2>No lab accounts yet</h2><p>Request laboratory service for an employer, or record an account number for verification.</p></div>')+
+ '</section><p class="lab-account-explainer">Only Testing Operations-verified accounts are marked ready for orders. Your resale pricing is separate from Workforce purchases.</p></div>';
+}
+function labAccountEditor(record,action){
+ const d=record?.data||{},service=LAB_ACCOUNT_SERVICES.find(x=>x[0]===d.service)?.[1]||"Lab account";
+ const heading='<div class="program-head"><span class="program-head-icon">'+navIcon("lab_accounts")+'</span><div><strong>'+esc(d.company_name||"New Employer Lab Account")+'</strong><small>'+esc(service)+'</small></div></div>';
+ if(action!=="new"){
+  const item=(l,v)=>'<div class="official-result-field"><small>'+esc(l)+'</small><strong>'+esc(v||"Not available")+'</strong></div>';
+  const issued=d.issued_by_testing===true&&d.ready_for_orders===true&&d.account_number;
+  $("pageContent").innerHTML='<div class="lab-account-editor">'+heading+'<section class="official-result-section"><h2>Account information</h2><div class="official-result-grid">'+
+  item("Employer / owner-operator",d.company_name)+item("Service",service)+item("Status",issued?"Issued / ready":d.status)+
+  item("Laboratory",d.provider)+item("Account number",d.account_number||"Awaiting issuance")+item("Request reference",d.order_reference)+
+  item("Your employer price","$"+Number(d.resale_price||0).toFixed(2))+'</div></section>'+
+  '<section class="official-result-section"><h2>Notes</h2><p class="compliance-note">'+esc(d.notes||"No notes")+'</p></section>'+
+  '<p class="lab-account-explainer">'+(issued?"Testing Operations has verified this number for orders.":"This number has not been verified for testing orders. Request submission does not charge the C/TPA or issue an account.")+'</p>'+
+  '<footer class="management-editor-actions"><button class="btn secondary" type="button" data-back-list>Back to Lab Accounts</button>'+
+  (issued?'<button type="button" class="btn primary" data-lab-copy="'+esc(record.id)+'">Copy Account Number</button>':'')+'</footer></div>';
+  return;
+ }
+ $("pageContent").innerHTML='<div class="lab-account-editor">'+heading+
+ '<div class="lab-account-intro"><h2>Employer laboratory service</h2><p>Submit an account request for processing, or record an existing lab account number as unverified. Purchases and official provisioning are managed separately by Testing Operations.</p>'+
+ '<div class="lab-account-modes"><label><input type="radio" name="labAccountMode" value="request" checked> Request new account</label>'+
+ '<label><input type="radio" name="labAccountMode" value="record"> Record existing number</label></div></div>'+
+ '<form id="labAccountForm"><div class="manage-form-grid">'+
+ '<label class="manage-field"><span>Employer / Owner-Operator *</span><select name="company_id" id="labAccountCompany" required disabled><option value="">Loading companies…</option></select></label>'+
+ '<label class="manage-field"><span>Laboratory service *</span><select name="service" required>'+LAB_ACCOUNT_SERVICES.map(([v,t])=>'<option value="'+v+'">'+esc(t)+'</option>').join("")+'</select></label>'+
+ '<label class="manage-field"><span>Laboratory (optional)</span><input name="provider" maxlength="100"></label>'+
+ '<label class="manage-field"><span>Your selling price to employer ($)</span><input type="number" name="resale_price" value="0" min="0" max="1000000" step="0.01" required></label>'+
+ '<label class="manage-field" id="labNumberField" hidden><span>Existing account number *</span><input name="account_number" id="labAccountNumber" maxlength="100"></label>'+
+ '<label class="manage-field lab-account-notes"><span>Internal notes or processing instructions</span><textarea name="notes" maxlength="1500" rows="4"></textarea></label></div>'+
+ '<p class="lab-account-explainer">Requesting an account does not charge your payment method or issue a laboratory number. Testing Operations must confirm any purchase and provision the account.</p>'+
+ '<p id="labAccountError" class="manage-form-error" role="alert"></p><footer class="management-editor-actions"><button class="btn secondary" type="button" data-back-list>Cancel</button>'+
+ '<button id="labAccountSave" class="btn primary" type="submit" disabled>Submit Lab Account Request</button></footer></form></div>';
+ void loadLabAccountCompanies();
+}
+async function loadLabAccountCompanies(){
+ const seq=state.sequence,ctx=state.context,m=state.management;
+ const kinds=ctx==="dot"?["employers","owner_operators"]:["employers"];
+ try{
+  const lists=await Promise.all(kinds.map(async kind=>{
+   const key=cacheKey(kind),cached=state.cache.get(key);
+   if(cached&&Date.now()-cached.time<30000)return cached.records||[];
+   const result=await api("list",{tenant_id:state.tenantId,operating_context:ctx,kind});
+   state.cache.set(key,{records:result.records||[],time:Date.now()});return result.records||[];
+  }));
+  if(seq!==state.sequence||ctx!==state.context||m!==state.management)return;
+  const company=$("labAccountCompany"),save=$("labAccountSave");
+  if(!company||!save)return;
+  const companies=lists.flat();
+  company.innerHTML='<option value="">Choose employer or owner-operator</option>'+
+   companies.map(r=>'<option value="'+esc(r.id)+'">'+esc(r.data?.legal_name||"Company")+'</option>').join("");
+  company.disabled=!companies.length;
+  company.addEventListener("change",()=>save.disabled=!company.value);
+  if(!companies.length)$("labAccountError").textContent="Add an employer or owner-operator before requesting a lab account.";
+ }catch(e){if($("labAccountError"))$("labAccountError").textContent=e.message}
+}
+async function saveLabAccount(form){
+ const save=$("labAccountSave"),error=$("labAccountError");
+ if(!save||save.disabled||!form.reportValidity())return;
+ const recordMode=document.querySelector('input[name="labAccountMode"]:checked')?.value==="record";
+ const data=Object.fromEntries(new FormData(form).entries());
+ save.disabled=true;error.textContent="";
+ try{
+  await api(recordMode?"lab_account_record":"lab_account_request",{tenant_id:state.tenantId,operating_context:state.context,data});
+  state.cache.delete(cacheKey());leaveManagement();
+  message(recordMode?"Account number recorded as unverified.":"Request recorded. Testing Operations must confirm purchase and issue a number.");
+  void loadRecords(state.sequence,true);
+ }catch(e){error.textContent=e.message;save.disabled=false}
+}
+
 function renderManagementPage(){
  const m=state.management;
  if(!m||m.section!==state.page)return;
@@ -2900,6 +2982,7 @@ function renderManagementPage(){
  if(state.page==="return_to_duty"){renderRTDManagement(record,m.action,canWrite);return;}
  if(state.page==="policies"){policyEditor(record,m.action,canWrite);return;}
  if(state.page==="documents"){privateDocumentEditor(record,m.action);return;}
+ if(state.page==="lab_accounts"){labAccountEditor(record,m.action);return;}
  if(state.page==="programs"){
   renderProgramManagement(record,m.action,canWrite);
   return;
@@ -3194,9 +3277,8 @@ function showRecords(records){
  if(state.page==="return_to_duty"){rtdCasesList(records);return}
  if(state.page==="policies"){policyList(records);return}
  if(state.page==="documents"){privateDocumentList(records);return}
- if(state.page==="lab_accounts"){labAccountManagement(record,m.action,canWrite);return;}
+ if(state.page==="lab_accounts"){labAccountList(records);return}
  if(state.page==="reports"){reportBuilder();return}
- if(state.page==="lab_accounts"){labAccountsDirectory(records);return}
  if(state.page==="occupational_health"){physicalOrderList(records);return}
  const count=records.length,query=state.search.trim().toLowerCase();
  const statuses=[...new Set(records.map(r=>String(r.data?.status||"").trim()).filter(Boolean))].sort();
@@ -3412,8 +3494,10 @@ function bindEvents(){
  $("notice").addEventListener("click",e=>{if(e.target.closest(".notice-close"))message("")});
  $("pageContent").addEventListener("click",e=>{
   const target=e.target;
-  const labCopy=target.closest("[data-lab-copy]");
-  if(labCopy){const r=(state.cache.get(cacheKey())?.records||[]).find(x=>x.id===labCopy.dataset.labCopy);if(r?.data?.issued_by_testing&&r.data.ready_for_orders&&r.data.account_number){navigator.clipboard.writeText(r.data.account_number).then(()=>message("Lab account number copied."),()=>message("Unable to copy the account number.",true))}return}
+  const copy=target.closest("[data-lab-copy]");
+  if(copy){const r=(state.cache.get(cacheKey())?.records||[]).find(x=>x.id===copy.dataset.labCopy);
+   if(r?.data?.ready_for_orders&&r.data.issued_by_testing&&r.data.account_number)navigator.clipboard.writeText(r.data.account_number).then(()=>message("Account number copied."),()=>message("Copy failed.",true));
+   return}
   if(target.closest("[data-report-csv]")){downloadCompanyCSV();return}
   if(target.closest("[data-report-pdf]")){downloadCompanyPDF();return}
   const view=target.closest("[data-view]"),edit=target.closest("[data-edit]"),archive=target.closest("[data-archive]"),create=target.closest("[data-create]"),goto=target.closest("[data-goto]"),retry=target.closest("#retryLoad"),openFile=target.closest("[data-open-file]"),previewFile=target.closest("[data-preview-file]"),step=target.closest("[data-page-step]");
@@ -3568,7 +3652,12 @@ function bindEvents(){
   else if(target.closest("[data-manage-edit]"))openManagement("edit",target.closest("[data-manage-edit]").dataset.manageEdit);
  });
  $("pageContent").addEventListener("change",e=>{
-  if(e.target.name==="labAccountMode"){const record=e.target.value==="record",field=$("labAccountNumberGroup"),input=$("labAccountNumber"),button=$("labAccountSubmit");if(field)field.hidden=!record;if(input){input.required=record;input.value=""}if(button)button.textContent=record?"Record Unverified Account":"Submit Account Request";return}
+  if(e.target.name==="labAccountMode"){
+  const record=e.target.value==="record",box=$("labNumberField"),input=$("labAccountNumber"),save=$("labAccountSave");
+  if(box)box.hidden=!record;if(input){input.required=record;input.value=""}
+  if(save)save.textContent=record?"Record Unverified Number":"Submit Lab Account Request";
+  return;
+ }
  if(e.target.id==="policyHeading"){applyPolicyFormatting("formatBlock",e.target.value);return}
  if(e.target.id==="policyFont"){applyPolicyFormatting("fontName",e.target.value);return}
  if(e.target.id==="policyFontSize"){applyPolicyFormatting("fontSize",e.target.value);return}
@@ -3595,921 +3684,7 @@ function bindEvents(){
  });
  $("recordFields").addEventListener("click",e=>{const b=e.target.closest("[data-modal-download]");if(b)void openDocumentFile(b.dataset.modalDownload)});
  $("recordForm").addEventListener("submit",saveRecord);
- $("pageContent").addEventListener("submit",e=>{if(e.target.id==="testingDocForm"){e.preventDefault();void submitTestingDocument(e.target);return}if(e.target.id==="drugOrderForm"){e.preventDefault();void submitDrugOrder(e.target);return}if(e.target.id==="physicalOrderForm"){e.preventDefault();void submitPhysicalOrder(e.target);return}if(e.target.id==="auditForm"){e.preventDefault();void saveAudit(e.target);return}if(e.target.id==="rtdCaseForm"){e.preventDefault();void saveRTDCase(e.target);return}if(e.target.id==="policyForm"){e.preventDefault();void savePolicy(e.target);return}if(e.target.id==="privateDocumentForm"){e.preventDefault();void submitPrivateDocument(e.target);return}if(e.target.id==="reportBuilderForm"){e.preventDefault();void runCompanyReport(e.target);return}if(e.target.id==="labAccountForm"){e.preventDefault();void submitLabAccount(e.target);return}if(e.target.id==="managementForm"){e.preventDefault();void submitManagement(e.target)}});
- for(const id of ["modalClose","cancelModal","modalDismiss"])$(id).addEventListener("click",closeModal);
- document.addEventListener("keydown",e=>{if(e.key==="Escape"){if(!$("modal").hidden)closeModal();$("accountDropdown").hidden=true;$("accountTrigger").setAttribute("aria-expanded","false")}});
- const setFont=n=>{state.font=Math.max(13,Math.min(21,n));document.documentElement.style.fontSize=state.font+"px";localStorage.setItem("workforce_unified_font",String(state.font))};
- $("fontDown").addEventListener("click",()=>setFont(state.font-1));
- $("fontUp").addEventListener("click",()=>setFont(state.font+1));
- $("fontReset").addEventListener("click",()=>setFont(16));
- addEventListener("popstate",()=>{
-  const params=new URLSearchParams(location.search),desired=params.get("page")||"dashboard";
-  const action=params.get("manage"),id=params.get("record");
-  if(desired!==state.page)switchPage(desired,false);
-  if(MANAGEMENT_ACTIONS.has(action)){
-   const cached=state.cache.get(cacheKey());
-   if(cached||action==="new")openManagement(action,id,false);
-   else state.pendingManagement={action,id,section:state.page};
-  }else if(state.management)leaveManagement(false);
-});
- addEventListener("focus",()=>{if(!state.management&&!$("application").hidden&&state.cache.get(cacheKey())&&Date.now()-state.cache.get(cacheKey()).time>60000)void loadRecords(state.sequence,true)});
-}
-async function init(){
- if(!window.supabase?.createClient){redirectToSelector();return}
- state.supabase=window.supabase.createClient(BASE,KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,storageKey:"s4u_ctpa_dot_auth"}});
- state.font=Math.max(13,Math.min(21,Number(localStorage.getItem("workforce_unified_font")||16)));
- document.documentElement.style.fontSize=state.font+"px";
- const requestedContext=new URLSearchParams(location.search).get("context");
- state.context=requestedContext==="nondot"?"nondot":requestedContext==="dot"?"dot":
-  sessionStorage.getItem("workforce_unified_context")==="nondot"?"nondot":"dot";
- sessionStorage.setItem("workforce_unified_context",state.context);
- bindEvents();
- try{
-  const {data:{session}}=await state.supabase.auth.getSession();
-  if(!session){redirectToSelector();return}
-  await initializeWorkspaces();
- }catch(error){console.error("Unable to open the unified portal",error);redirectToSelector()}
-}
-if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init,{once:true});else init();
-})();+Number(d.resale_price||0).toFixed(2)+'</strong></span>'+
-  '<span class="mgmt-status '+(issued?"active":statusClass(d.status))+'">'+esc(issued?"Issued / Ready":d.status==="unverified"?"Unverified":"Awaiting Testing Operations")+'</span>'+
-  '<div class="lab-account-actions"><button class="btn secondary" type="button" data-view="'+esc(r.id)+'">View</button>'+
-  (issued?'<button class="btn secondary" data-lab-copy="'+esc(r.id)+'" type="button">Copy Number</button>':'')+'</div></div>';
- }).join("");
- const ready=records.filter(r=>r.data?.issued_by_testing===true&&r.data?.ready_for_orders===true).length;
- const pending=records.filter(r=>r.data?.status==="requested").length;
- $("pageContent").innerHTML='<div class="lab-account-workspace"><section class="results-intro"><span class="results-intro-icon">'+navIcon("lab_accounts")+'</span>'+
- '<div><strong>Employer laboratory account management</strong><p>Track laboratory account numbers received from Workforce Testing Operations. Set your own employer resale pricing and manage DOT or NON-DOT account requests.</p></div></section>'+
- '<section class="lab-account-stats"><div><small>Issued accounts</small><strong>'+ready+'</strong></div><div><small>Awaiting processing</small><strong>'+pending+'</strong></div><div><small>Total account records</small><strong>'+records.length+'</strong></div></section>'+
- '<section class="results-list"><div class="directory-toolbar"><div class="directory-search"><input id="recordSearch" value="'+esc(state.search)+'" type="search" aria-label="Search employer lab accounts" placeholder="Search employer, lab, or account number"></div>'+
- '<span class="directory-total">'+filtered.length+' accounts</span></div>'+
- (rows||'<div class="directory-empty"><div class="directory-empty-icon">'+navIcon("lab_accounts")+'</div><h2>No employer lab accounts yet</h2>'+
- '<p>Request a new lab account for an employer, or record an existing number for verification.</p></div>')+'</section>'+
- '<p class="lab-account-info">Only numbers issued and verified by Testing Operations are marked ready for test ordering. Your employer resale price is your own C/TPA price and does not represent a Workforce purchase charge.</p></div>';
-}
-function labAccountManagement(record,mode,canWrite){
- const d=record?.data||{};
- const heading='<div class="program-head"><span class="program-head-icon">'+navIcon("lab_accounts")+'</span><div>'+
- '<strong>'+esc(d.company_name||"New laboratory account")+'</strong><small>'+esc(LAB_ACCOUNT_SERVICES.find(x=>x[0]===d.service)?.[1]||"Employer lab account")+'</small></div>'+
- (record?recordStatus(record):'<span class="mgmt-status pending">New request</span>')+'</div>';
- if(mode==="view"){
-  const field=(label,value)=>'<div class="official-result-field"><small>'+esc(label)+'</small><strong>'+esc(value||"Not available")+'</strong></div>';
-  const issued=d.issued_by_testing===true&&d.ready_for_orders===true&&!!d.account_number;
-  $("pageContent").innerHTML='<div class="lab-account-editor">'+heading+
-   '<section class="official-result-section"><h2>Employer and laboratory</h2><div class="official-result-grid">'+
-   field("Employer",d.company_name)+field("Service",LAB_ACCOUNT_SERVICES.find(x=>x[0]===d.service)?.[1])+
-   field("Workspace",state.context==="dot"?"DOT":"NON-DOT")+field("Laboratory / provider",d.provider)+
-   field("Account number",d.account_number||"Not yet issued")+field("Reference",d.order_reference)+
-   field("Processing status",d.status)+field("C/TPA resale price","$"+Number(d.resale_price||0).toFixed(2))+'</div></section>'+
-   '<section class="official-result-section"><h2>Notes</h2><p class="compliance-note">'+esc(d.notes||"No notes provided.")+'</p></section>'+
-   '<div class="lab-account-info">'+(issued?"This account number has been confirmed by Testing Operations and can be used when ordering eligible tests.":"This account is not yet verified for test ordering. Requesting an account is not a purchase or proof of fulfillment.")+'</div>'+
-   '<footer class="management-editor-actions"><button class="btn secondary" type="button" data-back-list>Back to Lab Accounts</button>'+
-   (issued?'<button class="btn primary" type="button" data-lab-copy="'+esc(record.id)+'">Copy Account Number</button>':'')+'</footer></div>';
-  return;
- }
- const options=LAB_ACCOUNT_SERVICES.map(([v,l])=>'<option value="'+v+'">'+esc(l)+'</option>').join("");
- $("pageContent").innerHTML='<div class="lab-account-editor">'+heading+
- '<section class="lab-account-mode-section"><div class="lab-account-mode-description"><h2>New laboratory account</h2><p>Choose whether to request a new account through Testing Operations or record an account number you already have. Recorded numbers remain unverified until confirmed by Testing Operations.</p></div>'+
- '<div class="lab-account-mode-toggle"><label><input type="radio" name="labAccountMode" value="request" checked> Request new account</label>'+
- '<label><input type="radio" name="labAccountMode" value="record"> Record existing account number</label></div></section>'+
- '<form id="labAccountForm"><div class="manage-form-grid">'+
- '<label class="manage-field"><span>Employer / Owner-Operator *</span><select id="labAccountCompany" name="company_id" required disabled><option value="">Loading employers…</option></select></label>'+
- '<label class="manage-field"><span>Account service *</span><select name="service" required>'+options+'</select></label>'+
- '<label class="manage-field"><span>Laboratory / provider (optional)</span><input name="provider" maxlength="100" placeholder="Laboratory name, if known"></label>'+
- '<label class="manage-field"><span>Your resale price to the employer ($) *</span><input name="resale_price" inputmode="decimal" type="number" min="0" max="1000000" step=".01" value="0" required></label>'+
- '<label class="manage-field" id="labAccountNumberGroup" hidden><span>Existing laboratory account number *</span><input name="account_number" id="labAccountNumber" maxlength="100" autocomplete="off" placeholder="Enter the number supplied by the laboratory"></label>'+
- '<label class="manage-field lab-account-notes"><span>Instructions or notes</span><textarea name="notes" rows="4" maxlength="1500" placeholder="Instructions for Testing Operations or your internal account record"></textarea></label>'+
- '</div><p class="lab-account-info">Requests will enter the C/TPA processing queue for Testing Operations. Billing and purchase confirmation must be completed separately; submitting this form does not charge your account or issue a number.</p>'+
- '<p id="labAccountError" class="manage-form-error" role="alert"></p>'+
- '<footer class="management-editor-actions"><button class="btn secondary" type="button" data-back-list>Cancel</button>'+
- '<button class="btn primary" id="labAccountSubmit" type="submit" disabled>Submit Account Request</button></footer></form></div>';
- void hydrateLabAccountCompanies();
-}
-async function hydrateLabAccountCompanies(){
- const management=state.management,seq=state.sequence;
- try{
-  const kinds=state.context==="dot"?["employers","owner_operators"]:["employers"];
-  const data=await Promise.all(kinds.map(async kind=>{
-   const key=cacheKey(kind),cached=state.cache.get(key);
-   if(cached&&Date.now()-cached.time<30000)return cached.records||[];
-   const r=await api("list",{tenant_id:state.tenantId,operating_context:state.context,kind});
-   state.cache.set(key,{records:r.records||[],time:Date.now()});return r.records||[];
-  }));
-  if(management!==state.management||seq!==state.sequence)return;
-  const company=$("labAccountCompany"),save=$("labAccountSubmit");
-  if(!company||!save)return;
-  const companies=data.flat();
-  company.innerHTML='<option value="">Choose the employer or owner-operator</option>'+
-   companies.map(c=>'<option value="'+esc(c.id)+'">'+esc(c.data?.legal_name||"Company")+'</option>').join("");
-  company.disabled=!companies.length;
-  company.addEventListener("change",()=>save.disabled=!company.value);
-  if(!companies.length)$("labAccountError").textContent="Add an employer or owner-operator before requesting lab accounts.";
- }catch(e){if(management===state.management&&$("labAccountError"))$("labAccountError").textContent=e.message}
-}
-async function submitLabAccount(form){
- const button=$("labAccountSubmit"),error=$("labAccountError");
- if(!button||button.disabled||!form.reportValidity())return;
- button.disabled=true;error.textContent="";
- const data=Object.fromEntries(new FormData(form).entries());
- const isRecord=document.querySelector('input[name="labAccountMode"]:checked')?.value==="record";
- try{
-  const result=await api(isRecord?"lab_account_record":"lab_account_request",{
-   tenant_id:state.tenantId,operating_context:state.context,data});
-  state.cache.delete(cacheKey());leaveManagement();
-  message(isRecord?"Account number recorded as unverified.":"Lab account request saved for processing. Purchase is not yet confirmed.");
-  void loadRecords(state.sequence,true);
- }catch(e){error.textContent=e.message;button.disabled=false}
-}
-
-function renderManagementPage(){");
- const pageWidth=842,pageHeight=595,margin=34,lineHeight=13,streams=[];
- const cols=report.columns||[],rows=report.rows||[];
- const colWidth=(pageWidth-2*margin)/Math.max(1,cols.length);
- let commands=[],y=0,pageCount=0;
- function txt(value,x,y,size=9,bold=false){
-  commands.push("BT /"+(bold?"F2":"F1")+" "+size+" Tf 1 0 0 1 "+x.toFixed(1)+" "+y.toFixed(1)+" Tm ("+escapePDF(value)+") Tj ET");
- }
- function line(y,color="0.86 0.89 0.93"){
-  commands.push(color+" RG "+margin+" "+y+" m "+(pageWidth-margin)+" "+y+" l S");
- }
- function begin(){
-  commands=[];pageCount++;
-  commands.push("0.004 0.071 0.184 rg 0 "+(pageHeight-80)+" "+pageWidth+" 80 re f");
-  commands.push("0.992 0.757 0.008 rg 0 "+(pageHeight-85)+" "+pageWidth+" 5 re f");
-  commands.push("1 1 1 rg");
-  txt("WORKFORCE  |  COMPANY REPORT",margin,pageHeight-39,16,true);
-  txt(ascii(report.company_name).slice(0,82),margin,pageHeight-61,10);
-  commands.push("0.004 0.071 0.184 rg");
-  txt(ascii(report.name)+"  |  "+report.context.toUpperCase(),margin,pageHeight-108,12,true);
-  txt("Reporting period: "+(report.start_date||"All dates")+" to "+(report.end_date||"Present"),margin,pageHeight-128,8);
-  txt("Generated: "+new Date(report.generated_at).toLocaleString(),pageWidth-265,pageHeight-128,8);
-  y=pageHeight-157;
-  commands.push("0.91 0.94 0.97 rg "+margin+" "+(y-8)+" "+(pageWidth-margin*2)+" 19 re f");
-  commands.push("0.004 0.071 0.184 rg");
-  cols.forEach((name,i)=>txt(ascii(name).slice(0,Math.max(8,Math.floor(colWidth/5.1)-2)),margin+i*colWidth+5,y,8,true));
-  y-=29;
- }
- function finish(){
-  commands.push("0.36 0.45 0.57 rg");
-  txt("Workforce C/TPA  -  Report generated from currently linked records",margin,21,7);
-  txt("Page "+pageCount,pageWidth-78,21,7);
-  streams.push(commands.join("\n")+"\n");
- }
- begin();
- if(!rows.length){txt("No matching records for this company and date range.",margin,y,10)}
- for(const [rowIndex,row] of rows.entries()){
-  if(y<57){finish();begin()}
-  if(rowIndex%2===0){commands.push("0.975 0.984 0.995 rg "+margin+" "+(y-8)+" "+(pageWidth-margin*2)+" "+lineHeight+" re f")}
-  commands.push("0.004 0.071 0.184 rg");
-  row.forEach((value,i)=>txt(ascii(value).slice(0,Math.max(8,Math.floor(colWidth/4.8)-2)),margin+i*colWidth+5,y,8));
-  y-=lineHeight;
- }
- finish();
- const objs=[null],add=o=>{objs.push(o);return objs.length-1};
- const catalog=add(""),pagesRoot=add("");
- const regular=add("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>");
- const bold=add("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>");
- const refs=[];
- for(const stream of streams){
-  const content=add("<< /Length "+stream.length+" >>\nstream\n"+stream+"endstream");
-  const page=add("<< /Type /Page /Parent "+pagesRoot+" 0 R /MediaBox [0 0 "+pageWidth+" "+pageHeight+"] /Resources << /Font << /F1 "+regular+" 0 R /F2 "+bold+" 0 R >> >> /Contents "+content+" 0 R >>");
-  refs.push(page+" 0 R");
- }
- objs[catalog]="<< /Type /Catalog /Pages "+pagesRoot+" 0 R >>";
- objs[pagesRoot]="<< /Type /Pages /Kids ["+refs.join(" ")+"] /Count "+refs.length+" >>";
- let doc="%PDF-1.4\n",offsets=[0];
- for(let i=1;i<objs.length;i++){offsets.push(doc.length);doc+=i+" 0 obj\n"+objs[i]+"\nendobj\n"}
- const start=doc.length;
- doc+="xref\n0 "+objs.length+"\n0000000000 65535 f \n";
- for(let i=1;i<offsets.length;i++)doc+=String(offsets[i]).padStart(10,"0")+" 00000 n \n";
- doc+="trailer\n<< /Size "+objs.length+" /Root "+catalog+" 0 R >>\nstartxref\n"+start+"\n%%EOF";
- return new Blob([doc],{type:"application/pdf"});
-}
-function downloadCompanyPDF(){
- if(!generatedReport)return;
- downloadGeneratedFile(buildCompanyPDF(generatedReport),reportFilename(generatedReport,"pdf"));
-}
-
-function renderManagementPage(){
- const m=state.management;
- if(!m||m.section!==state.page)return;
- const record=m.id?(state.cache.get(cacheKey())?.records||[]).find(r=>r.id===m.id):null;
- if(m.action!=="new"&&!record){
-  $("pageContent").innerHTML='<section class="directory-panel directory-empty"><h2>Record unavailable</h2><p>Reload the management list to review this record.</p><button type="button" class="btn primary" data-back-list>Return to management</button></section>';
-  return;
- }
- const singular=singularLabel(state.page),isEmployer=["employers","owner_operators"].includes(state.page);
- const title=m.action==="new"?(state.page==="occupational_health"?"Order a Physical":"Add "+singular):m.action==="edit"?"Edit "+singular:
-  isEmployer?recordTitle(record):"View "+singular;
- $("pageTitle").textContent=title;$("topTitle").textContent=title;
- updateBreadcrumbs(m.action);
- $("pageActions").innerHTML='<button type="button" class="btn secondary" data-back-list>Back to '+esc(label(state.page))+'</button>';
- const canWrite=["owner","admin","editor"].includes(activeWorkspace()?.role||"");
- const context=record?.operating_context||state.context;
- if(isEmployer){
-  renderEmployerManagement(record,m.action,canWrite,state.page);
-  return;
- }
- if(state.page==="people"){
-  renderPersonManagement(record,m.action,canWrite);
-  return;
- }
- if(state.page==="compliance"){renderComplianceManagement(record,m.action,canWrite);return;}
- if(state.page==="audits"){renderAuditManagement(record,m.action,canWrite);return;}
- if(state.page==="return_to_duty"){renderRTDManagement(record,m.action,canWrite);return;}
- if(state.page==="policies"){policyEditor(record,m.action,canWrite);return;}
- if(state.page==="documents"){privateDocumentEditor(record,m.action);return;}
- if(state.page==="programs"){
-  renderProgramManagement(record,m.action,canWrite);
-  return;
- }
- if(state.page==="pools"){
-  renderPoolManagement(record,m.action,canWrite);
-  return;
- }
- if(state.page==="selections"){renderSelections(record);return;}
- if(state.page==="testing_orders"){renderDrugOrder(record);return;}
- if(state.page==="testing_documents"){renderTestingDocumentManagement(record,m.action);return;}
- if(state.page==="results"){renderOfficialResult(record);return;}
- if(state.page==="occupational_health"){renderPhysicalOrder(record,m.action);return;}
- if(m.action==="view"){
-  const d=record.data||{};
-  const sections=isEmployer?[
-   managementOverviewGroup("Company information",[
-    ["Legal name",d.legal_name],["USDOT number",d.dot_number],["Operating context",context==="shared"?"DOT and NON-DOT":context.toUpperCase()]
-   ]),
-   managementOverviewGroup("Primary contact",[
-    ["Contact name",d.contact_name],["Email",d.contact_email],["Phone",d.phone]
-   ])
-  ]:[
-   managementOverviewGroup("Record information",fields(state.page).filter(f=>f.type!=="file").map(f=>[f.label,d[f.name]])),
-   managementOverviewGroup("Additional information",Object.entries(d).filter(([key,value])=>
-    !key.startsWith("_")&&!["storage_bucket","storage_path","mime_type","size_bytes","file_url"].includes(key)&&
-    !fields(state.page).some(f=>f.name===key)&&value!==undefined&&value!==null).map(([key,value])=>[key.replaceAll("_"," "),value]))
-  ];
-  $("pageContent").innerHTML=
-   '<div class="management-profile"><div class="profile-identity"><span class="profile-identity-icon">'+navIcon(state.page)+'</span>'+
-   '<div class="profile-identity-name"><strong>'+esc(recordTitle(record))+'</strong>'+
-   '<span>'+esc(label(state.page))+' · '+esc(context==="shared"?"DOT and NON-DOT":context.toUpperCase())+'</span></div>'+
-   recordStatus(record)+'</div>'+
-   '<div class="profile-sections">'+sections.join("")+'</div>'+
-   (DOCUMENT_PAGES.has(state.page)&&d.storage_path?'<div class="document-file-actions"><button type="button" class="btn secondary" data-preview-file="'+esc(record.id)+'">View File</button><button type="button" class="btn primary" data-open-file="'+esc(record.id)+'">Download File</button></div>':"")+
-   '<div class="profile-toolbar"><span class="profile-updated">Updated '+esc(new Date(record.updated_at).toLocaleDateString())+'</span>'+
-   '<div class="profile-buttons"><button type="button" class="btn secondary" data-back-list>Back to '+esc(label(state.page))+'</button>'+
-   (canWrite?'<button type="button" class="btn primary" data-manage-edit="'+esc(record.id)+'">Edit '+esc(singular)+'</button>':'')+
-   '</div></div></div>';
-  return;
- }
- const list=fields(state.page);
- let body="";
- if(isEmployer){
-  const pick=names=>list.filter(f=>names.includes(f.name));
-  body=managementSection("Company information",pick(["legal_name","dot_number","status"]),record)+
-    managementSection("Primary contact",pick(["contact_name","contact_email","phone"]),record);
- }else{
-  body=managementSection("Record information",list,record);
- }
- const shared=!record&&["owner","admin"].includes(activeWorkspace()?.role||"");
- const contextPicker='<section class="management-section"><header class="management-section-header"><h2>Operating context</h2></header>'+
-  '<div class="manage-form-grid"><label class="manage-field manage-context"><span>Record context</span>'+
-  '<select name="record_context"'+(record?' disabled':'')+'><option value="'+esc(context)+'">'+esc(context.toUpperCase())+'</option>'+
-  (shared?'<option value="shared">DOT and NON-DOT</option>':"")+'</select></label></div></section>';
- $("pageContent").innerHTML='<div class="management-editor"><form id="managementForm">'+body+contextPicker+
-   (DOCUMENT_PAGES.has(state.page)?'<p class="upload-help" id="uploadHelp">PDF, image, text, or Word document. Maximum file size: 8 MB.</p>':"")+
-   '<p class="manage-form-error" id="managementError" role="alert"></p>'+
-   '<footer class="management-editor-actions"><button type="button" class="btn secondary" data-back-list>Cancel</button>'+
-   '<button type="submit" class="btn primary" id="managementSave">'+(record?"Save changes":"Create "+esc(singular))+'</button></footer>'+
-   '</form></div>';
- $("managementForm").querySelector("input,select,textarea")?.focus({preventScroll:true});
-}
-function leaveManagement(push=true){
- state.management=null;state.editing=null;state.companyDraft=null;
- if(push)history.pushState({},"","/unified.html?page="+encodeURIComponent(state.page));
- updateHeading();const stored=state.cache.get(cacheKey());
- if(stored)showRecords(stored.records);else void loadRecords();
- message("");
-}
-async function uploadManagementFile(file,documentData,recordContext,recordId){
- if(file.size>8*1024*1024)throw Error("The document must be 8 MB or smaller.");
- const allowed=["application/pdf","image/png","image/jpeg","image/webp","text/plain","application/msword","application/vnd.openxmlformats-officedocument.wordprocessingml.document"];
- if(!allowed.includes(file.type))throw Error("Unsupported document type.");
- const dataUrl=await new Promise((resolve,reject)=>{
-  const reader=new FileReader();reader.onload=()=>resolve(String(reader.result));reader.onerror=()=>reject(Error("Unable to read document."));reader.readAsDataURL(file);
- });
- return api("upload_file",{tenant_id:state.tenantId,kind:state.page,
-  record_id:recordId,record_context:recordContext,document_data:documentData,
-  filename:file.name,mime_type:file.type,base64:String(dataUrl).split(",")[1]||""});
-}
-async function openDocumentFile(id,mode="download"){
- const record=state.cache.get(cacheKey())?.records.find(r=>r.id===id);
- if(!record){message("Document unavailable. Refresh the list.",true);return}
- try{
-  const result=await api("document_link",{tenant_id:state.tenantId,operating_context:state.context,kind:state.page,id});
-  if(!result.url||!result.url.startsWith("https://"))throw Error("Document link unavailable.");
-  const name=String(record.data?.file_name||record.data?.title||"Workforce document");
-  if(mode==="preview"){
-   $("modalTitle").textContent="Document Preview";
-   $("modalDescription").textContent=name;
-   const mime=record.data?.mime_type||"";
-   const previewable=!mime||mime==="application/pdf"||mime.startsWith("image/")||mime==="text/plain";
-   $("recordFields").innerHTML='<div class="document-preview">'+
-     (previewable?'<iframe src="'+esc(result.url)+'" title="Document preview" loading="lazy" referrerpolicy="no-referrer"></iframe>':
-      '<p>Preview is unavailable for this file type. Use Download File.</p>')+
-     '<button type="button" class="btn primary" data-modal-download="'+esc(id)+'">Download File</button></div>';
-   $("recordForm").dataset.mode="view";$("saveRecord").hidden=true;$("cancelModal").textContent="Close";
-   $("formMessage").textContent="";$("modal").hidden=false;document.body.classList.add("modal-open");
-   $("modalClose").focus();
-   return;
-  }
-  const response=await fetch(result.url,{cache:"no-store"});
-  if(!response.ok)throw Error("Unable to download this document.");
-  const blob=await response.blob(),blobUrl=URL.createObjectURL(blob);
-  const link=document.createElement("a");link.href=blobUrl;link.download=name;
-  document.body.append(link);link.click();link.remove();
-  setTimeout(()=>URL.revokeObjectURL(blobUrl),30000);
- }catch(error){message(error.message,true)}
-}
-async function submitManagement(form,continueEditing=false){
- const m=state.management;
- if(!m||!form.reportValidity())return;
- const button=$("managementSave");button.disabled=true;
- const data=Object.fromEntries(new FormData(form).entries()),recordContext=data.record_context||state.context;
- if(state.companyDraft?.page===state.page&&m.action==="new"){
-  data.company_id=state.companyDraft.companyId;
-  if(Object.hasOwn(data,"employer"))data.employer=state.companyDraft.companyName;
-  if(Object.hasOwn(data,"client"))data.client=state.companyDraft.companyName;
- }
- delete data.record_context;
- if(state.page==="pools"){
-  const programSelection=form.querySelector("#poolProgram"),companySelection=form.querySelector("#poolCompany");
-  if(!programSelection||programSelection.disabled||!companySelection||companySelection.disabled){
-   $("managementError").textContent="Pool program and company choices have not loaded.";
-   button.disabled=false;return;
-  }
-  const programId=data.program_selection,companyId=data.company_selection;
-  delete data.program_selection;delete data.company_selection;
-  const program=(state.cache.get(cacheKey("programs"))?.records||[]).find(r=>r.id===programId&&r.operating_context===state.context);
-  const employers=[...(state.cache.get(cacheKey("employers"))?.records||[]),
-   ...(state.cache.get(cacheKey("owner_operators"))?.records||[])];
-  const company=companyId?employers.find(r=>r.id===companyId&&r.operating_context===state.context):null;
-  if(!program||(companyId&&!company)){
-   $("managementError").textContent="Choose a valid program and company in this workspace.";
-   button.disabled=false;return;
-  }
-  data.program_id=program.id;
-  data.program=program.data?.name||"";
-  data.company_id=company?.id||"";
-  data.employer=company?.data?.legal_name||"";
-  data.program_type=state.context==="dot"?"DOT":"NON-DOT";
-  if(state.context==="nondot")data.dot_agency="";
-  if(!data.dot_agency&&state.context==="dot")data.dot_agency=program.data?.dot_agency||"";
-  if(!data.status)data.status="active";
- }
- if(state.page==="programs"){
-  const selector=form.querySelector("#programCompany");
-  if(!selector||selector.disabled){
-   $("managementError").textContent="Company options are still loading. Try again.";
-   button.disabled=false;return;
-  }
-  const selected=data.company_selection||"";delete data.company_selection;
-  const companies=[];
-  for(const kind of state.context==="dot"?["employers","owner_operators"]:["employers"])
-   companies.push(...(state.cache.get(cacheKey(kind))?.records||[]));
-  const company=selected?companies.find(r=>r.id===selected&&r.operating_context===state.context):null;
-  if(selected&&!company){
-   $("managementError").textContent="Select a company from this workspace.";
-   button.disabled=false;return;
-  }
-  data.company_id=company?.id||"";
-  data.employer=company?.data?.legal_name||"";
-  data.program_type=state.context==="dot"?"DOT":"NON-DOT";
-  if(state.context==="nondot")data.dot_agency="";
-  if(!data.status)data.status="active";
- }
- if(state.page==="compliance"){
-  const companyId=data.company_selection||"",personId=data.person_selection||"";
-  const companySelect=form.querySelector("#complianceCompany"),personSelect=form.querySelector("#compliancePerson");
-  if(!companySelect||companySelect.disabled||!personSelect){
-   $("managementError").textContent="Company options are not ready.";button.disabled=false;return;
-  }
-  const kinds=state.context==="dot"?["employers","owner_operators"]:["employers"];
-  const companies=kinds.flatMap(kind=>state.cache.get(cacheKey(kind))?.records||[]);
-  const company=companies.find(r=>r.id===companyId&&r.operating_context===state.context);
-  const people=state.cache.get(cacheKey("people"))?.records||[];
-  const person=personId?people.find(r=>r.id===personId&&r.data?.company_id===companyId):null;
-  if(!company||(personId&&!person)){
-   $("managementError").textContent="Choose a valid employer and employee association.";button.disabled=false;return;
-  }
-  if(data.scope==="employee"&&!person){
-   $("managementError").textContent="Choose an employee for employee-specific compliance.";button.disabled=false;return;
-  }
-  delete data.company_selection;delete data.person_selection;
-  data.company_id=company.id;data.employer=company.data?.legal_name||"";
-  data.person_id=person?.id||"";data.employee_name=person?[person.data?.first_name,person.data?.last_name].filter(Boolean).join(" "):"";
- }
- if(state.page==="people"){
-  const selected=data.company_selection||"";
-  const companyControl=form.querySelector("#personCompanySelect");
-  if(!companyControl||companyControl.disabled){
-   $("managementError").textContent="Company choices have not loaded. Please retry.";
-   button.disabled=false;return;
-  }
-  delete data.company_selection;
-  const related=[];
-  for(const kind of state.context==="dot"?["employers","owner_operators"]:["employers"]){
-   related.push(...(state.cache.get(cacheKey(kind))?.records||[]));
-  }
-  const company=selected?related.find(r=>r.id===selected&&r.operating_context===state.context):null;
-  if(!company){
-   $("managementError").textContent="Select the company associated with this person.";
-   button.disabled=false;return;
-  }
-  data.company_id=company.id;
-  data.employer=company.data?.legal_name||"";
-  if(!["employee","contact","staff"].includes(data.relationship)){
-   $("managementError").textContent="Select Employee, Company Contact or Staff.";
-   button.disabled=false;return;
-  }
-  if(!data.status)data.status="active";
- }
- const file=data.document_file;delete data.document_file;
- for(const f of fields(state.page))if(f.type==="number"&&data[f.name]!=="")data[f.name]=Number(data[f.name]);
- $("managementError").textContent="";
- try{
-  let uploaded=false;
-  if(DOCUMENT_PAGES.has(state.page)){
-   if(file instanceof File&&file.size){
-    await uploadManagementFile(file,data,recordContext,m.id||null);
-    uploaded=true;
-   }else if(!m.id)throw Error("Select a document file before saving.");
-  }
-  let result=null;
-  if(!uploaded)result=await api("save",{tenant_id:state.tenantId,operating_context:state.context,
-   kind:state.page,record_context:recordContext,id:m.id||null,data});
-  // Company classification is authoritative: route new accounts to their selected workspace.
-  if(!m.id&&["employers","owner_operators"].includes(state.page)&&result){
-   const nextContext=result.operating_context==="nondot"?"nondot":"dot";
-   const nextKind=result.kind==="owner_operators"?"owner_operators":"employers";
-   state.cache.clear();state.companyDraft=null;
-   state.context=nextContext;sessionStorage.setItem("workforce_unified_context",nextContext);
-   history.replaceState(null,"","/unified.html?page="+encodeURIComponent(nextKind)+"&context="+nextContext);
-   switchPage(nextKind,false);
-   message("Account created in the "+(nextContext==="dot"?"DOT":"NON-DOT")+" workspace.");
-   return;
-  }
-  state.cache.delete(cacheKey());state.companyDraft=null;
-  if(continueEditing&&m.id){
-   button.disabled=false;
-   message("Company details saved successfully.");
-   void loadRecords(state.sequence,true);
-  }else{
-   leaveManagement();
-   message(m.action==="new"?"Record created successfully.":"Record updated successfully.");
-   void loadRecords();
-  }
- }catch(error){$("managementError").textContent=error.message;button.disabled=false}
-}
-function statusLabel(value){
- return String(value||"Not set").replaceAll("_"," ").replace(/\b\w/g,c=>c.toUpperCase());
-}
-function statusClass(value){
- const v=String(value||"").toLowerCase();
- if(["active","completed","complete","approved","paid","delivered","received"].includes(v))return "positive";
- if(["inactive","archived","cancelled","void","revoked","failed"].includes(v))return "muted";
- return "pending";
-}
-function recordStatus(record){
- const value=record.data?.status||record.data?.account_status||record.data?.setup_status||"";
- return '<span class="mgmt-status '+statusClass(value)+'"><span class="status-dot"></span>'+esc(statusLabel(value))+'</span>';
-}
-function peopleCompanyList(records){
- const q=state.search.trim().toLowerCase(),f=state.statusFilter;
- const visible=records.filter(r=>{const d=r.data||{};return (!q||[d.first_name,d.last_name,d.employer,d.job_title,d.relationship,d.email,d.employee_number].some(v=>String(v||"").toLowerCase().includes(q)))&&(!f||d.relationship===f)});
- const rows=visible.map(r=>{const d=r.data||{},name=[d.first_name,d.last_name].filter(Boolean).join(" ")||"Person";
- return '<button type="button" class="people-company-row" data-view="'+esc(r.id)+'"><span class="people-avatar">'+navIcon("people")+'</span>'+
- '<span class="people-primary"><strong>'+esc(name)+'</strong><small>'+esc(d.job_title||d.email||"No title")+'</small></span>'+
- '<span class="people-company-name"><small>Associated company</small><strong>'+esc(d.employer||"Company unavailable")+'</strong></span>'+
- '<span class="people-role">'+esc(statusLabel(d.relationship||"employee"))+'</span><span class="mgmt-status '+statusClass(d.status)+'">'+esc(statusLabel(d.status||"active"))+'</span>'+
- '<span class="results-row-view">View</span></button>'}).join("");
- $("pageContent").innerHTML='<div class="results-workspace people-company-workspace"><section class="results-intro"><span class="results-intro-icon">'+navIcon("people")+'</span><div><strong>People and company associations</strong>'+
- '<p>Employees, company contacts and staff are always assigned to an employer or owner-operator in this workspace.</p></div></section>'+
- '<section class="results-list"><div class="directory-toolbar"><div class="directory-search"><input id="recordSearch" type="search" aria-label="Search people and companies" placeholder="Search people, companies and positions" value="'+esc(state.search)+'"></div>'+
- '<select id="statusFilter" aria-label="Filter people by type"><option value="">All types</option>'+
- [["employee","Employees"],["contact","Contacts"],["staff","Staff"]].map(([v,t])=>'<option value="'+v+'"'+(f===v?" selected":"")+'>'+t+'</option>').join("")+'</select>'+
- '<span class="directory-total">'+visible.length+' people</span></div>'+
- (rows||'<div class="directory-empty"><div class="directory-empty-icon">'+navIcon("people")+'</div><h2>No people yet</h2><p>Add an employer first, then link employees, contacts, and staff to that company.</p>'+
- (["owner","admin","editor"].includes(activeWorkspace()?.role||"")?'<button class="btn primary" type="button" data-create="1">Add Person</button>':"")+'</div>')+
- '</section></div>';
-}
-function showRecords(records){
- if(state.page==="dashboard"){renderDashboard(records);return}
- if(state.page==="selections"){selectionList(records);return}
- if(state.page==="testing_orders"){renderDrugOrderList(records);return}
- if(state.page==="testing_documents"){testingDocumentsList(records);return}
- if(state.page==="results"){resultsManagementList(records);return}
- if(state.page==="people"){peopleCompanyList(records);return}
- if(state.page==="compliance"){complianceDirectory(records);return}
- if(state.page==="audits"){auditList(records);return}
- if(state.page==="return_to_duty"){rtdCasesList(records);return}
- if(state.page==="policies"){policyList(records);return}
- if(state.page==="documents"){privateDocumentList(records);return}
- if(state.page==="reports"){reportBuilder();return}
- if(state.page==="occupational_health"){physicalOrderList(records);return}
- const count=records.length,query=state.search.trim().toLowerCase();
- const statuses=[...new Set(records.map(r=>String(r.data?.status||"").trim()).filter(Boolean))].sort();
- const visible=records.filter(r=>(!query||Object.values(r.data||{}).some(v=>String(v??"").toLowerCase().includes(query)))&&
- (!state.statusFilter||String(r.data?.status||"")===state.statusFilter)&&
- (!state.companyFilter||r.data?.company_id===state.companyFilter.companyId||
-  ["employer","client","company"].some(k=>String(r.data?.[k]||"").trim().toLowerCase()===state.companyFilter.companyName.trim().toLowerCase())));
- const pageSize=25,maxPage=Math.max(0,Math.ceil(visible.length/pageSize)-1);
- state.pageIndex=Math.min(Math.max(0,state.pageIndex||0),maxPage);
- const displayed=visible.slice(state.pageIndex*pageSize,(state.pageIndex+1)*pageSize);
- const canWrite=["owner","admin","editor"].includes(activeWorkspace()?.role||"");
- $("newRecord")?.toggleAttribute("disabled",!canWrite);
- const isEmployer=state.page==="employers";
- const second=isEmployer?"USDOT number":"Details";
- const third=isEmployer?"Primary contact":"Last updated";
- const columnFields=fields(state.page).filter(f=>!["file","textarea"].includes(f.type)&&!["name","title","legal_name","status"].includes(f.name)).slice(0,2);
- const directoryRows=displayed.map(r=>{
-  const data=r.data||{},name=recordTitle(r);
-  const dot=r.operating_context==="shared"?"Shared":r.operating_context==="dot"?"DOT":"NON-DOT";
-  const secondary=isEmployer
-   ?'<span class="directory-secondary">'+esc(data.contact_email||"No contact email")+'</span>'
-   :'<span class="directory-secondary">'+esc(label(r.kind))+' · '+dot+'</span>';
-  const middle=isEmployer?esc(data.dot_number||"—"):
-   esc(columnFields.map(f=>data[f.name]).filter(v=>v!==null&&v!==undefined&&v!=="").join(" · ")||"—");
-  const contact=isEmployer?'<span class="directory-contact">'+esc(data.contact_name||"Not assigned")+'</span>':esc(new Date(r.updated_at).toLocaleDateString());
-  const open='<button type="button" class="directory-name" data-view="'+esc(r.id)+'" aria-label="View '+esc(name)+'">'+esc(name)+'</button>';
-  const actions='<div class="directory-actions"><button type="button" class="btn secondary btn-sm" data-view="'+esc(r.id)+'">View</button>'+
-   (DOCUMENT_PAGES.has(state.page)&&data.storage_path?'<button type="button" class="btn secondary btn-sm" data-open-file="'+esc(r.id)+'">Download</button>':"")+
-   (canWrite?'<button type="button" class="btn secondary btn-sm" data-edit="'+esc(r.id)+'">Edit</button>'+
-    '<button type="button" class="btn-archive" data-archive="'+esc(r.id)+'" aria-label="Archive '+esc(name)+'" title="Archive">Archive</button>':"")+'</div>';
-  return '<div class="directory-row">'+
-    '<div class="directory-identity"><span class="directory-icon">'+navIcon(state.page)+'</span>'+
-    '<div class="directory-names">'+open+secondary+'</div></div>'+
-    '<div class="directory-field"><small>'+esc(second)+'</small><strong>'+middle+'</strong></div>'+
-    '<div class="directory-field"><small>'+esc(third)+'</small><strong>'+contact+'</strong></div>'+
-    '<div class="directory-state">'+recordStatus(r)+'</div>'+actions+'</div>';
- }).join("");
- $("pageContent").innerHTML='<section class="directory-panel">'+
-  '<div class="directory-toolbar"><div class="directory-search"><svg aria-hidden="true" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m16 16 5 5"/></svg>'+
-  '<input id="recordSearch" type="search" aria-label="Search '+esc(label(state.page))+'" placeholder="Search '+esc(label(state.page).toLowerCase())+'..." value="'+esc(state.search)+'"></div>'+
-  (statuses.length?'<select id="statusFilter" aria-label="Filter by status"><option value="">All statuses</option>'+
-   statuses.map(v=>'<option value="'+esc(v)+'"'+(state.statusFilter===v?' selected':'')+'>'+esc(statusLabel(v))+'</option>').join("")+'</select>':"")+
-  (state.companyFilter?'<button type="button" class="company-filter-chip" data-clear-company-filter>Company: '+esc(state.companyFilter.companyName)+' ×</button>':"")+
-  '<span class="directory-total">'+visible.length+' '+(visible.length===1?'record':'records')+'</span></div>'+
-  (visible.length?'<div class="directory-list"><div class="directory-head"><span>'+esc(isEmployer?"Company":label(state.page))+'</span><span>'+esc(second)+'</span><span>'+esc(third)+'</span><span>Status</span><span>Actions</span></div>'+directoryRows+'</div>':
-  '<div class="directory-empty"><div class="directory-empty-icon">'+navIcon(state.page)+'</div><h2>'+esc(query||state.statusFilter?"No matching records":"No "+label(state.page).toLowerCase()+" yet")+'</h2>'+
-  '<p>'+(query||state.statusFilter?"Adjust your search or status filter to see matching records.":"Get started by adding your first record.")+'</p>'+
-  (canWrite&&!query&&!state.statusFilter?'<button class="btn primary" type="button" data-create="1">Add '+esc(label(state.page))+'</button>':"")+'</div>')+
-  (visible.length>pageSize?'<div class="table-pagination"><button type="button" data-page-step="-1"'+(state.pageIndex===0?' disabled':'')+'>Previous</button>'+
-   '<span>Page '+(state.pageIndex+1)+' of '+(maxPage+1)+'</span>'+
-   '<button type="button" data-page-step="1"'+(state.pageIndex===maxPage?' disabled':'')+'>Next</button></div>':"")+'</section>';
-}
-function closeModal(){$("modal").hidden=true;document.body.classList.remove("modal-open");state.editing=null;$("recordForm").dataset.mode=""}
-async function saveRecord(event){
- event.preventDefault();
- const mode=$("recordForm").dataset.mode;
- if(mode==="company-related-add"||mode==="company-related-remove"){await submitCompanyAction();return}
- if(mode==="program-enroll-add"||mode==="program-enroll-remove"){await submitProgramEnrollment();return}
- if(mode==="pool-add-member"||mode==="pool-remove-member"){await savePoolMember();return}
- if(mode==="selection-run"){await runSelection();return}
- if(mode==="send-official-result"){await sendOfficialResult();return}
- if(mode==="send-policy"){await deliverPolicy();return}
- if(mode==="delete-private-document"){await deletePrivateDocument();return}
- if(mode==="archive"){await performArchive();return}
- if(mode==="profile"){await saveProfile();return}
- if(mode==="view"){closeModal();return}
-}
-function archiveRecord(id){
- if(state.page==="results"){message("Official results cannot be archived here.",true);return}
- if(state.page==="occupational_health"){message("Submitted physical requests are managed by Testing Operations.",true);return}
- if(state.page==="documents"){confirmPrivateDocumentDelete(id);return}
- if(state.page==="selections"){message("Locked selection records cannot be archived.",true);return}
- const record=state.cache.get(cacheKey())?.records.find(x=>x.id===id);
- if(!record){message("Record not found. Refresh the page.",true);return}
- state.editing=record;
- $("modalTitle").textContent="Archive "+label(state.page);
- $("modalDescription").textContent="Confirm this account management change.";
- $("recordFields").innerHTML='<div class="archive-summary"><strong>'+esc(recordTitle(record))+
- '</strong><p>Archiving removes this record from active management lists without affecting other records.</p></div>';
- $("recordForm").dataset.mode="archive";$("saveRecord").hidden=false;
- $("saveRecord").textContent="Archive Record";$("saveRecord").className="btn danger";
- $("cancelModal").textContent="Cancel";$("formMessage").textContent="";
- $("modal").hidden=false;document.body.classList.add("modal-open");
- $("modalClose").focus();
-}
-async function performArchive(){
- const button=$("saveRecord"),id=state.editing?.id;
- if(!id)return;button.disabled=true;
- try{
-  await api("archive",{tenant_id:state.tenantId,operating_context:state.context,kind:state.page,id});
-  closeModal();state.cache.delete(cacheKey());message("Record archived successfully.");void loadRecords();
- }catch(error){$("formMessage").textContent=error.message}
- finally{button.disabled=false}
-}
-async function editProfile(){
- const {data:{user},error}=await state.supabase.auth.getUser();
- if(error||!user){message("Unable to load your profile.",true);return}
- $("modalTitle").textContent="Manage Account";
- $("modalDescription").textContent="Update the name shown on your Workforce C/TPA account.";
- $("recordFields").innerHTML='<label>First name<input name="first_name" required maxlength="100" value="'+esc(user.user_metadata?.first_name||"")+'"></label>'+
-  '<label>Last name<input name="last_name" required maxlength="100" value="'+esc(user.user_metadata?.last_name||"")+'"></label>'+
-  '<label>Email<input type="email" disabled value="'+esc(user.email||"")+'"></label>';
- $("recordForm").dataset.mode="profile";
- $("saveRecord").className="btn primary";$("saveRecord").hidden=false;$("saveRecord").textContent="Save Profile";
- $("cancelModal").textContent="Cancel";$("formMessage").textContent="";
- $("modal").hidden=false;document.body.classList.add("modal-open");
- $("recordFields").querySelector("input")?.focus();
-}
-async function saveProfile(){
- const button=$("saveRecord");
- if(!$("recordForm").reportValidity())return;
- const form=new FormData($("recordForm"));
- button.disabled=true;$("formMessage").textContent="";
- try{
-  const {error}=await state.supabase.auth.updateUser({data:{first_name:String(form.get("first_name")||"").trim(),last_name:String(form.get("last_name")||"").trim()}});
-  if(error)throw error;
-  closeModal();void renderAccount();void updateAccountMenu();message("Account profile saved.");
- }catch(error){$("formMessage").textContent=error.message}
- finally{button.disabled=false}
-}
-function exportRecords(){
- const rows=state.cache.get(cacheKey())?.records||[];
- if(!rows.length){message("There are no records to export.",true);return}
- const cols=["id","operating_context",...new Set(rows.flatMap(r=>Object.keys(r.data||{}))),"updated_at"];
- const csv=[cols,...rows.map(r=>cols.map(k=>k==="id"?r.id:k==="operating_context"?r.operating_context:k==="updated_at"?r.updated_at:r.data?.[k]??""))]
-  .map(line=>line.map(v=>'"'+String(v??"").replaceAll('"','""')+'"').join(",")).join("\r\n");
- const blob=new Blob([csv],{type:"text/csv;charset=utf-8"});
- const url=URL.createObjectURL(blob),link=document.createElement("a");
- link.href=url;link.download="workforce-"+state.page+"-"+state.context+".csv";
- document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
-}
-async function updateAccountMenu(){
- try{
-  const {data:{user}}=await state.supabase.auth.getUser();
-  if(!user)return;
-  const name=[user.user_metadata?.first_name,user.user_metadata?.last_name].filter(Boolean).join(" ");
-  $("accountDisplayName").textContent=name||"Workforce C/TPA";
-  $("accountEmail").textContent=user.email||"";
- }catch(error){console.warn("Unable to display account profile",error)}
-}
-function startApp(){
- showView("application");
- void updateAccountMenu();
- const search=new URLSearchParams(location.search);
- const desired=search.get("page")||"dashboard";
- if(desired==="enrollments")history.replaceState(null,"","/unified.html?page=programs");
- switchPage(desired==="enrollments"?"programs":desired==="clearinghouse"?"compliance":CONFIG[desired]?desired:"dashboard",false);
- const action=search.get("manage"),id=search.get("record");
- if(MANAGEMENT_ACTIONS.has(action)){
-  const apply=()=>{if(state.page===desired)openManagement(action,id,false)};
-  const cached=state.cache.get(cacheKey());
-  if(cached||action==="new")apply();else state.pendingManagement={action,id,section:state.page};
- }
-}
-async function initializeWorkspaces(){
- const r=await api("bootstrap");
- state.workspaces=r.workspaces||[];
- if(!state.workspaces.length){showView("workspaceSetup");return}
- state.tenantId=state.workspaces[0].tenant_id;
- startApp();
-}
-function bindEvents(){
- $("organizationForm").addEventListener("submit",async e=>{
-  e.preventDefault();const b=e.currentTarget.querySelector("button");b.disabled=true;
-  try{const name=String(new FormData(e.currentTarget).get("name")||"").trim();await api("create_workspace",{name});await initializeWorkspaces()}
-  catch(error){$("setupMessage").textContent=error.message}finally{b.disabled=false}
- });
- $("pageBreadcrumbs").addEventListener("click",e=>{
-  const page=e.target.closest("[data-page]")?.dataset.page;
-  if(!page||!CONFIG[page])return;
-  if(page===state.page&&state.management)leaveManagement();
-  else switchPage(page);
- });
- $("sidebarNavigation").addEventListener("click",e=>{
-  const groupButton=e.target.closest("[data-nav-group]");
-  if(groupButton){
-   const title=groupButton.dataset.navGroup;
-   if(openNavGroups.has(title))openNavGroups.delete(title);else openNavGroups.add(title);
-   saveNavGroups();
-   const block=groupButton.closest(".nav-group"),expanded=openNavGroups.has(title);
-   block.classList.toggle("expanded",expanded);
-   groupButton.setAttribute("aria-expanded",String(expanded));
-   groupButton.querySelector(".group-indicator").textContent=expanded?"−":"+";
-   block.querySelector(".nav-group-links").hidden=!expanded;
-   return;
-  }
-  const b=e.target.closest("[data-page]");if(b)switchPage(b.dataset.page);
- });
- document.querySelectorAll("[data-context]").forEach(b=>b.addEventListener("click",()=>changeContext(b.dataset.context)));
- const menu=$("accountMenu"),dropdown=$("accountDropdown"),trigger=$("accountTrigger");
- const closeAccountMenu=()=>{dropdown.hidden=true;trigger.setAttribute("aria-expanded","false")};
- trigger.addEventListener("click",()=>{dropdown.hidden=!dropdown.hidden;trigger.setAttribute("aria-expanded",String(!dropdown.hidden))});
- document.addEventListener("click",e=>{if(!menu.contains(e.target))closeAccountMenu()});
- dropdown.addEventListener("click",async e=>{
-  const action=e.target.closest("[data-account-action]")?.dataset.accountAction;
-  if(!action)return;
-  closeAccountMenu();
-  if(action==="account"){switchPage("account");return}
-  if(action==="signout"){
-   const signout=e.target.closest("button");signout.disabled=true;
-   try{await state.supabase.auth.signOut({scope:"local"})}
-   catch(error){console.warn("Unable to clear local session",error)}
-   finally{state.cache.clear();state.workspaces=[];redirectToSelector()}
-  }
- });
- setupSidebarToggle();
- $("pageActions").addEventListener("click",e=>{
-  if(e.target.closest("[data-back-list]")){leaveManagement();return}
-  if(e.target.closest("#newRecord")){openManagement("new");return}
-  if(e.target.closest("#refreshPage")){void (state.page==="lab_analytics"?renderLabAnalytics(true):loadRecords(state.sequence,true,true));return}
-  if(e.target.closest("#exportPage")){exportRecords();return}
- });
- $("notice").addEventListener("click",e=>{if(e.target.closest(".notice-close"))message("")});
- $("pageContent").addEventListener("click",e=>{
-  const target=e.target;
-  if(target.closest("[data-report-csv]")){downloadCompanyCSV();return}
-  if(target.closest("[data-report-pdf]")){downloadCompanyPDF();return}
-  const view=target.closest("[data-view]"),edit=target.closest("[data-edit]"),archive=target.closest("[data-archive]"),create=target.closest("[data-create]"),goto=target.closest("[data-goto]"),retry=target.closest("#retryLoad"),openFile=target.closest("[data-open-file]"),previewFile=target.closest("[data-preview-file]"),step=target.closest("[data-page-step]");
-  const quick=target.closest("[data-dashboard-create]"),activity=target.closest("[data-dashboard-record]");
-  if(quick){
-   const destination=quick.dataset.dashboardCreate;
-   if(CONFIG[destination]){
-    switchPage(destination);
-    if(state.cache.get(cacheKey()))openManagement("new");
-    else state.pendingManagement={action:"new",id:null,section:destination};
-   }
-   return;
-  }
-  if(activity){
-   const destination=activity.dataset.dashboardKind,id=activity.dataset.dashboardRecord;
-   if(CONFIG[destination]&&id){
-    switchPage(destination);
-    if(state.cache.get(cacheKey()))openManagement("view",id);
-    else state.pendingManagement={action:"view",id,section:destination};
-   }
-   return;
-  }
-  const privateView=target.closest("[data-private-view]"),privateDownload=target.closest("[data-private-download]"),privateDelete=target.closest("[data-private-delete]");
-  if(privateView){void privateDocumentFile(privateView.dataset.privateView,true);return}
-  if(privateDownload){void privateDocumentFile(privateDownload.dataset.privateDownload,false);return}
-  if(privateDelete){confirmPrivateDocumentDelete(privateDelete.dataset.privateDelete);return}
-  const sendPolicy=target.closest("[data-policy-send]");
-  if(sendPolicy){void confirmPolicySend(sendPolicy.dataset.policySend);return}
-  const format=target.closest("[data-policy-command]");
-  if(format){applyPolicyFormatting(format.dataset.policyCommand);return}
-  if(target.closest("#policyInsertLink")){
-   const input=$("policyLinkUrl"),url=input?.value?.trim()||"";
-   if(!/^https?:\/\/[^\s]+$/i.test(url)){message("Enter a valid http:// or https:// URL.",true);return}
-   applyPolicyFormatting("createLink",url);
-   input.value="";return;
-  }
-  if(target.closest("#policyRemoveFormat")){applyPolicyFormatting("removeFormat");return}
-  if(target.closest("#policyUnlink")){applyPolicyFormatting("unlink");return}
-  if(target.closest("#policyRemoveLogo")){const input=$("policyLogoUrl"),preview=$("policyLogoPreview");if(input)input.value="";if(preview)preview.innerHTML="<span>No logo uploaded</span>";return}
-  const auditSave=target.closest("[data-audit-item-save]"),auditDownload=target.closest("[data-audit-download]");
-  if(auditSave){void saveAuditItem(auditSave.dataset.auditItemSave,auditSave);return}
-  if(auditDownload){void downloadAuditEvidence(auditDownload);return}
-  if(target.closest("[data-result-document]")){void officialResultFile(target.closest("[data-result-document]").dataset.resultDocument);return}
-  if(target.closest("[data-result-send]")){confirmOfficialResultSend();return}
-  if(target.closest("#selectionReview")){confirmSelection();return}
-  if(target.closest("[data-selection-person]")){
-   const id=target.closest("[data-selection-person]").dataset.selectionPerson;
-   switchPage("people");
-   if(state.cache.get(cacheKey()))openManagement("view",id);
-   else state.pendingManagement={action:"view",id,section:"people"};
-   return;
-  }
-  if(target.closest("[data-pool-add]")){void openPoolAddMember();return}
-  if(target.closest("[data-pool-remove]")){confirmPoolRemove(target.closest("[data-pool-remove]").dataset.poolRemove);return}
-  if(target.closest("[data-pool-person]")){
-   const id=target.closest("[data-pool-person]").dataset.poolPerson;
-   if(!id)return;
-   switchPage("people");
-   if(state.cache.get(cacheKey()))openManagement("view",id);
-   else state.pendingManagement={action:"view",id,section:"people"};
-   return;
-  }
-  if(target.closest("[data-pool-selection]")){
-   const id=target.closest("[data-pool-selection]").dataset.poolSelection;
-   switchPage("selections");
-   if(state.cache.get(cacheKey()))openManagement("view",id);
-   else state.pendingManagement={action:"view",id,section:"selections"};
-   return;
-  }
-  if(target.closest("[data-pool-nav]")){
-   const kind=target.closest("[data-pool-nav]").dataset.poolNav;
-   if(CONFIG[kind])switchPage(kind);
-   return;
-  }
-  if(target.closest("[data-program-enroll-add]")){void openProgramEnrollment();return}
-  if(target.closest("[data-program-unenroll]")){removeProgramEnrollment(target.closest("[data-program-unenroll]").dataset.programUnenroll);return}
-  if(target.closest("[data-program-related]")){
-   const page=target.closest("[data-program-related]").dataset.programRelated;
-   if(CONFIG[page])switchPage(page);
-   return;
-  }
-  if(target.closest("[data-program-apply-rule]")){
-   const agency=target.closest("[data-program-apply-rule]").dataset.programApplyRule;
-   const rule=state.programRules?.find(r=>r.dot_agency===agency);
-   if(rule){
-    for(const [name,value] of [["drug_random_rate",rule.drug_rate],["alcohol_random_rate",rule.alcohol_rate]]){
-     const field=document.getElementById("manage-"+name);
-     if(field&&value!==null&&value!==undefined)field.value=String(value);
-    }
-    message("Regulatory reference rates applied. Review before saving.");
-   }
-   return;
-  }
-  if(target.closest("[data-clear-company-filter]")){state.companyFilter=null;showRecords(state.cache.get(cacheKey())?.records||[]);return}
-  if(target.closest("[data-company-add]")){openCompanyAdd(target.closest("[data-company-add]").dataset.companyAdd);return}
-  if(target.closest("[data-company-remove]")){
-   const b=target.closest("[data-company-remove]");confirmCompanyRemove(b.dataset.relatedKind,b.dataset.companyRemove);return
-  }
-  if(target.closest("[data-company-person]")){void openCompanyPerson(target.closest("[data-company-person]").dataset.companyPerson);return}
-  if(target.closest("[data-person-company]")){
-   const companyId=target.closest("[data-person-company]").dataset.personCompany;
-   void openPersonCompanyProfile(companyId);
-   return;
-  }
-  if(target.closest("[data-company-contact-profile]")){
-   const id=target.closest("[data-company-contact-profile]").dataset.personId;
-   if(id)void openCompanyPerson(id);else openCompanyAdd("people",true);
-   return;
-  }
-  if(target.closest("[data-company-invoice]")){
-   const id=target.closest("[data-company-invoice]").dataset.companyInvoice;
-   switchPage("invoices");
-   if(state.cache.get(cacheKey()))openManagement("view",id);
-   else state.pendingManagement={action:"view",id,section:"invoices"};
-   return;
-  }
-  const employerRelated=target.closest("[data-employer-related]");
-  const employerCreate=target.closest("[data-employer-create]");
-  if(employerRelated||employerCreate){
-   const page=(employerRelated||employerCreate).dataset.employerRelated||(employerRelated||employerCreate).dataset.employerCreate;
-   const company=currentCompany();
-   if(!CONFIG[page]||!company)return;
-   const creating=Boolean(employerCreate);
-   switchPage(page);
-   if(creating){
-    state.companyDraft={page,companyId:company.id,companyName:company.data?.legal_name||""};
-    if(state.cache.get(cacheKey()))openManagement("new");
-    else state.pendingManagement={action:"new",id:null,section:page};
-   }else{
-    state.companyFilter={companyId:company.id,companyName:company.data?.legal_name||""};
-    const cached=state.cache.get(cacheKey());
-    if(cached)showRecords(cached.records);
-   }
-   return;
-  }
-  if(target.closest("#saveEmployerContinue")){
-   const form=target.closest("#managementForm");
-   if(form)void submitManagement(form,true);
-   return;
-  }
-  if(previewFile)void openDocumentFile(previewFile.dataset.previewFile,"preview");
-  else if(openFile)void openDocumentFile(openFile.dataset.openFile);
-  else if(view)openManagement("view",view.dataset.view);
-  else if(edit)openManagement("edit",edit.dataset.edit);
-  else if(archive)archiveRecord(archive.dataset.archive);
-  else if(create)openManagement("new");
-  else if(goto)switchPage(goto.dataset.goto);
-  else if(retry)void loadRecords();
-  else if(step){state.pageIndex+=Number(step.dataset.pageStep);showRecords(state.cache.get(cacheKey())?.records||[])}
-  else if(target.closest("#editProfile"))void editProfile();
-  else if(target.closest("[data-back-list]"))leaveManagement();
-  else if(target.closest("[data-manage-edit]"))openManagement("edit",target.closest("[data-manage-edit]").dataset.manageEdit);
- });
- $("pageContent").addEventListener("change",e=>{
-  if(e.target.id==="policyHeading"){applyPolicyFormatting("formatBlock",e.target.value);return}
- if(e.target.id==="policyFont"){applyPolicyFormatting("fontName",e.target.value);return}
- if(e.target.id==="policyFontSize"){applyPolicyFormatting("fontSize",e.target.value);return}
- if(e.target.id==="policyTextColor"){applyPolicyFormatting("foreColor",e.target.value);return}
- if(e.target.id==="policyHighlight"){applyPolicyFormatting("hiliteColor",e.target.value);return}
- if(e.target.id==="policyLogoFile"){void uploadPolicyLogo(e.target.files?.[0]);return}
- if(e.target.matches("[data-audit-upload]")){void uploadAuditEvidence(e.target);return}
- if(e.target.id==="selectionPool"){void selectionPreviewPool();return}
-  if(e.target.name==="physical_type"&&e.target.closest("#physicalOrderForm")){const next=e.target.value==="DOT"?"dot":"nondot";if(next!==state.context){changeContext(next);openManagement("new");}return}
- if(e.target.id==="drugCompany"){refreshDrugDonors();return}
-  if(e.target.id==="testingDocCompany"){refreshTestingDocumentRelations();return}
-  if(e.target.id==="testingDocFile"){$("testingDocFileName").textContent=e.target.files?.[0]?.name||"Choose a document to upload";return}
-  if(e.target.id==="statusFilter"){
-   state.statusFilter=e.target.value;state.pageIndex=0;
-   showRecords(state.cache.get(cacheKey())?.records||[]);
-  }
- });
- $("pageContent").addEventListener("input",e=>{
-  if(e.target.id!=="recordSearch")return;
-  const position=e.target.selectionStart;
-  state.search=e.target.value;state.pageIndex=0;
-  showRecords(state.cache.get(cacheKey())?.records||[]);
-  const input=$("recordSearch");input.focus();input.setSelectionRange(position,position);
- });
- $("recordFields").addEventListener("click",e=>{const b=e.target.closest("[data-modal-download]");if(b)void openDocumentFile(b.dataset.modalDownload)});
- $("recordForm").addEventListener("submit",saveRecord);
- $("pageContent").addEventListener("submit",e=>{if(e.target.id==="testingDocForm"){e.preventDefault();void submitTestingDocument(e.target);return}if(e.target.id==="drugOrderForm"){e.preventDefault();void submitDrugOrder(e.target);return}if(e.target.id==="physicalOrderForm"){e.preventDefault();void submitPhysicalOrder(e.target);return}if(e.target.id==="auditForm"){e.preventDefault();void saveAudit(e.target);return}if(e.target.id==="rtdCaseForm"){e.preventDefault();void saveRTDCase(e.target);return}if(e.target.id==="policyForm"){e.preventDefault();void savePolicy(e.target);return}if(e.target.id==="privateDocumentForm"){e.preventDefault();void submitPrivateDocument(e.target);return}if(e.target.id==="reportBuilderForm"){e.preventDefault();void runCompanyReport(e.target);return}if(e.target.id==="managementForm"){e.preventDefault();void submitManagement(e.target)}});
+ $("pageContent").addEventListener("submit",e=>{if(e.target.id==="testingDocForm"){e.preventDefault();void submitTestingDocument(e.target);return}if(e.target.id==="drugOrderForm"){e.preventDefault();void submitDrugOrder(e.target);return}if(e.target.id==="physicalOrderForm"){e.preventDefault();void submitPhysicalOrder(e.target);return}if(e.target.id==="auditForm"){e.preventDefault();void saveAudit(e.target);return}if(e.target.id==="rtdCaseForm"){e.preventDefault();void saveRTDCase(e.target);return}if(e.target.id==="policyForm"){e.preventDefault();void savePolicy(e.target);return}if(e.target.id==="privateDocumentForm"){e.preventDefault();void submitPrivateDocument(e.target);return}if(e.target.id==="reportBuilderForm"){e.preventDefault();void runCompanyReport(e.target);return}if(e.target.id==="labAccountForm"){e.preventDefault();void saveLabAccount(e.target);return}if(e.target.id==="managementForm"){e.preventDefault();void submitManagement(e.target)}});
  for(const id of ["modalClose","cancelModal","modalDismiss"])$(id).addEventListener("click",closeModal);
  document.addEventListener("keydown",e=>{if(e.key==="Escape"){if(!$("modal").hidden)closeModal();$("accountDropdown").hidden=true;$("accountTrigger").setAttribute("aria-expanded","false")}});
  const setFont=n=>{state.font=Math.max(13,Math.min(21,n));document.documentElement.style.fontSize=state.font+"px";localStorage.setItem("workforce_unified_font",String(state.font))};
