@@ -38,6 +38,44 @@ Deno.serve(async req=>{
  const t=db.from("workforce_ctpa_private_threads"),participants=db.from("workforce_ctpa_private_participants"),messages=db.from("workforce_ctpa_private_messages");
  const partnerName=x=>x?.data?.legal_name||x?.data?.name||"Employer or owner-operator";
  const partnerEmail=x=>trim(x?.data?.contact_email||x?.data?.email||x?.data?.billing_email,240).toLowerCase();
+ async function emailNotification(messageId:string,thread:any,fromCustomer:boolean){
+  const apiKey=Deno.env.get("RESEND_API_KEY"),sender=Deno.env.get("WORKFORCE_EMAIL_FROM")||"Workforce <notifications@screenings4u.com>";
+  const recipient=await db.from("workforce_unified_records").select("data,kind").eq("id",thread.recipient_record_id).eq("tenant_id",thread.tenant_id).maybeSingle();
+  if(recipient.error)throw recipient.error;
+  const recipients:{email:string,url:string}[]=[];
+  if(fromCustomer){
+   const m=await db.from("workforce_unified_records").select("data").eq("kind","membership").eq("tenant_id",thread.tenant_id).eq("data->>status","active").is("archived_at",null).limit(60);
+   if(m.error)throw m.error;
+   for(const entry of m.data||[]){
+    const accountId=entry.data?.user_id;
+    if(!uuid(accountId)||accountId===user.id)continue;
+    const record=await db.auth.admin.getUserById(accountId);
+    const mail=trim(record.data?.user?.email,240).toLowerCase();
+    if(mail)recipients.push({email:mail,url:"https://ctpa.screenings4u.com/unified.html?page=messages"});
+   }
+  }else if(recipient.data){
+   const mail=partnerEmail(recipient.data);
+   const target=thread.recipient_kind==="owner_operators"?"https://owner-operator.screenings4u.com/messages.html":thread.operating_context==="dot"?"https://ctpa-employer-dot.screenings4u.com/messages.html":"https://employer-non-dot.screenings4u.com/messages.html";
+   if(mail&&mail!==trim(user.email,240).toLowerCase())recipients.push({email:mail,url:target});
+  }
+  let sent=0;
+  for(const target of new Map(recipients.map(x=>[x.email,x])).values()){
+   const dedupe="private-chat:"+messageId+":"+target.email;
+   const job=await db.from("workforce_mail_delivery_v2").upsert({dedupe_key:dedupe,kind:"private_chat",recipient:target.email,subject:"New private Workforce message",status:"pending"},{onConflict:"dedupe_key",ignoreDuplicates:true}).select("id").maybeSingle();
+   if(job.error)throw job.error;if(!job.data||!apiKey)continue;
+   try{
+    const result=await fetch("https://api.resend.com/emails",{method:"POST",headers:{"Authorization":"Bearer "+apiKey,"Content-Type":"application/json","Idempotency-Key":dedupe.slice(0,255)},body:JSON.stringify({
+     from:sender,to:[target.email],subject:"Workforce | New Private Message",
+     html:'<div style="background:#01122F;padding:25px;color:#fff;font:bold 25px Arial">Workforce</div><div style="font:15px Arial;padding:26px"><h2>You have a new private message</h2><p>Sign in to your Workforce account to read and respond. The message contents are not included in this email.</p><a href="'+target.url+'" style="background:#FDC102;color:#01122F;padding:12px 22px;text-decoration:none;font-weight:bold;border-radius:8px">View Message</a></div>'
+    })});
+    const data=await result.json().catch(()=>({}));
+    const updated=await db.from("workforce_mail_delivery_v2").update({status:result.ok?"sent":"failed",attempt_count:1,provider_message_id:data.id||null,last_error:result.ok?null:trim(data.message||"Email delivery rejected",350),updated_at:new Date().toISOString()}).eq("id",job.data.id);
+    if(updated.error)console.error("email log update",updated.error);
+    if(result.ok)sent++;
+   }catch(e){console.error("private-chat email",e)}
+  }
+  return sent;
+ }
  async function verifiedPartner(rec,requestedTenant){
   if(!rec||rec.tenant_id!==requestedTenant||!["employers","owner_operators"].includes(rec.kind))return false;
   return partnerEmail(rec)===email;
@@ -149,6 +187,7 @@ Deno.serve(async req=>{
  if(saved.error)throw saved.error;
  const updated=await t.update({last_message_at:new Date().toISOString(),updated_at:new Date().toISOString()}).eq("id",thread.id);
  if(updated.error)throw updated.error;
- return send({ok:true,message:saved.data});
+ const delivered=await emailNotification(saved.data.id,thread,external).catch(error=>{console.error("private chat notification",error);return 0});
+ return send({ok:true,message:saved.data,emails_sent:delivered});
  }catch(e){console.error("[Private CTPA chat]",e);return send({error:"Private messaging request failed"},500)}
 });
