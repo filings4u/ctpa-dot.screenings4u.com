@@ -293,8 +293,10 @@ function managementField(f,value=""){
  else if(f.type==="textarea")control='<textarea id="manage-'+name+'" name="'+name+'" rows="4"'+required+'>'+v+'</textarea>';
  else if(f.type.startsWith("select:")){
   const values=f.type.slice(7).split(",");
+  const current=String(value??"");
+  if(current&&!values.includes(current))values.unshift(current);
   control='<select id="manage-'+name+'" name="'+name+'"'+required+'>'+
-  '<option value="">Choose an option</option>'+values.map(item=>'<option value="'+esc(item)+'"'+(String(value)===item?' selected':'')+'>'+esc(item.replaceAll("_"," "))+'</option>').join("")+'</select>';
+  '<option value="">Choose an option</option>'+values.map(item=>'<option value="'+esc(item)+'"'+(current===item?' selected':'')+'>'+esc(item.replaceAll("_"," "))+'</option>').join("")+'</select>';
  }else control='<input id="manage-'+name+'" name="'+name+'" type="'+esc(f.type)+'" value="'+v+'"'+required+(f.type==="number"?' step="any"':"")+' maxlength="4000">';
  return '<label class="manage-field" for="manage-'+name+'"><span>'+esc(f.label)+(f.required?' <span class="required-mark">*</span>':'')+'</span>'+control+'</label>';
 }
