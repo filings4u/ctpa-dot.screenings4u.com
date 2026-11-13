@@ -849,30 +849,34 @@ async function render(ctx,prefetched){
 
 let liveChannel=null,liveRenderTimer=null;
 function scheduleLiveRender(){
-  if(liveRenderTimer)clearTimeout(liveRenderTimer);
-  liveRenderTimer=setTimeout(async()=>{
-    if(!window.portalCtx)return;
-    const y=window.scrollY,active=document.activeElement,activeId=active?.id||null,selection=(active&&typeof active.selectionStart==='number')?[active.selectionStart,active.selectionEnd]:null;
-    try{await render(window.portalCtx)}catch(e){console.warn('Realtime render failed',e)}
-    requestAnimationFrame(()=>{window.scrollTo(0,y);if(activeId){const n=document.getElementById(activeId);if(n){n.focus({preventScroll:true});if(selection&&typeof n.setSelectionRange==='function')try{n.setSelectionRange(selection[0],selection[1])}catch{}}}});
-  },120);
+ if(liveRenderTimer)clearTimeout(liveRenderTimer);
+ liveRenderTimer=setTimeout(async()=>{
+  if(!window.portalCtx)return;
+  const active=document.activeElement;
+  if(active?.matches?.('input,textarea,select,[contenteditable="true"]')){
+   // Preserve unsaved edits; update the in-place module when editing ends.
+   active.addEventListener('blur',()=>scheduleLiveRender(),{once:true});
+   return;
+  }
+  const y=window.scrollY,p=page(),surface=workspace()?.surface;
+  try{
+   const data=await loadPageDataCached(p,location.search,{force:true});
+   if(page()===p&&workspace()?.surface===surface){await render(window.portalCtx,data);window.scrollTo(0,y)}
+  }catch(error){console.warn('Realtime module refresh failed',error)}
+ },650);
 }
 function startRealtime(ctx){
  try{
   if(liveChannel){sb.removeChannel(liveChannel);liveChannel=null}
-  const ctpaId=ctx?.ctpa?.id||ctx?.ctpa_id||ctx?.subscription?.ctpa_id;
-  if(!ctpaId)return;
-  const surface=workspace()?.surface==='nondot'?'nondot':'dot';
-  liveChannel=sb.channel('ctpa-'+surface+'-'+ctpaId);
-  if(surface==='nondot'){
-   // Scoped realtime feeds; background updates refresh only current module data.
-   liveChannel.on('postgres_changes',{event:'*',schema:'public',table:'workforce_employers',filter:'ctpa_id=eq.'+ctpaId},()=>scheduleLiveRender());
-   liveChannel.on('postgres_changes',{event:'*',schema:'public',table:'workforce_random_pools',filter:'ctpa_id=eq.'+ctpaId},()=>scheduleLiveRender());
-  }else{
-   liveChannel.on('postgres_changes',{event:'INSERT',schema:'public',table:'ctpa_activity_events',filter:'ctpa_id=eq.'+ctpaId},()=>scheduleLiveRender());
-  }
-  liveChannel.subscribe();
- }catch(e){console.warn('Realtime unavailable',e)}
+  const organizationId=workspace()?.organization_id||ctx?.organization?.id;
+  if(!organizationId)return;
+  const selected=workspace()?.surface==='nondot'?'nondot':'dot';
+  liveChannel=sb.channel('ctpa-workspace-'+organizationId)
+   .on('postgres_changes',{event:'INSERT',schema:'public',table:'ctpa_workspace_events',filter:'organization_id=eq.'+organizationId},payload=>{
+    if(payload?.new?.operating_context===selected)scheduleLiveRender();
+   })
+   .subscribe();
+ }catch(error){console.warn('Realtime workspace unavailable',error)}
 }
 async function refreshCurrent({force=true}={}){
   if(!window.portalCtx)return;
