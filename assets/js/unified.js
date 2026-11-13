@@ -435,31 +435,67 @@ async function submitManagement(form){
   void loadRecords();
  }catch(error){$("managementError").textContent=error.message;button.disabled=false}
 }
+function statusLabel(value){
+ return String(value||"Not set").replaceAll("_"," ").replace(/\b\w/g,c=>c.toUpperCase());
+}
+function statusClass(value){
+ const v=String(value||"").toLowerCase();
+ if(["active","completed","complete","approved","paid","delivered","received"].includes(v))return "positive";
+ if(["inactive","archived","cancelled","void","revoked","failed"].includes(v))return "muted";
+ return "pending";
+}
+function recordStatus(record){
+ const value=record.data?.status||record.data?.account_status||record.data?.setup_status||"";
+ return '<span class="mgmt-status '+statusClass(value)+'"><span class="status-dot"></span>'+esc(statusLabel(value))+'</span>';
+}
 function showRecords(records){
  if(state.page==="dashboard"){renderDashboard(records);return}
  const count=records.length,query=state.search.trim().toLowerCase();
  const statuses=[...new Set(records.map(r=>String(r.data?.status||"").trim()).filter(Boolean))].sort();
  const visible=records.filter(r=>(!query||Object.values(r.data||{}).some(v=>String(v??"").toLowerCase().includes(query)))&&(!state.statusFilter||String(r.data?.status||"")===state.statusFilter));
- const pageSize=30,maxPage=Math.max(0,Math.ceil(visible.length/pageSize)-1);
+ const pageSize=25,maxPage=Math.max(0,Math.ceil(visible.length/pageSize)-1);
  state.pageIndex=Math.min(Math.max(0,state.pageIndex||0),maxPage);
  const displayed=visible.slice(state.pageIndex*pageSize,(state.pageIndex+1)*pageSize);
  const canWrite=["owner","admin","editor"].includes(activeWorkspace()?.role||"");
  $("newRecord")?.toggleAttribute("disabled",!canWrite);
- const columns=fields(state.page).filter(f=>f.type!=="file").slice(0,3);
- $("pageContent").innerHTML='<section class="panel"><div class="toolbar"><input id="recordSearch" type="search" aria-label="Search records" placeholder="Search records" value="'+esc(state.search)+'">'+(statuses.length?'<select id="statusFilter" aria-label="Filter by status"><option value="">All statuses</option>'+
-    statuses.map(status=>'<option value="'+esc(status)+'"'+(status===state.statusFilter?' selected':'')+'>'+esc(status.replaceAll("_"," "))+'</option>').join("")+'</select>':"")+
-   '<span class="search-meta">'+visible.length+' of '+count+' records</span></div>'+
-  (visible.length?'<div class="table-scroll"><table class="data-table"><thead><tr><th>Record</th>'+
-   columns.map(c=>'<th>'+esc(c.label)+'</th>').join("")+'<th>Updated</th><th>Actions</th></tr></thead><tbody>'+
-   displayed.map(r=>'<tr><td class="record-name">'+esc(recordTitle(r))+'<br><small>'+esc(r.operating_context==="shared"?"Shared":r.operating_context==="dot"?"DOT":"NON-DOT")+'</small></td>'+
-    columns.map(c=>'<td>'+esc(r.data?.[c.name]??"—")+'</td>').join("")+
-    '<td>'+esc(new Date(r.updated_at).toLocaleDateString())+'</td><td><div class="row-actions">'+
-    '<button type="button" data-view="'+esc(r.id)+'">View</button>'+
-    (DOCUMENT_PAGES.has(state.page)&&r.data?.storage_path?'<button type="button" data-open-file="'+esc(r.id)+'">Download</button>':"")+
-    (canWrite?'<button type="button" data-edit="'+esc(r.id)+'">Edit</button><button type="button" data-archive="'+esc(r.id)+'">Archive</button>':"")+
-    '</div></td></tr>').join("")+'</tbody></table></div>'+
-   (visible.length>pageSize?'<div class="table-pagination"><button type="button" data-page-step="-1"'+(state.pageIndex===0?' disabled':'')+'>Previous</button><span>Page '+(state.pageIndex+1)+' of '+(maxPage+1)+'</span><button type="button" data-page-step="1"'+(state.pageIndex===maxPage?' disabled':'')+'>Next</button></div>':"")
-  :'<div class="empty"><p>'+esc(query?"No matching records.":"No records yet.")+'</p>'+(canWrite&&!query?'<button class="btn primary" type="button" data-create="1">Add record</button>':"")+'</div>')+'</section>';
+ const isEmployer=state.page==="employers";
+ const second=isEmployer?"USDOT number":"Details";
+ const third=isEmployer?"Primary contact":"Last updated";
+ const columnFields=fields(state.page).filter(f=>!["file","textarea"].includes(f.type)&&!["name","title","legal_name","status"].includes(f.name)).slice(0,2);
+ const directoryRows=displayed.map(r=>{
+  const data=r.data||{},name=recordTitle(r);
+  const dot=r.operating_context==="shared"?"Shared":r.operating_context==="dot"?"DOT":"NON-DOT";
+  const secondary=isEmployer
+   ?'<span class="directory-secondary">'+esc(data.contact_email||"No contact email")+'</span>'
+   :'<span class="directory-secondary">'+esc(label(r.kind))+' · '+dot+'</span>';
+  const middle=isEmployer?esc(data.dot_number||"—"):
+   esc(columnFields.map(f=>data[f.name]).filter(v=>v!==null&&v!==undefined&&v!=="").join(" · ")||"—");
+  const contact=isEmployer?'<span class="directory-contact">'+esc(data.contact_name||"Not assigned")+'</span>':esc(new Date(r.updated_at).toLocaleDateString());
+  const open='<button type="button" class="directory-name" data-view="'+esc(r.id)+'" aria-label="View '+esc(name)+'">'+esc(name)+'</button>';
+  const actions='<div class="directory-actions"><button type="button" class="btn secondary btn-sm" data-view="'+esc(r.id)+'">View</button>'+
+   (DOCUMENT_PAGES.has(state.page)&&data.storage_path?'<button type="button" class="btn secondary btn-sm" data-open-file="'+esc(r.id)+'">Download</button>':"")+
+   (canWrite?'<button type="button" class="btn secondary btn-sm" data-edit="'+esc(r.id)+'">Edit</button>'+
+    '<button type="button" class="btn-archive" data-archive="'+esc(r.id)+'" aria-label="Archive '+esc(name)+'" title="Archive">Archive</button>':"")+'</div>';
+  return '<div class="directory-row">'+
+    '<div class="directory-identity"><span class="directory-icon">'+navIcon(state.page)+'</span>'+
+    '<div class="directory-names">'+open+secondary+'</div></div>'+
+    '<div class="directory-field"><small>'+esc(second)+'</small><strong>'+middle+'</strong></div>'+
+    '<div class="directory-field"><small>'+esc(third)+'</small><strong>'+contact+'</strong></div>'+
+    '<div class="directory-state">'+recordStatus(r)+'</div>'+actions+'</div>';
+ }).join("");
+ $("pageContent").innerHTML='<section class="directory-panel">'+
+  '<div class="directory-toolbar"><div class="directory-search"><svg aria-hidden="true" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m16 16 5 5"/></svg>'+
+  '<input id="recordSearch" type="search" aria-label="Search '+esc(label(state.page))+'" placeholder="Search '+esc(label(state.page).toLowerCase())+'..." value="'+esc(state.search)+'"></div>'+
+  (statuses.length?'<select id="statusFilter" aria-label="Filter by status"><option value="">All statuses</option>'+
+   statuses.map(v=>'<option value="'+esc(v)+'"'+(state.statusFilter===v?' selected':'')+'>'+esc(statusLabel(v))+'</option>').join("")+'</select>':"")+
+  '<span class="directory-total">'+visible.length+' '+(visible.length===1?'record':'records')+'</span></div>'+
+  (visible.length?'<div class="directory-list"><div class="directory-head"><span>'+esc(isEmployer?"Company":label(state.page))+'</span><span>'+esc(second)+'</span><span>'+esc(third)+'</span><span>Status</span><span>Actions</span></div>'+directoryRows+'</div>':
+  '<div class="directory-empty"><div class="directory-empty-icon">'+navIcon(state.page)+'</div><h2>'+esc(query||state.statusFilter?"No matching records":"No "+label(state.page).toLowerCase()+" yet")+'</h2>'+
+  '<p>'+(query||state.statusFilter?"Adjust your search or status filter to see matching records.":"Get started by adding your first record.")+'</p>'+
+  (canWrite&&!query&&!state.statusFilter?'<button class="btn primary" type="button" data-create="1">Add '+esc(label(state.page))+'</button>':"")+'</div>')+
+  (visible.length>pageSize?'<div class="table-pagination"><button type="button" data-page-step="-1"'+(state.pageIndex===0?' disabled':'')+'>Previous</button>'+
+   '<span>Page '+(state.pageIndex+1)+' of '+(maxPage+1)+'</span>'+
+   '<button type="button" data-page-step="1"'+(state.pageIndex===maxPage?' disabled':'')+'>Next</button></div>':"")+'</section>';
 }
 function closeModal(){$("modal").hidden=true;document.body.classList.remove("modal-open");state.editing=null;$("recordForm").dataset.mode=""}
 async function saveRecord(event){
