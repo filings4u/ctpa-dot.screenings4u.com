@@ -908,6 +908,28 @@ async function submitManagement(form,continueEditing=false){
   if(Object.hasOwn(data,"client"))data.client=state.companyDraft.companyName;
  }
  delete data.record_context;
+ if(state.page==="people"){
+  const selected=data.company_selection||"";
+  const companyControl=form.querySelector("#personCompanySelect");
+  if(!companyControl||companyControl.disabled){
+   $("managementError").textContent="Company choices have not loaded. Please retry.";
+   button.disabled=false;return;
+  }
+  delete data.company_selection;
+  const related=[];
+  for(const kind of state.context==="dot"?["employers","owner_operators"]:["employers"]){
+   related.push(...(state.cache.get(cacheKey(kind))?.records||[]));
+  }
+  const company=selected?related.find(r=>r.id===selected&&r.operating_context===state.context):null;
+  if(selected&&!company){
+   $("managementError").textContent="Select a company from the current workspace.";
+   button.disabled=false;return;
+  }
+  data.company_id=company?.id||"";
+  data.employer=company?.data?.legal_name||"";
+  data.relationship=company?(data.relationship==="contact"?"contact":"staff"):"worker";
+  if(!data.status)data.status="active";
+ }
  const file=data.document_file;delete data.document_file;
  for(const f of fields(state.page))if(f.type==="number"&&data[f.name]!=="")data[f.name]=Number(data[f.name]);
  $("managementError").textContent="";
@@ -1189,6 +1211,19 @@ function bindEvents(){
    const b=target.closest("[data-company-remove]");confirmCompanyRemove(b.dataset.relatedKind,b.dataset.companyRemove);return
   }
   if(target.closest("[data-company-person]")){void openCompanyPerson(target.closest("[data-company-person]").dataset.companyPerson);return}
+  if(target.closest("[data-person-company]")){
+   const companyId=target.closest("[data-person-company]").dataset.personCompany;
+   let kind=null,company=null;
+   for(const item of state.context==="dot"?["employers","owner_operators"]:["employers"]){
+    const found=(state.cache.get(cacheKey(item))?.records||[]).find(r=>r.id===companyId);
+    if(found){kind=item;company=found;break}
+   }
+   if(!kind||!company){message("Company profile is not available in this workspace.",true);return}
+   switchPage(kind);
+   if(state.cache.get(cacheKey()))openManagement("view",companyId);
+   else state.pendingManagement={action:"view",id:companyId,section:kind};
+   return;
+  }
   if(target.closest("[data-company-contact-profile]")){
    const id=target.closest("[data-company-contact-profile]").dataset.personId;
    if(id)void openCompanyPerson(id);else openCompanyAdd("people",true);
