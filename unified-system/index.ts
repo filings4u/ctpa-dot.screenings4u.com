@@ -406,6 +406,145 @@ Deno.serve(async request=>{
   }
 
 
+
+  // Generate read-only company reports directly from the unified authorized record store.
+  // Report values are never accepted from the browser, and official test documents
+  // remain exclusively available through their existing secure delivery workflow.
+  if(action==="reports_generate"){
+   const companyId=text(body.company_id,60),reportType=text(body.report_type,40);
+   const allowedTypes=["overview","people","programs","pools","selections","testing","results","compliance","occupational"];
+   if(!uuid(companyId)||!allowedTypes.includes(reportType))return respond({error:"Choose a valid company and report type"},400);
+   const start=text(body.start_date,10),end=text(body.end_date,10);
+   for(const value of [start,end]){
+    if(value&&(!/^\d{4}-\d{2}-\d{2}$/.test(value)||!Number.isFinite(Date.parse(value+"T12:00:00Z"))))
+     return respond({error:"Invalid reporting date"},400);
+   }
+   if(start&&end&&start>end)return respond({error:"Start date must not follow end date"},400);
+   const company=await collection.select("id,kind,data").eq("tenant_id",tenantId).eq("id",companyId)
+    .in("kind",context==="dot"?["employers","owner_operators"]:["employers"])
+    .eq("operating_context",context).is("archived_at",null).maybeSingle();
+   if(company.error)throw company.error;
+   if(!company.data)return respond({error:"This company is not in the selected workspace"},403);
+   const companyName=text(company.data.data?.legal_name,180);
+   const kinds=["people","programs","pools","enrollments","selections","testing_orders","results","compliance","occupational_health"];
+   const lists=await Promise.all(kinds.map(async kind=>{
+    if(kind==="occupational_health"){
+     const r=await db.from("occupational_health_orders")
+      .select("id,reference_number,physical_type,exam_type,donor_name,company_name,status,created_at,metadata")
+      .contains("metadata",{source:"workforce_ctpa_unified",unified_tenant_id:tenantId,
+        operating_context:context,company_id:companyId})
+      .is("archived_at",null).order("created_at",{ascending:false}).limit(1000);
+     if(r.error)throw r.error;
+     return r.data||[];
+    }
+    const r=await collection.select("id,data,created_at").eq("tenant_id",tenantId)
+     .eq("kind",kind).eq("operating_context",context).is("archived_at",null)
+     .order("created_at",{ascending:false}).limit(1500);
+    if(r.error)throw r.error;
+    return r.data||[];
+   }));
+   const byKind=Object.fromEntries(kinds.map((kind,i)=>[kind,lists[i]])) as Record<string,any[]>;
+   const nameMatches=(value:unknown)=>!!companyName&&text(value,180).toLowerCase()===companyName.toLowerCase();
+   const companyMatch=(d:any)=>{
+    // Prefer authoritative links. Legacy imported records can carry employer names only;
+    // use those only when unambiguous for this tenant and workspace.
+    const linked=d?.company_id||d?.employer_id||d?.carrier_id;
+    if(linked)return linked===companyId;
+    return nameMatches(d?.employer||d?.company_name||d?.carrier);
+   };
+   const scoped=(kind:string)=>byKind[kind].filter((r:any)=>companyMatch(r.data));
+   const people=scoped("people");
+   const peopleIds=new Set(people.map((x:any)=>x.id));
+   const companyEnrollments=scoped("enrollments");
+   const enrollments=byKind.enrollments.filter((r:any)=>
+    companyMatch(r.data)||peopleIds.has(r.data?.person_id));
+   const programs=scoped("programs").concat(byKind.programs.filter((p:any)=>
+    enrollments.some((r:any)=>r.data?.program_id===p.id||
+      (r.data?.program&&r.data.program===p.data?.name))&&!companyMatch(p.data)));
+   const pools=byKind.pools.filter((p:any)=>companyMatch(p.data)||
+    enrollments.some((r:any)=>r.data?.pool_id===p.id||
+      r.data?.pool_id===p.data?._legacy_id||
+      (r.data?.program&&r.data.program===p.data?.program))||
+    programs.some((r:any)=>p.data?.program_id===r.id));
+   const poolIds=new Set(pools.flatMap((r:any)=>[r.id,r.data?._legacy_id].filter(Boolean)));
+   const selections=byKind.selections.filter((r:any)=>companyMatch(r.data)||
+     poolIds.has(r.data?.pool_id)||poolIds.has(r.data?.pool));
+   const orders=scoped("testing_orders");
+   const results=scoped("results");
+   const compliance=scoped("compliance");
+   const occupational=byKind.occupational_health;
+   const between=(date:unknown)=>{
+    const v=String(date||"").slice(0,10);
+    return (!start||!!v&&v>=start)&&(!end||!!v&&v<=end);
+   };
+   const inRange=(items:any[])=>items.filter((r:any)=>between(r.created_at||r.data?.created_at));
+   const safeText=(v:unknown,max=120)=>text(v,max);
+   const columnsByType:Record<string,string[]>={
+    overview:["Category","Total","Active / Completed"],
+    people:["Employee","Role","Position","Status","Added"],
+    programs:["Program","DOT agency","Testing method","Status","Added"],
+    pools:["Pool","Program","Frequency","Status","Added"],
+    selections:["Selection","Pool","Date","Status","Selected count"],
+    testing:["Order reference","Employee","Reason","Test type","Status","Created"],
+    results:["Result reference","Order reference","Status","Reported"],
+    compliance:["Case","Employee","Category","Outcome","Status","Created"],
+    occupational:["Order reference","Employee","Physical type","Examination","Status","Created"]
+   };
+   const formatDate=(v:unknown)=>safeText(v,40).slice(0,10);
+   const entries:Record<string,string[][]>={
+    people:inRange(people).map((r:any)=>[
+     [safeText(r.data?.first_name,75),safeText(r.data?.last_name,75)].filter(Boolean).join(" "),
+     safeText(r.data?.relationship),safeText(r.data?.job_title),
+     safeText(r.data?.status),formatDate(r.created_at)]),
+    programs:inRange(programs).map((r:any)=>[
+     safeText(r.data?.name),safeText(r.data?.dot_agency),
+     safeText(r.data?.testing_method),safeText(r.data?.status),formatDate(r.created_at)]),
+    pools:inRange(pools).map((r:any)=>[
+     safeText(r.data?.name),safeText(r.data?.program),
+     safeText(r.data?.frequency),safeText(r.data?.status),formatDate(r.created_at)]),
+    selections:inRange(selections).map((r:any)=>[
+     safeText(r.data?.name),safeText(r.data?.pool_name||r.data?.pool),
+     formatDate(r.data?.selection_date||r.created_at),
+     safeText(r.data?.status),String(r.data?.selection_members?.length||0)]),
+    testing:inRange(orders).map((r:any)=>[
+     safeText(r.data?.name),safeText(r.data?.employee_name),
+     safeText(r.data?.reason),safeText(r.data?.test_type),
+     safeText(r.data?.status),formatDate(r.created_at)]),
+    // Results are metadata only. Never export medical documents, donor DOB, or MRO narrative.
+    results:inRange(results).map((r:any)=>[
+     safeText(r.data?.reference||r.data?.name),safeText(r.data?.order_reference),
+     safeText(r.data?.status),formatDate(r.data?.reported_at||r.created_at)]),
+    compliance:inRange(compliance).map((r:any)=>[
+     safeText(r.data?.name),safeText(r.data?.employee_name),
+     safeText(r.data?.category),safeText(r.data?.outcome),
+     safeText(r.data?.status),formatDate(r.created_at)]),
+    occupational:inRange(occupational).map((r:any)=>[
+     safeText(r.reference_number),safeText(r.donor_name),
+     safeText(r.physical_type),safeText(r.exam_type),
+     safeText(r.status),formatDate(r.created_at)])
+   };
+   entries.overview=[
+    ["People",String(entries.people.length),String(entries.people.filter(r=>r[3]==="active").length)],
+    ["Programs",String(entries.programs.length),String(entries.programs.filter(r=>r[3]==="active").length)],
+    ["Pools",String(entries.pools.length),String(entries.pools.filter(r=>r[3]==="active").length)],
+    ["Random selections",String(entries.selections.length),String(entries.selections.filter(r=>r[3]==="locked").length)],
+    ["Testing orders",String(entries.testing.length),String(entries.testing.filter(r=>["completed","final"].includes(r[4])).length)],
+    ["Results (metadata)",String(entries.results.length),String(entries.results.filter(r=>r[2]==="final").length)],
+    ["Compliance cases",String(entries.compliance.length),String(entries.compliance.filter(r=>r[4]==="closed").length)],
+    ["Physicals",String(entries.occupational.length),String(entries.occupational.filter(r=>r[4]==="completed").length)]
+   ];
+   const rows=entries[reportType].slice(0,1000);
+   const labels:Record<string,string>={overview:"Company Overview",people:"People",programs:"Testing Programs",
+    pools:"Random Pools",selections:"Random Selections",testing:"Testing Orders",results:"Result Status",
+    compliance:"Compliance",occupational:"Occupational Health"};
+   return respond({ok:true,report:{
+    name:labels[reportType],report_type:reportType,company_name:companyName,company_id:companyId,
+    context,generated_at:new Date().toISOString(),start_date:start,end_date:end,
+    columns:columnsByType[reportType],rows,total:rows.length,limited:entries[reportType].length>1000,
+    note:"Generated from available company-linked records; legacy records without a reliable company relationship may be omitted. Result reports include status metadata only."
+   }});
+  }
+
   if(action==="policy_logo_upload"){
    if(!canWrite)return respond({error:"Not authorized to upload logos"},403);
    const mime=text(body.mime_type,60),filename=text(body.filename,140);
@@ -1201,6 +1340,7 @@ Deno.serve(async request=>{
    if(kind==="audits")return respond({error:"Use the native New Entrant Audit workflow"},403);
    if(kind==="return_to_duty")return respond({error:"Use the secure native RTD workflow"},403);
    if(kind==="policies")return respond({error:"Use the native policy editor"},403);
+   if(kind==="reports")return respond({error:"Reports are generated from live company data, not manually created"},403);
    if(kind==="documents")return respond({error:"Use private document upload; generic records are disabled"},403);
    const data=payload(body.data);
    if(!data||Object.keys(data).length>40||JSON.stringify(data).length>60000)
