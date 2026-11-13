@@ -230,6 +230,27 @@ Deno.serve(async request=>{
     clean.employer=linked.data.data?.legal_name||"";
     clean.relationship=clean.relationship==="contact"?"contact":"staff";
    }
+   if(kind==="programs"){
+    // Program context is server-owned; a client cannot move DOT programs to NON-DOT.
+    clean.program_type=context==="dot"?"DOT":"NON-DOT";
+    if(context==="nondot")clean.dot_agency="";
+    for(const field of ["drug_random_rate","alcohol_random_rate"]){
+     if(clean[field]===""||clean[field]===null)continue;
+     const value=Number(clean[field]);
+     if(!Number.isFinite(value)||value<0||value>100)
+      return respond({error:"Random testing rates must be between 0 and 100 percent"},400);
+     clean[field]=value;
+    }
+    if(clean.company_id){
+     if(!uuid(clean.company_id))return respond({error:"Invalid company association"},400);
+     const company=await collection.select("id,data").eq("id",clean.company_id)
+      .eq("tenant_id",tenantId).in("kind",context==="dot"?["employers","owner_operators"]:["employers"])
+      .eq("operating_context",context).is("archived_at",null).maybeSingle();
+     if(company.error)throw company.error;
+     if(!company.data)return respond({error:"Company is unavailable in this program workspace"},400);
+     clean.employer=company.data.data?.legal_name||"";
+    }else{clean.company_id="";clean.employer=""}
+   }
    const id=body.id;
    // New company account classification determines both its module and workspace.
    // This is enforced server-side, regardless of the selected frontend tab.
