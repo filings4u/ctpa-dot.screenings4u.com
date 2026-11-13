@@ -728,7 +728,7 @@ async function render(ctx,prefetched){
   else if(C.kind==='ctpa'&&p==='staff_invite'&&window.CtpaStaff){setSubtitle('Send this staff member their portal invitation and password-creation link.');html=window.CtpaStaff.invite(d,ctx);}
   else if(C.kind==='ctpa'&&p==='staff_delete'&&window.CtpaStaff){setSubtitle('Permanently remove this internal staff member from the C/TPA account.');html=window.CtpaStaff.del(d,ctx);}
   else if(isUtilityPage(p))html=renderUtilityPage(p,d);
-  else if(p==='dashboard')html=dashboard(ctx,d);
+  else if(p==='dashboard')html=workspace()?.surface==='nondot'&&d?.ok!==true?'<section class="panel" role="alert"><h2>Unable to load dashboard</h2><p>'+esc(d?.message||'NON-DOT records could not be loaded. Please retry.')+'</p></section>':dashboard(ctx,d);
   else if(C.kind==='ctpa'&&p==='create_order'&&window.CtpaStoreOrders){setSubtitle('Create a Workforce order for supplies and approved testing products.');html=window.CtpaStoreOrders.render(d,ctx);}
   else if(C.kind==='ctpa'&&p==='price_list'&&window.CtpaPriceList){setSubtitle('View the testing prices assigned to your C/TPA account.');html=window.CtpaPriceList.render(d,ctx);}
   else if(C.kind==='ctpa'&&p==='order_services'&&window.CtpaFeatures){setSubtitle('Review available account features and submit requests for Workforce approval.');html=window.CtpaFeatures.render(d,ctx);}
