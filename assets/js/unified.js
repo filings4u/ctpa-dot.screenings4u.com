@@ -7,7 +7,8 @@ const SELECTOR_URL="https://workforceapps.screenings4u.com/selector.html";
 const redirectToSelector=()=>location.replace(SELECTOR_URL);
 const GROUPS=[
  ["People & Programs",["employers","owner_operators","people","programs","pools","selections"]],
- ["Testing & Compliance",["testing_orders","testing_documents","results","occupational_health","compliance","audits","return_to_duty","policies","documents","reports"]],
+ ["Testing & Compliance",["testing_orders","testing_documents","results","occupational_health","compliance","audits","return_to_duty","policies","reports"]],
+ ["Private Documents",["documents"]],
  ["Lab Account",["lab_accounts","lab_orders","lab_tracking","lab_results","lab_documents","lab_supplies","lab_analytics"]],
  ["Services & Billing",["orders","price_list","services","billing","invoices","subscriptions"]],
  ["Account & Support",["locations","messages","notifications","support","demo_sessions","staff","integrations","audit_history"]]
@@ -183,7 +184,7 @@ function updateHeading(){
  updateBreadcrumbs();
  $("pageActions").innerHTML=state.page==="results"?'<button class="btn secondary" type="button" id="refreshPage">Refresh</button>':state.page==="account"?"":state.page==="dashboard"||state.page==="lab_analytics"
   ?'<button class="btn secondary" type="button" id="refreshPage">Refresh</button>'
-  :'<button class="btn secondary" type="button" id="refreshPage">Refresh</button><button class="btn secondary" type="button" id="exportPage">Export CSV</button><button class="btn primary" type="button" id="newRecord">'+(state.page==="selections"?"Run Selection":state.page==="testing_orders"?"Order a Test":state.page==="testing_documents"?"Upload Document":state.page==="occupational_health"?"Order Physical":state.page==="compliance"?"Add Compliance Record":state.page==="audits"?"Start New Entrant Audit":state.page==="return_to_duty"?"Create RTD Case":state.page==="policies"?"Create Policy":"Add "+esc(title))+'</button>';
+  :'<button class="btn secondary" type="button" id="refreshPage">Refresh</button><button class="btn secondary" type="button" id="exportPage">Export CSV</button><button class="btn primary" type="button" id="newRecord">'+(state.page==="selections"?"Run Selection":state.page==="testing_orders"?"Order a Test":state.page==="testing_documents"?"Upload Document":state.page==="occupational_health"?"Order Physical":state.page==="compliance"?"Add Compliance Record":state.page==="audits"?"Start New Entrant Audit":state.page==="return_to_duty"?"Create RTD Case":state.page==="policies"?"Create Policy":state.page==="documents"?"Upload Private Document":"Add "+esc(title))+'</button>';
 }
 function switchPage(page,push=true){
  if(page==="clearinghouse")page="compliance";
@@ -354,6 +355,7 @@ function managementUrl(action,id=null,section=state.page){
 function openManagement(action,id=null,push=true){
  if(!MANAGEMENT_ACTIONS.has(action)||!CONFIG[state.page]||["dashboard","account"].includes(state.page))return;
  if(state.page==="selections"&&action==="edit")action="view";
+ if(state.page==="documents"&&action==="edit")action="view";
  if(state.page==="testing_orders"&&action==="edit")action="view";
  if(state.page==="results"&&action==="edit")action="view";
  if(state.page==="occupational_health"&&action==="edit")action="view";
@@ -2496,6 +2498,136 @@ function applyPolicyFormatting(command){
  editor.focus();document.execCommand(command,false,null);
 }
 
+
+const PRIVATE_DOC_TYPES=[["authorization","Authorization"],["company_record","Company record"],["employee_record","Employee record"],["compliance","Compliance"],["correspondence","Correspondence"],["other","Other"]];
+function privateDocumentList(records){
+ const q=state.search.toLowerCase(),filtered=records.filter(r=>[r.data?.title,r.data?.company_name,r.data?.document_type,r.data?.file_name].some(v=>String(v||"").toLowerCase().includes(q)));
+ const editable=["owner","admin","editor"].includes(activeWorkspace()?.role||"");
+ const rows=filtered.map(r=>{
+  const d=r.data||{};
+  return '<div class="private-document-row"><span class="private-document-icon">'+navIcon("documents")+'</span>'+
+  '<div class="private-document-name"><strong>'+esc(d.title||"Document")+'</strong><small>'+esc(d.file_name||"File")+' · '+esc(d.company_name||"Unknown company")+'</small></div>'+
+  '<span class="private-document-type">'+esc(statusLabel(d.document_type||"other"))+'</span>'+
+  '<span class="private-document-date">'+esc(new Date(r.created_at).toLocaleDateString())+'</span>'+
+  '<div class="private-document-actions"><button type="button" class="btn secondary" data-private-view="'+esc(r.id)+'">View</button>'+
+  '<button type="button" class="btn secondary" data-private-download="'+esc(r.id)+'">Download</button>'+
+  (editable?'<button type="button" class="btn danger" data-private-delete="'+esc(r.id)+'">Delete</button>':"")+'</div></div>';
+ }).join("");
+ $("pageContent").innerHTML='<div class="results-workspace private-document-workspace"><section class="results-intro"><span class="results-intro-icon">'+navIcon("documents")+'</span>'+
+ '<div><strong>Private employer documents</strong><p>Confidential documents associated with your C/TPA account and its employers or owner-operators. These are separate from Testing Operations documents.</p></div></section>'+
+ '<section class="results-list"><div class="directory-toolbar"><div class="directory-search"><input id="recordSearch" type="search" value="'+esc(state.search)+'" placeholder="Search document or employer" aria-label="Search private documents"></div>'+
+ '<span class="directory-total">'+filtered.length+' documents</span></div>'+
+ (rows||'<div class="directory-empty"><div class="directory-empty-icon">'+navIcon("documents")+'</div><h2>No private documents yet</h2>'+
+ '<p>Upload a private document and associate it with an employer or owner-operator.</p>'+
+ (editable?'<button type="button" class="btn primary" data-create="1">Upload Private Document</button>':"")+'</div>')+
+ '</section></div>';
+}
+function privateDocumentEditor(record,mode){
+ if(mode!=="new"){
+  const d=record?.data||{};
+  $("pageContent").innerHTML='<div class="private-document-detail"><div class="program-head"><span class="program-head-icon">'+navIcon("documents")+'</span>'+
+   '<div><strong>'+esc(d.title||"Document")+'</strong><small>'+esc(d.company_name||"Employer")+'</small></div></div>'+
+   '<section class="official-result-section"><h2>Document information</h2><div class="official-result-grid">'+
+   [["Company",d.company_name],["Category",statusLabel(d.document_type)],["File",d.file_name],["Uploaded",record?.created_at?new Date(record.created_at).toLocaleString():""]].map(([label,value])=>
+    '<div class="official-result-field"><small>'+esc(label)+'</small><strong>'+esc(value||"Not recorded")+'</strong></div>').join("")+
+   '</div></section><footer class="management-editor-actions"><button type="button" class="btn secondary" data-back-list>Back to Documents</button>'+
+   '<button type="button" class="btn secondary" data-private-view="'+esc(record.id)+'">View File</button>'+
+   '<button type="button" class="btn primary" data-private-download="'+esc(record.id)+'">Download</button></footer></div>';
+  return;
+ }
+ $("pageContent").innerHTML='<div class="private-document-detail"><div class="program-head"><span class="program-head-icon">'+navIcon("documents")+'</span>'+
+ '<div><strong>Upload Private Document</strong><small>Confidential C/TPA file storage</small></div></div>'+
+ '<form id="privateDocumentForm"><section class="management-section"><header class="management-section-header"><h2>Document details</h2></header>'+
+ '<div class="manage-form-grid"><label class="manage-field"><span>Employer / Owner-Operator *</span><select required id="privateDocCompany" name="company_id" disabled><option value="">Loading employers…</option></select></label>'+
+ '<label class="manage-field"><span>Document title *</span><input name="title" maxlength="200" required></label>'+
+ '<label class="manage-field"><span>Document category</span><select name="document_type">'+PRIVATE_DOC_TYPES.map(([v,t])=>'<option value="'+v+'">'+t+'</option>').join("")+'</select></label>'+
+ '<label class="manage-field"><span>Choose document *</span><input type="file" name="document_file" required accept=".pdf,.jpg,.jpeg,.png,.webp,.txt,.doc,.docx"></label>'+
+ '<label class="manage-field private-doc-notes"><span>Description</span><textarea name="description" maxlength="1500" rows="3"></textarea></label></div>'+
+ '<p class="private-document-help">PDF, image, text, or Word. Maximum 8 MB. Documents are stored in a private bucket and can be accessed only through your C/TPA organization.</p></section>'+
+ '<p id="privateDocumentError" class="manage-form-error" role="alert"></p><footer class="management-editor-actions">'+
+ '<button type="button" class="btn secondary" data-back-list>Cancel</button><button class="btn primary" id="privateDocSave" type="submit" disabled>Upload Document</button></footer></form></div>';
+ void hydratePrivateDocumentCompanies();
+}
+async function hydratePrivateDocumentCompanies(){
+ const m=state.management,seq=state.sequence,context=state.context;
+ try{
+  const kinds=context==="dot"?["employers","owner_operators"]:["employers"];
+  const lists=await Promise.all(kinds.map(async kind=>{
+   const key=cacheKey(kind),cached=state.cache.get(key);
+   if(cached&&Date.now()-cached.time<30000)return cached.records;
+   const r=await api("list",{tenant_id:state.tenantId,operating_context:context,kind});
+   state.cache.set(key,{records:r.records||[],time:Date.now()});return r.records||[];
+  }));
+  if(m!==state.management||seq!==state.sequence)return;
+  const company=$("privateDocCompany"),save=$("privateDocSave");if(!company||!save)return;
+  const companies=lists.flat();
+  company.innerHTML='<option value="">Select company</option>'+companies.map(x=>'<option value="'+esc(x.id)+'">'+esc(x.data?.legal_name||"Company")+'</option>').join("");
+  company.disabled=!companies.length;
+  if(state.companyDraft?.companyId&&companies.some(x=>x.id===state.companyDraft.companyId))company.value=state.companyDraft.companyId;
+  save.disabled=!company.value;
+  company.addEventListener("change",()=>save.disabled=!company.value);
+  if(!companies.length)$("privateDocumentError").textContent="Create an employer or owner-operator before uploading documents.";
+ }catch(e){if(m===state.management&&$("privateDocumentError"))$("privateDocumentError").textContent=e.message}
+}
+async function submitPrivateDocument(form){
+ const btn=$("privateDocSave"),error=$("privateDocumentError");if(!btn||btn.disabled||!form.reportValidity())return;
+ const file=form.elements.namedItem("document_file")?.files?.[0];
+ if(!file||file.size>8388608){error.textContent="Choose a file no larger than 8 MB.";return}
+ btn.disabled=true;error.textContent="";
+ try{
+  const base64=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(",")[1]||"");reader.onerror=()=>reject(Error("File could not be read"));reader.readAsDataURL(file)});
+  const values=Object.fromEntries(new FormData(form).entries());delete values.document_file;
+  await api("private_document_upload",{tenant_id:state.tenantId,operating_context:state.context,
+   document_data:values,filename:file.name,mime_type:file.type||"application/octet-stream",base64});
+  state.cache.delete(cacheKey());leaveManagement();
+  message("Private document uploaded.");void loadRecords(state.sequence,true);
+ }catch(e){error.textContent=e.message;btn.disabled=false}
+}
+async function privateDocumentFile(id,preview=false){
+ try{
+  const r=await api("private_document_link",{tenant_id:state.tenantId,operating_context:state.context,id});
+  if(!r.url?.startsWith("https://"))throw Error("Document is unavailable");
+  if(preview){
+   $("modalTitle").textContent="View Private Document";
+   $("modalDescription").textContent=r.filename||"Private document";
+   const safePreview=["application/pdf","image/png","image/jpeg","image/webp","text/plain"].includes(r.mime_type);
+   $("recordFields").innerHTML='<div class="document-preview">'+
+    (safePreview?'<iframe src="'+esc(r.url)+'" sandbox="allow-same-origin" title="Private document preview" referrerpolicy="no-referrer"></iframe>':
+      '<p>Preview unavailable for this file type. Download to view it.</p>')+'</div>';
+   $("recordForm").dataset.mode="view";$("saveRecord").hidden=true;
+   $("cancelModal").textContent="Close";$("formMessage").textContent="";
+   $("modal").hidden=false;document.body.classList.add("modal-open");return;
+  }
+  const response=await fetch(r.url,{cache:"no-store"});
+  if(!response.ok)throw Error("Document download failed");
+  const blob=await response.blob(),url=URL.createObjectURL(blob),a=document.createElement("a");
+  a.href=url;a.download=r.filename||"private-document";document.body.append(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),30000);
+ }catch(e){message(e.message,true)}
+}
+function confirmPrivateDocumentDelete(id){
+ const r=(state.cache.get(cacheKey())?.records||[]).find(x=>x.id===id);
+ if(!r)return message("Private document unavailable",true);
+ state.privateDocumentDeletion={id,title:String(r.data?.title||"Document")};
+ $("modalTitle").textContent="Permanently delete document?";
+ $("modalDescription").textContent="This action cannot be undone.";
+ $("recordFields").innerHTML='<div class="company-remove-confirm"><div class="company-remove-symbol" aria-hidden="true">!</div>'+
+ '<div><strong>'+esc(r.data?.title||"Document")+'</strong><p>This document will be permanently deleted from private storage. It cannot be recovered from the portal. Confirm only if you intend to remove this document and its file.</p></div></div>';
+ $("recordForm").dataset.mode="delete-private-document";
+ $("saveRecord").hidden=false;$("saveRecord").disabled=false;$("saveRecord").className="btn danger";
+ $("saveRecord").textContent="Permanently Delete";$("cancelModal").textContent="Cancel";
+ $("formMessage").textContent="";$("modal").hidden=false;document.body.classList.add("modal-open");
+}
+async function deletePrivateDocument(){
+ const d=state.privateDocumentDeletion,btn=$("saveRecord");if(!d?.id)return;
+ btn.disabled=true;
+ try{
+  await api("private_document_delete",{tenant_id:state.tenantId,operating_context:state.context,id:d.id,confirm_title:d.title});
+  state.privateDocumentDeletion=null;closeModal();state.cache.delete(cacheKey());
+  message("Private document permanently deleted.");void loadRecords(state.sequence,true);
+ }catch(e){$("formMessage").textContent=e.message;btn.disabled=false}
+}
+
 function renderManagementPage(){
  const m=state.management;
  if(!m||m.section!==state.page)return;
@@ -2524,6 +2656,7 @@ function renderManagementPage(){
  if(state.page==="audits"){renderAuditManagement(record,m.action,canWrite);return;}
  if(state.page==="return_to_duty"){renderRTDManagement(record,m.action,canWrite);return;}
  if(state.page==="policies"){policyEditor(record,m.action,canWrite);return;}
+ if(state.page==="documents"){privateDocumentEditor(record,m.action);return;}
  if(state.page==="programs"){
   renderProgramManagement(record,m.action,canWrite);
   return;
@@ -2817,6 +2950,7 @@ function showRecords(records){
  if(state.page==="audits"){auditList(records);return}
  if(state.page==="return_to_duty"){rtdCasesList(records);return}
  if(state.page==="policies"){policyList(records);return}
+ if(state.page==="documents"){privateDocumentList(records);return}
  if(state.page==="occupational_health"){physicalOrderList(records);return}
  const count=records.length,query=state.search.trim().toLowerCase();
  const statuses=[...new Set(records.map(r=>String(r.data?.status||"").trim()).filter(Boolean))].sort();
@@ -2879,6 +3013,7 @@ async function saveRecord(event){
  if(mode==="selection-run"){await runSelection();return}
  if(mode==="send-official-result"){await sendOfficialResult();return}
  if(mode==="send-policy"){await deliverPolicy();return}
+ if(mode==="delete-private-document"){await deletePrivateDocument();return}
  if(mode==="archive"){await performArchive();return}
  if(mode==="profile"){await saveProfile();return}
  if(mode==="view"){closeModal();return}
@@ -2886,6 +3021,7 @@ async function saveRecord(event){
 function archiveRecord(id){
  if(state.page==="results"){message("Official results cannot be archived here.",true);return}
  if(state.page==="occupational_health"){message("Submitted physical requests are managed by Testing Operations.",true);return}
+ if(state.page==="documents"){confirmPrivateDocumentDelete(id);return}
  if(state.page==="selections"){message("Locked selection records cannot be archived.",true);return}
  const record=state.cache.get(cacheKey())?.records.find(x=>x.id===id);
  if(!record){message("Record not found. Refresh the page.",true);return}
@@ -3050,6 +3186,10 @@ function bindEvents(){
    }
    return;
   }
+  const privateView=target.closest("[data-private-view]"),privateDownload=target.closest("[data-private-download]"),privateDelete=target.closest("[data-private-delete]");
+  if(privateView){void privateDocumentFile(privateView.dataset.privateView,true);return}
+  if(privateDownload){void privateDocumentFile(privateDownload.dataset.privateDownload,false);return}
+  if(privateDelete){confirmPrivateDocumentDelete(privateDelete.dataset.privateDelete);return}
   const sendPolicy=target.closest("[data-policy-send]");
   if(sendPolicy){void confirmPolicySend(sendPolicy.dataset.policySend);return}
   const format=target.closest("[data-policy-command]");
@@ -3199,7 +3339,7 @@ function bindEvents(){
  });
  $("recordFields").addEventListener("click",e=>{const b=e.target.closest("[data-modal-download]");if(b)void openDocumentFile(b.dataset.modalDownload)});
  $("recordForm").addEventListener("submit",saveRecord);
- $("pageContent").addEventListener("submit",e=>{if(e.target.id==="testingDocForm"){e.preventDefault();void submitTestingDocument(e.target);return}if(e.target.id==="drugOrderForm"){e.preventDefault();void submitDrugOrder(e.target);return}if(e.target.id==="physicalOrderForm"){e.preventDefault();void submitPhysicalOrder(e.target);return}if(e.target.id==="auditForm"){e.preventDefault();void saveAudit(e.target);return}if(e.target.id==="rtdCaseForm"){e.preventDefault();void saveRTDCase(e.target);return}if(e.target.id==="policyForm"){e.preventDefault();void savePolicy(e.target);return}if(e.target.id==="managementForm"){e.preventDefault();void submitManagement(e.target)}});
+ $("pageContent").addEventListener("submit",e=>{if(e.target.id==="testingDocForm"){e.preventDefault();void submitTestingDocument(e.target);return}if(e.target.id==="drugOrderForm"){e.preventDefault();void submitDrugOrder(e.target);return}if(e.target.id==="physicalOrderForm"){e.preventDefault();void submitPhysicalOrder(e.target);return}if(e.target.id==="auditForm"){e.preventDefault();void saveAudit(e.target);return}if(e.target.id==="rtdCaseForm"){e.preventDefault();void saveRTDCase(e.target);return}if(e.target.id==="policyForm"){e.preventDefault();void savePolicy(e.target);return}if(e.target.id==="privateDocumentForm"){e.preventDefault();void submitPrivateDocument(e.target);return}if(e.target.id==="managementForm"){e.preventDefault();void submitManagement(e.target)}});
  for(const id of ["modalClose","cancelModal","modalDismiss"])$(id).addEventListener("click",closeModal);
  document.addEventListener("keydown",e=>{if(e.key==="Escape"){if(!$("modal").hidden)closeModal();$("accountDropdown").hidden=true;$("accountTrigger").setAttribute("aria-expanded","false")}});
  const setFont=n=>{state.font=Math.max(13,Math.min(21,n));document.documentElement.style.fontSize=state.font+"px";localStorage.setItem("workforce_unified_font",String(state.font))};
