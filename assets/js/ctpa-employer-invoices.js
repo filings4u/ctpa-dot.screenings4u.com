@@ -1,5 +1,5 @@
 (()=>{"use strict";
-const $=id=>document.getElementById(id),esc=x=>String(x??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;',"'" :"&#39;"}[c])),money=x=>new Intl.NumberFormat("en-US",{style:"currency",currency:"USD"}).format(Number(x)||0);
+const $=id=>document.getElementById(id),esc=x=>String(x??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/\x27/g,"&#39;"),money=x=>new Intl.NumberFormat("en-US",{style:"currency",currency:"USD"}).format(Number(x)||0);
 let ctx,records=[],people=[],logo=null,canWrite=false,mode="list",lines=[],query="",filter="all",serial=0,detailId=null;
 const today=()=>new Date().toISOString().slice(0,10);
 const plus30=()=>{const x=new Date();x.setDate(x.getDate()+30);return x.toISOString().slice(0,10)};
