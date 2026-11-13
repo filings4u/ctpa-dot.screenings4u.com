@@ -918,7 +918,7 @@ const PAGE_MODULES=Object.freeze({
  'enterprise_tools':['enterprise-tools'],'integration_connect':['ctpa-integrations'],
  'integration_workspace':['ctpa-integrations'],'integrations':['ctpa-integrations'],
  'lab_accounts':['lab-accounts'],'lab_services':['lab-services'],
- 'legal_documents':['workforce-legal-documents'],'location_form':['locations'],
+ 'location_form':['locations'],
  'new_entrant_audits':['new-entrant-payment','new-entrant-audits','new-entrant-pdf','new-entrant-workflow'],
  'notifications':['live-chat'],'occupational_health':['occupational-health'],
  'order_history':['account-pages'],'order_services':['features'],
@@ -943,7 +943,6 @@ const SHARED_MODULE_PAGES=new Set([
  'laboratory_services','laboratory_benefits','laboratory_clients'
 ]);
 const PAGE_STYLES=Object.freeze({
- 'legal_documents':['workforce-legal-documents'],
  'new_entrant_audits':['new-entrant-polish'],
  'occupational_health':['occupational-health'],
  'testing':['testing-page']
