@@ -2829,9 +2829,9 @@ function buildCompanyPDF(report){
  }
  begin();
  if(!rows.length){txt("No matching records for this company and date range.",margin,y,10)}
- for(const row of rows){
+ for(const [rowIndex,row] of rows.entries()){
   if(y<57){finish();begin()}
-  if(rows.indexOf(row)%2===0){commands.push("0.975 0.984 0.995 rg "+margin+" "+(y-8)+" "+(pageWidth-margin*2)+" "+lineHeight+" re f")}
+  if(rowIndex%2===0){commands.push("0.975 0.984 0.995 rg "+margin+" "+(y-8)+" "+(pageWidth-margin*2)+" "+lineHeight+" re f")}
   commands.push("0.004 0.071 0.184 rg");
   row.forEach((value,i)=>txt(ascii(value).slice(0,Math.max(8,Math.floor(colWidth/4.8)-2)),margin+i*colWidth+5,y,8));
   y-=lineHeight;
