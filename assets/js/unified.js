@@ -3,6 +3,8 @@
 const BASE="https://elpbnytpciqnbexiaebp.supabase.co";
 const KEY="sb_publishable_xVI6Mjkk1bNVMGHZCPuK6w_8FSHKdkC";
 const ENDPOINT=BASE+"/functions/v1/workforce-unified-portal";
+const SELECTOR_URL="https://workforceapps.screenings4u.com/selector.html";
+const redirectToSelector=()=>location.replace(SELECTOR_URL);
 const GROUPS=[
  ["Overview",["dashboard"]],
  ["Clients & Programs",["employers","owner_operators","people","programs","pools","selections"]],
@@ -14,6 +16,7 @@ const GROUPS=[
  ["Administration",["staff","integrations","audit_history"]]
 ];
 const CONFIG={
+ account:["Account","Your Workforce C/TPA company and signed-in account."],
  dashboard:["Dashboard","Single C/TPA operations dashboard across the selected records."],
  employers:["Employers","Manage employer organizations, contacts and identifiers.","legal_name|Legal name|text|required;dot_number|USDOT number|text;contact_name|Primary contact|text;contact_email|Contact email|email;phone|Phone|tel;status|Status|select:active,inactive"],
  owner_operators:["Owner-Operators","Manage owner-operator accounts and operating contacts.","legal_name|Legal name|text|required;dot_number|USDOT number|text;contact_name|Contact name|text;email|Email|email;phone|Phone|tel;status|Status|select:active,inactive"],
@@ -86,7 +89,7 @@ async function api(action,body={}){
  if(!response.ok||result.error)throw Error(result.error||"Request failed");
  return result;
 }
-function showView(id){for(const name of ["signin","workspaceSetup","application"])$(name).hidden=name!==id;}
+function showView(id){for(const name of ["workspaceSetup","application"])$(name).hidden=name!==id;}
 function activeWorkspace(){return state.workspaces.find(w=>w.tenant_id===state.tenantId)}
 function renderNav(){
  $("sidebarNavigation").innerHTML=GROUPS.map(([title,modules])=>'<div class="nav-group"><h2>'+esc(title)+'</h2>'+
@@ -101,7 +104,7 @@ function updateHeading(){
  const title=label(state.page);
  $("topTitle").textContent=title;$("pageTitle").textContent=title;
  $("pageSummary").textContent=CONFIG[state.page]?.[1]||"Manage records in the unified system.";
- $("pageActions").innerHTML=state.page==="dashboard"
+ $("pageActions").innerHTML=state.page==="account"?"":state.page==="dashboard"
   ?'<button class="btn secondary" type="button" id="refreshPage">Refresh overview</button>'
   :'<button class="btn secondary" type="button" id="refreshPage">Refresh</button><button class="btn primary" type="button" id="newRecord">Add '+esc(title)+'</button>';
 }
@@ -110,6 +113,7 @@ function switchPage(page,push=true){
  state.page=page;state.search="";const seq=++state.sequence;
  if(push)history.pushState(null,"","/unified.html?page="+encodeURIComponent(page));
  $("sidebar").classList.remove("open");renderNav();updateHeading();message("");
+ if(page==="account"){void renderAccount();return}
  const stored=state.cache.get(cacheKey());
  if(stored){showRecords(stored.records);if(Date.now()-stored.time>30000)void loadRecords(seq,true)}
  else {$("pageContent").innerHTML='<section class="panel"><div class="loading-line"><span class="spinner"></span>Loading authorized records…</div></section>';void loadRecords(seq,false)}
@@ -134,6 +138,19 @@ async function loadRecords(sequence=state.sequence,refresh=false){
   if(!old)$("pageContent").innerHTML='<section class="panel"><h2>Unable to load records</h2><p>'+esc(error.message)+'</p><button class="btn secondary" type="button" id="retryLoad">Retry</button></section>';
   message(error.message,true);
  }}
+}
+async function renderAccount(){
+ const {data:{user}}=await state.supabase.auth.getUser();
+ if(state.page!=="account")return;
+ const w=activeWorkspace();
+ const email=user?.email||"";
+ const person=[user?.user_metadata?.first_name,user?.user_metadata?.last_name].filter(Boolean).join(" ")||email;
+ $("pageContent").innerHTML='<section class="panel"><h2>Account Information</h2>'+
+  '<p>This is your authenticated Workforce account. Your C/TPA operates as one company; employer clients are managed under Employers.</p>'+
+  '<div class="account-details"><div><small>Account</small><strong>'+esc(person)+'</strong></div>'+
+  '<div><small>Email</small><strong>'+esc(email)+'</strong></div>'+
+  '<div><small>C/TPA Company</small><strong>'+esc(w?.name||"Workforce C/TPA")+'</strong></div>'+
+  '<div><small>Role</small><strong>'+esc(w?.role||"Member")+'</strong></div></div></section>';
 }
 function renderDashboard(records){
  const byType=new Map();for(const r of records)byType.set(r.kind,(byType.get(r.kind)||0)+1);
@@ -214,8 +231,18 @@ async function archiveRecord(id){
   state.cache.delete(cacheKey());message("Record archived.");void loadRecords();
  }catch(error){message(error.message,true)}
 }
+async function updateAccountMenu(){
+ try{
+  const {data:{user}}=await state.supabase.auth.getUser();
+  if(!user)return;
+  const name=[user.user_metadata?.first_name,user.user_metadata?.last_name].filter(Boolean).join(" ");
+  $("accountDisplayName").textContent=name||"Workforce C/TPA";
+  $("accountEmail").textContent=user.email||"";
+ }catch(error){console.warn("Unable to display account profile",error)}
+}
 function startApp(){
  showView("application");
+ void updateAccountMenu();
  const desired=new URLSearchParams(location.search).get("page")||"dashboard";
  switchPage(CONFIG[desired]?desired:"dashboard",false);
 }
@@ -227,15 +254,6 @@ async function initializeWorkspaces(){
  startApp();
 }
 function bindEvents(){
- $("signinForm").addEventListener("submit",async e=>{
-  e.preventDefault();const b=e.currentTarget.querySelector("button"),data=new FormData(e.currentTarget);b.disabled=true;
-  $("signinMessage").textContent="";
-  try{
-   const result=await state.supabase.auth.signInWithPassword({email:String(data.get("email")).trim(),password:String(data.get("password"))});
-   if(result.error)throw result.error;
-   await initializeWorkspaces();
-  }catch(error){$("signinMessage").textContent=error.message}finally{b.disabled=false}
- });
  $("organizationForm").addEventListener("submit",async e=>{
   e.preventDefault();const b=e.currentTarget.querySelector("button");b.disabled=true;
   try{const name=String(new FormData(e.currentTarget).get("name")||"").trim();await api("create_workspace",{name});await initializeWorkspaces()}
@@ -243,7 +261,22 @@ function bindEvents(){
  });
  $("sidebarNavigation").addEventListener("click",e=>{const b=e.target.closest("[data-page]");if(b)switchPage(b.dataset.page)});
  document.querySelectorAll("[data-context]").forEach(b=>b.addEventListener("click",()=>changeContext(b.dataset.context)));
- $("signout").addEventListener("click",async()=>{await state.supabase.auth.signOut();state.cache.clear();state.workspaces=[];showView("signin")});
+ const menu=$("accountMenu"),dropdown=$("accountDropdown"),trigger=$("accountTrigger");
+ const closeAccountMenu=()=>{dropdown.hidden=true;trigger.setAttribute("aria-expanded","false")};
+ trigger.addEventListener("click",()=>{dropdown.hidden=!dropdown.hidden;trigger.setAttribute("aria-expanded",String(!dropdown.hidden))});
+ document.addEventListener("click",e=>{if(!menu.contains(e.target))closeAccountMenu()});
+ dropdown.addEventListener("click",async e=>{
+  const action=e.target.closest("[data-account-action]")?.dataset.accountAction;
+  if(!action)return;
+  closeAccountMenu();
+  if(action==="account"){switchPage("account");return}
+  if(action==="signout"){
+   const signout=e.target.closest("button");signout.disabled=true;
+   try{await state.supabase.auth.signOut({scope:"local"})}
+   catch(error){console.warn("Unable to clear local session",error)}
+   finally{state.cache.clear();state.workspaces=[];redirectToSelector()}
+  }
+ });
  $("menuToggle").addEventListener("click",()=>$("sidebar").classList.toggle("open"));
  $("pageActions").addEventListener("click",e=>{if(e.target.closest("#newRecord"))openRecord();if(e.target.closest("#refreshPage"))void loadRecords(state.sequence,true)});
  $("pageContent").addEventListener("click",e=>{
@@ -264,7 +297,7 @@ function bindEvents(){
  });
  $("recordForm").addEventListener("submit",saveRecord);
  for(const id of ["modalClose","cancelModal","modalDismiss"])$(id).addEventListener("click",closeModal);
- document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("modal").hidden)closeModal()});
+ document.addEventListener("keydown",e=>{if(e.key==="Escape"){if(!$("modal").hidden)closeModal();$("accountDropdown").hidden=true;$("accountTrigger").setAttribute("aria-expanded","false")}});
  const setFont=n=>{state.font=Math.max(13,Math.min(21,n));document.documentElement.style.fontSize=state.font+"px";localStorage.setItem("workforce_unified_font",String(state.font))};
  $("fontDown").addEventListener("click",()=>setFont(state.font-1));
  $("fontUp").addEventListener("click",()=>setFont(state.font+1));
@@ -273,7 +306,7 @@ function bindEvents(){
  addEventListener("focus",()=>{if(!$("application").hidden&&state.cache.get(cacheKey())&&Date.now()-state.cache.get(cacheKey()).time>60000)void loadRecords(state.sequence,true)});
 }
 async function init(){
- if(!window.supabase?.createClient){$("signin").hidden=false;$("signinMessage").textContent="Unable to load the sign-in library.";return}
+ if(!window.supabase?.createClient){redirectToSelector();return}
  state.supabase=window.supabase.createClient(BASE,KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,storageKey:"s4u_ctpa_dot_auth"}});
  state.font=Math.max(13,Math.min(21,Number(localStorage.getItem("workforce_unified_font")||16)));
  document.documentElement.style.fontSize=state.font+"px";
@@ -284,9 +317,9 @@ async function init(){
  bindEvents();
  try{
   const {data:{session}}=await state.supabase.auth.getSession();
-  if(!session){showView("signin");return}
+  if(!session){redirectToSelector();return}
   await initializeWorkspaces();
- }catch(error){showView("signin");$("signinMessage").textContent=error.message||"Unable to open the unified portal."}
+ }catch(error){console.error("Unable to open the unified portal",error);redirectToSelector()}
 }
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init,{once:true});else init();
 })();
