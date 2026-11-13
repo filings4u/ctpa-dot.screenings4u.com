@@ -3038,21 +3038,29 @@ function supplyStorePage(){
  form.addEventListener("input",()=>{supplyStore.lastForm=Object.fromEntries(new FormData(form).entries())});
  form.addEventListener("change",()=>{supplyStore.lastForm=Object.fromEntries(new FormData(form).entries())});
 }
+async function supplyApi(action,body={}){
+ const {data:{session},error}=await state.supabase.auth.getSession();
+ if(error||!session?.access_token)throw Error("Please sign in.");
+ const response=await fetch(BASE+"/functions/v1/workforce-ctpa-supplies",{
+  method:"POST",cache:"no-store",
+  headers:{"Content-Type":"application/json","apikey":KEY,"Authorization":"Bearer "+session.access_token},
+  body:JSON.stringify({action,...body})
+ });
+ const result=await response.json().catch(()=>({}));
+ if(!response.ok||result.error)throw Error(result.error||"Supplies request failed");
+ return result;
+}
 async function openSupplyStore(){
  const seq=state.sequence,ctx=state.context,tenant=state.tenantId;
  if(supplyStore.loading)return;
  supplyStore.loading=true;
  $("pageContent").innerHTML='<section class="panel"><div class="loading-line"><span class="spinner"></span>Loading authorized supply catalog…</div></section>';
  try{
-  const [catalog,...companies]=await Promise.all([
-   api("supplies_catalog",{tenant_id:tenant,operating_context:ctx}),
-   ...([ctx==="dot"?"employers":"employers",...(ctx==="dot"?["owner_operators"]:[])].map(kind=>
-     api("list",{tenant_id:tenant,operating_context:ctx,kind})))
-  ]);
+  const catalog=await supplyApi("supplies_catalog",{tenant_id:tenant,operating_context:ctx});
   if(seq!==state.sequence||ctx!==state.context||state.page!=="lab_supplies")return;
   supplyStore.products=catalog.products||[];
   supplyStore.orders=catalog.orders||[];
-  supplyStore.companies=companies.flatMap(x=>x.records||[]);
+  supplyStore.companies=catalog.companies||[];
   supplyStore.cart=new Map([...supplyStore.cart].filter(([id])=>supplyStore.products.some(p=>p.id===id&&p.available)));
   supplyStorePage();
  }catch(e){if(seq===state.sequence&&state.page==="lab_supplies")$("pageContent").innerHTML=
@@ -3068,7 +3076,7 @@ async function submitSupplyCheckout(form){
   city:values.city,state:values.state,postal_code:values.postal_code};
  const contact={first_name:values.first_name,last_name:values.last_name,email:values.email,phone:values.phone};
  try{
-  const result=await api("supplies_create_order",{tenant_id:state.tenantId,operating_context:state.context,
+  const result=await supplyApi("supplies_create_order",{tenant_id:state.tenantId,operating_context:state.context,
    items:items.map(p=>({service_id:p.id,quantity:p.quantity})),company_id:values.company_id||null,
    shipping,contact,notes:values.notes||""});
   if(!result.order?.id)throw Error("Unable to create verified checkout order");
