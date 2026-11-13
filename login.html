@@ -1,17 +1,1 @@
-<!doctype html><html lang="en"><head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer">
-<title>Continue to Workforce</title>
-<link rel="icon" type="image/png" href="/images/fav.png">
-<script>
-(function(){'use strict';
-  const target=new URL('https://workforceapps.screenings4u.com/');
-  const incoming=new URLSearchParams(location.search);
-  // Preserve non-sensitive reason text, never transfer credentials across domains.
-  const reason=incoming.get('reason');
-  if(reason&&/^[a-z_-]{1,32}$/i.test(reason))target.searchParams.set('reason',reason);
-  location.replace(target.href);
-})();
-</script>
-<meta http-equiv="refresh" content="0;url=https://workforceapps.screenings4u.com/">
-</head><body><p>Sign in through <a href="https://workforceapps.screenings4u.com/">Workforce</a> to access your assigned portal.</p></body></html>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><meta name="theme-color" content="#01122F"><link rel="icon" type="image/png" href="/images/fav.png"><title>Workforce C/TPA</title><script>location.replace('/unified.html?page=dashboard'+(location.search.includes('context=nondot')?'&context=nondot':''))</script></head><body><p>Opening Workforce C/TPA. <a href="/unified.html?page=dashboard">Continue to portal</a></p></body></html>
