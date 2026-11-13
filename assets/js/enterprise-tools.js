@@ -1,6 +1,6 @@
 (()=>{
 'use strict';
-const LABELS={policy:'Policy Builder',enrollment:'Enrollment Documents',sites:'Collection Sites',clearinghouse:'Clearinghouse',rtd:'RTD & Follow-Up'};
+const LABELS={catalog:'Enterprise Features',policy:'Policy Builder',enrollment:'Enrollment Documents',sites:'Collection Sites',clearinghouse:'Clearinghouse',rtd:'RTD & Follow-Up'};
 const ESC=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const text=v=>String(v??'').replaceAll('_',' ').replace(/\b\w/g,c=>c.toUpperCase());
 const fmt=v=>v?new Date(v).toLocaleDateString():'—';
@@ -20,8 +20,25 @@ async function call(body={}){
  return payload;
 }
 async function load(){return call({tool:activeTool(),action:'list'})}
-const names=[['policy','Employer','Policy','Status','Version','Created'],['enrollment','Employer','Document','Type','Tracking','Issued'],['sites','Name','Address','Capabilities','Phone','Status'],['clearinghouse','Account','Setup','Queries','Violations','RTD'],['rtd','Employer','Employee','Source','Testing','Status']];
+const names=[['catalog','Feature','Category','Open'],['policy','Employer','Policy','Status','Version','Created'],['enrollment','Employer','Document','Type','Tracking','Issued'],['sites','Name','Address','Capabilities','Phone','Status'],['clearinghouse','Account','Setup','Queries','Violations','RTD'],['rtd','Employer','Employee','Source','Testing','Status']];
 function rowsFor(tool,records,employers){
+ if(tool==='catalog'){
+  const links={employer_management:'employers.html',employee_management:'people.html',programs:'programs.html',
+   consortium_pools:'pools.html',random_selections:'selections.html',testing_orders:'testing.html',
+   results_summary:'results.html',results_sensitive:'results.html',compliance:'compliance.html',
+   documents:'documents.html',standard_reports:'reports.html',advanced_reports:'reports.html',
+   billing_tools:'billing.html',client_invoicing:'employer-billing.html',
+   white_label:'branding.html',branded_portals:'branding.html',branded_documents:'documents.html',
+   branded_email:'notifications.html',branded_popups:'notifications.html',
+   notifications:'notifications.html',team_users:'users-roles.html',locations:'locations.html',
+   employer_import:'employers.html',employer_settings:'employers.html',policy_builder:'enterprise-tools.html?tool=policy',
+   enrollment_documents:'enterprise-tools.html?tool=enrollment',collection_sites:'enterprise-tools.html?tool=sites',
+   clearinghouse_tools:'enterprise-tools.html?tool=clearinghouse',rtd_follow_up:'enterprise-tools.html?tool=rtd',
+   customer_portal_delivery:'documents.html',integrations:'integrations.html',sso:'account-settings.html',
+   audit_history:'audit-history.html',ders_supervisors:'users-roles.html'};
+  return records.map(r=>'<tr><td><strong>'+ESC(r.name||r.code)+'</strong></td><td>'+ESC(text(r.category||'Enterprise'))+'</td><td><a class="btn ghost" href="/'+ESC(links[r.code]||'enterprise-tools.html')+'">Open feature</a></td></tr>').join('');
+ }
+
  const employer=new Map((employers||[]).map(x=>[x.id,x.legal_name||'Employer']));
  return records.map(r=>{
   const cells=tool==='policy'?[employer.get(r.employer_id)||'—',r.title,r.status,r.version,fmt(r.created_at)]:
