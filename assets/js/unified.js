@@ -85,10 +85,15 @@ const recordTitle=r=>{
 };
 const DOCUMENT_PAGES=new Set(["documents","lab_documents","testing_documents"]);
 const cacheKey=(p=state.page)=>state.tenantId+"|"+state.context+"|"+p;
+let notificationTimer=null;
 function message(text,isError=false){
- const n=$("notice");if(!text){n.hidden=true;return}
- n.hidden=false;n.style.background=isError?"#fff0ed":"#fff9e6";
- n.style.borderColor=isError?"#edc4bf":"#e1d094";n.textContent=text;
+ const n=$("notice");
+ if(notificationTimer){clearTimeout(notificationTimer);notificationTimer=null}
+ if(!text){n.hidden=true;n.textContent="";return}
+ n.hidden=false;n.classList.toggle("notice-error",isError);
+ n.classList.toggle("notice-success",!isError);
+ n.innerHTML='<span class="notice-icon" aria-hidden="true">'+(isError?'!':'✓')+'</span><span>'+esc(text)+'</span><button type="button" class="notice-close" aria-label="Dismiss notification">×</button>';
+ notificationTimer=setTimeout(()=>{n.hidden=true;n.textContent="";notificationTimer=null},isError?6500:3200);
 }
 async function api(action,body={}){
  const {data:{session},error}=await state.supabase.auth.getSession();
@@ -197,7 +202,7 @@ function changeContext(next){
  state.context=next;sessionStorage.setItem("workforce_unified_context",next);
  switchPage(state.page,false);
 }
-async function loadRecords(sequence=state.sequence,refresh=false){
+async function loadRecords(sequence=state.sequence,refresh=false,notify=false){
  if(state.page==="lab_analytics")return renderLabAnalytics(refresh);
  const kind=state.page==="dashboard"?"all":state.page,key=cacheKey(),tenant=state.tenantId,context=state.context;
  try{
@@ -208,7 +213,7 @@ async function loadRecords(sequence=state.sequence,refresh=false){
     const pending=state.pendingManagement;state.pendingManagement=null;
     openManagement(pending.action,pending.id,false);
    }else if(state.management)renderManagementPage();else showRecords(result.records||[]);
-   if(refresh&&!state.management)message("Records are up to date.");
+   if(notify&&!state.management)message("Records refreshed successfully.");
   }
  }catch(error){if(sequence===state.sequence&&key===cacheKey()){
   const old=state.cache.get(key);
@@ -364,6 +369,7 @@ function leaveManagement(push=true){
  if(push)history.pushState({},"","/unified.html?page="+encodeURIComponent(state.page));
  updateHeading();const stored=state.cache.get(cacheKey());
  if(stored)showRecords(stored.records);else void loadRecords();
+ message("");
 }
 async function uploadManagementFile(file,documentData,recordContext,recordId){
  if(file.size>8*1024*1024)throw Error("The document must be 8 MB or smaller.");
@@ -597,7 +603,13 @@ function bindEvents(){
   }
  });
  setupSidebarToggle();
- $("pageActions").addEventListener("click",e=>{if(e.target.closest("#newRecord"))openManagement("new");if(e.target.closest("#refreshPage"))void (state.page==="lab_analytics"?renderLabAnalytics(true):loadRecords(state.sequence,true));if(e.target.closest("#exportPage"))exportRecords()});
+ $("pageActions").addEventListener("click",e=>{
+  if(e.target.closest("[data-back-list]")){leaveManagement();return}
+  if(e.target.closest("#newRecord")){openManagement("new");return}
+  if(e.target.closest("#refreshPage")){void (state.page==="lab_analytics"?renderLabAnalytics(true):loadRecords(state.sequence,true,true));return}
+  if(e.target.closest("#exportPage")){exportRecords();return}
+ });
+ $("notice").addEventListener("click",e=>{if(e.target.closest(".notice-close"))message("")});
  $("pageContent").addEventListener("click",e=>{
   const target=e.target;
   const view=target.closest("[data-view]"),edit=target.closest("[data-edit]"),archive=target.closest("[data-archive]"),create=target.closest("[data-create]"),goto=target.closest("[data-goto]"),retry=target.closest("#retryLoad"),openFile=target.closest("[data-open-file]"),previewFile=target.closest("[data-preview-file]"),step=target.closest("[data-page-step]");
