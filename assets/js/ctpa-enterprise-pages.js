@@ -1,6 +1,6 @@
 /* Workforce C/TPA Enterprise pages: Branding, Collection Sites, Employer CSV Review. */
 (()=>{"use strict";
-const API="https://elpbnytpciqnbexiaebp.supabase.co/functions/v1/workforce-ctpa-enterprise-v1";
+const API="https://elpbnytpciqnbexiaebp.supabase.co/functions/v1/workforce-ctpa-business-management";
 const KEY="sb_publishable_xVI6Mjkk1bNVMGHZCPuK6w_8FSHKdkC";
 const $=id=>document.getElementById(id);
 const esc=x=>String(x??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
