@@ -187,3 +187,6 @@ body.modal-open{overflow:hidden}
 .nav-child.active .nav-svg,.nav-top-link.active .nav-svg{color:#01122f}
 .nav-child:not(.active) .nav-svg{color:#b5c7e2}
 .nav-child:hover .nav-svg{color:currentColor}
+
+/* Use the original Workforce logo directly on white account setup surfaces. */
+.signin-card .signin-logo{background:transparent;padding:0;border-radius:0;width:170px}
