@@ -259,6 +259,80 @@ Deno.serve(async request=>{
    return respond({ok:true,id:inserted.data.id,selected:eventData.selection_members.length,
     population:size,status:"locked"});
   }
+
+  if(action==="testing_order_submit"){
+   if(!canWrite)return respond({error:"You cannot submit testing orders"},403);
+   const existingId=body.request_id;
+   if(!uuid(existingId))return respond({error:"Invalid submission identifier"},400);
+   const companyId=body.company_id,personId=body.person_id;
+   if(!uuid(companyId)||!uuid(personId))return respond({error:"Choose a company and donor"},400);
+   const company=await collection.select("id,kind,operating_context,data").eq("tenant_id",tenantId)
+    .eq("id",companyId).in("kind",context==="dot"?["employers","owner_operators"]:["employers"])
+    .eq("operating_context",context).is("archived_at",null).maybeSingle();
+   if(company.error)throw company.error;
+   if(!company.data)return respond({error:"Company not available in this workspace"},404);
+   const person=await collection.select("id,data").eq("tenant_id",tenantId)
+    .eq("id",personId).eq("kind","people").in("operating_context",[context,"shared"])
+    .is("archived_at",null).maybeSingle();
+   if(person.error)throw person.error;
+   if(!person.data||person.data.data?.company_id!==companyId)
+    return respond({error:"Donor must be linked to the selected company"},400);
+   const donorName=[person.data.data.first_name,person.data.data.last_name].filter(Boolean).join(" ");
+   if(!donorName)return respond({error:"The selected donor needs a first and last name"},400);
+   const testType=text(body.test_type,30),reason=text(body.reason,50),
+    specimen=text(body.specimen_type,30),panel=text(body.panel_name,100),
+    agency=text(body.dot_agency,15),priority=text(body.priority,15);
+   if(!["drug","alcohol","drug_and_alcohol"].includes(testType)||
+      !["pre_employment","random","reasonable_suspicion","post_accident","return_to_duty","follow_up","other"].includes(reason)||
+      !["urine","oral_fluid","breath","saliva"].includes(specimen)||
+      !["normal","urgent"].includes(priority))
+     return respond({error:"Invalid testing order configuration"},400);
+   if(context==="dot"&&!["FMCSA","FAA","FRA","FTA","PHMSA","USCG"].includes(agency))
+     return respond({error:"Select a DOT agency"},400);
+   if(!panel)return respond({error:"Select a testing panel"},400);
+   const requestedDate=text(body.requested_date,10);
+   if(requestedDate&&!/^\d{4}-\d{2}-\d{2}$/.test(requestedDate))
+    return respond({error:"Invalid requested date"},400);
+   const existing=await collection.select("id,data").eq("tenant_id",tenantId)
+    .eq("kind","testing_orders").eq("data->>request_id",existingId).is("archived_at",null).limit(1);
+   if(existing.error)throw existing.error;
+   if(existing.data?.length)return respond({ok:true,id:existing.data[0].id,
+    case_id:existing.data[0].data?.testing_case_id,already_submitted:true});
+   const companyName=text(company.data.data?.legal_name,180);
+   const now=new Date().toISOString(),caseId=crypto.randomUUID();
+   const caseNumber="TST-"+crypto.randomUUID().replaceAll("-","").slice(0,10).toUpperCase();
+   const orderData={
+    name:caseNumber,reference:caseNumber,request_id:existingId,
+    testing_case_id:caseId,company_id:companyId,employer:companyName,person_id:personId,
+    employee:donorName,donor_email:text(person.data.data.email,180),donor_phone:text(person.data.data.phone,60),
+    test_type:testType,reason,testing_reason:reason,specimen_type:specimen,panel_name:panel,
+    dot_agency:context==="dot"?agency:"",status:"awaiting_schedule",priority,
+    requested_date:requestedDate,notes:text(body.notes,2000),operating_context:context,
+    submitted_at:now,processing_portal:"testing-portal.screenings4u.com"
+   };
+   const result=await collection.insert({tenant_id:tenantId,kind:"testing_orders",operating_context:context,
+    data:orderData,created_by:user.id,updated_by:user.id}).select("id").single();
+   if(result.error)throw result.error;
+   // Testing Cases is the authoritative case queue consumed by Testing Portal.
+   const caseResult=await db.from("testing_cases").insert({
+    id:caseId,case_number:caseNumber,customer_name:companyName,
+    customer_email:text(company.data.data?.contact_email||company.data.data?.email,180)||null,
+    company_name:companyName,donor_name:donorName,
+    donor_email:orderData.donor_email||null,donor_phone:orderData.donor_phone||null,
+    dot_test:context==="dot",dot_agency:context==="dot"?agency:null,
+    test_reason:reason,test_type:testType,specimen_type:specimen,panel_name:panel,
+    priority,status:"awaiting_schedule",notes:orderData.notes||null,created_by:user.id,
+    metadata:{source:"workforce_ctpa_unified",tenant_id:tenantId,
+      ctpa_order_id:result.data.id,request_id:existingId,company_id:companyId,person_id:personId,
+      requested_date:requestedDate,operating_context:context,payment_status:"not_collected"}
+   }).select("id,case_number,status").single();
+   if(caseResult.error){
+    await collection.delete().eq("id",result.data.id).eq("tenant_id",tenantId).eq("kind","testing_orders");
+    throw caseResult.error;
+   }
+   return respond({ok:true,id:result.data.id,case_id:caseId,
+    case_number:caseNumber,status:caseResult.data.status});
+  }
   if(action==="list"){
    const kind=text(body.kind,64);
    if(kind!=="all"&&!ALLOWED.has(kind))return respond({error:"Unknown application module"},400);
@@ -369,6 +443,7 @@ Deno.serve(async request=>{
    if(kind==="owner_operators"&&context==="nondot")
     return respond({error:"Owner-Operators belong to the DOT workspace"},403);
    if(kind==="selections")return respond({error:"Use the secure selection workflow; locked selections cannot be manually edited"},403);
+   if(kind==="testing_orders")return respond({error:"Use the drug testing order submission workflow"},403);
    const data=payload(body.data);
    if(!data||Object.keys(data).length>40||JSON.stringify(data).length>60000)
     return respond({error:"Invalid or oversized record"},400);
@@ -545,6 +620,7 @@ Deno.serve(async request=>{
    if(body.kind==="owner_operators"&&context==="nondot")
     return respond({error:"Owner-Operators belong to the DOT workspace"},403);
    if(body.kind==="selections")return respond({error:"Selection audit records cannot be archived"},403);
+   if(body.kind==="testing_orders")return respond({error:"Submitted testing orders must be managed by Testing Operations"},403);
    if(body.kind==="pools"){
     const status=await poolMemberCount(body.id);
     if(!status)return respond({error:"Pool not found in this workspace"},404);
