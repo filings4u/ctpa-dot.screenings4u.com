@@ -294,7 +294,7 @@ function renderManagementPage(){
   const rows=Object.entries(record?.data||{});
   $("pageContent").innerHTML=overview+'<section class="panel manage-panel">'+
    '<dl class="manage-details">'+rows.filter(([key])=>!key.startsWith("_")&&!["storage_bucket","storage_path","mime_type","file_url"].includes(key)).map(([key,value])=>'<div><dt>'+esc(fields(state.page).find(f=>f.name===key)?.label||key.replaceAll("_"," "))+'</dt><dd>'+esc(value??"—")+'</dd></div>').join("")+'</dl>'+detail+
-   (DOCUMENT_PAGES.has(state.page)&&record?.data?.storage_path?'<div class="document-file-actions"><button type="button" class="btn primary" data-open-file="'+esc(record.id)+'">View or Download File</button><span>'+esc(record.data.file_name||"Attached document")+'</span></div>':"")+
+   (DOCUMENT_PAGES.has(state.page)&&record?.data?.storage_path?'<div class="document-file-actions"><button type="button" class="btn secondary" data-preview-file="'+esc(record.id)+'">View File</button><button type="button" class="btn primary" data-open-file="'+esc(record.id)+'">Download File</button><span>'+esc(record.data.file_name||"Attached document")+'</span></div>':"")+
    '<div class="manage-actions"><button type="button" class="btn secondary" data-back-list>Back to List</button>'+
    (["owner","admin","editor"].includes(activeWorkspace()?.role||"")?'<button type="button" class="btn primary" data-manage-edit="'+esc(record.id)+'">Edit Record</button>':'')+'</div></section>';
   return;
@@ -328,11 +328,33 @@ async function uploadManagementFile(file){
   filename:file.name,mime_type:file.type,base64:String(dataUrl).split(",")[1]||""});
  return {storage_bucket:result.storage_bucket,storage_path:result.storage_path,file_name:result.file_name,mime_type:result.mime_type,size_bytes:result.size_bytes};
 }
-async function openDocumentFile(id){
+async function openDocumentFile(id,mode="download"){
+ const record=state.cache.get(cacheKey())?.records.find(r=>r.id===id);
+ if(!record){message("Document unavailable. Refresh the list.",true);return}
  try{
   const result=await api("document_link",{tenant_id:state.tenantId,operating_context:state.context,kind:state.page,id});
   if(!result.url||!result.url.startsWith("https://"))throw Error("Document link unavailable.");
-  window.open(result.url,"_blank","noopener,noreferrer");
+  const name=String(record.data?.file_name||record.data?.title||"Workforce document");
+  if(mode==="preview"){
+   $("modalTitle").textContent="Document Preview";
+   $("modalDescription").textContent=name;
+   const mime=record.data?.mime_type||"";
+   const previewable=!mime||mime==="application/pdf"||mime.startsWith("image/")||mime==="text/plain";
+   $("recordFields").innerHTML='<div class="document-preview">'+
+     (previewable?'<iframe src="'+esc(result.url)+'" title="Document preview" loading="lazy" referrerpolicy="no-referrer"></iframe>':
+      '<p>Preview is unavailable for this file type. Use Download File.</p>')+
+     '<button type="button" class="btn primary" data-modal-download="'+esc(id)+'">Download File</button></div>';
+   $("recordForm").dataset.mode="view";$("saveRecord").hidden=true;$("cancelModal").textContent="Close";
+   $("formMessage").textContent="";$("modal").hidden=false;document.body.classList.add("modal-open");
+   $("modalClose").focus();
+   return;
+  }
+  const response=await fetch(result.url,{cache:"no-store"});
+  if(!response.ok)throw Error("Unable to download this document.");
+  const blob=await response.blob(),blobUrl=URL.createObjectURL(blob);
+  const link=document.createElement("a");link.href=blobUrl;link.download=name;
+  document.body.append(link);link.click();link.remove();
+  setTimeout(()=>URL.revokeObjectURL(blobUrl),30000);
  }catch(error){message(error.message,true)}
 }
 async function submitManagement(form){
@@ -524,8 +546,9 @@ function bindEvents(){
  $("pageActions").addEventListener("click",e=>{if(e.target.closest("#newRecord"))openManagement("new");if(e.target.closest("#refreshPage"))void loadRecords(state.sequence,true);if(e.target.closest("#exportPage"))exportRecords()});
  $("pageContent").addEventListener("click",e=>{
   const target=e.target;
-  const view=target.closest("[data-view]"),edit=target.closest("[data-edit]"),archive=target.closest("[data-archive]"),create=target.closest("[data-create]"),goto=target.closest("[data-goto]"),retry=target.closest("#retryLoad"),openFile=target.closest("[data-open-file]"),step=target.closest("[data-page-step]");
-  if(openFile)void openDocumentFile(openFile.dataset.openFile);
+  const view=target.closest("[data-view]"),edit=target.closest("[data-edit]"),archive=target.closest("[data-archive]"),create=target.closest("[data-create]"),goto=target.closest("[data-goto]"),retry=target.closest("#retryLoad"),openFile=target.closest("[data-open-file]"),previewFile=target.closest("[data-preview-file]"),step=target.closest("[data-page-step]");
+  if(previewFile)void openDocumentFile(previewFile.dataset.previewFile,"preview");
+  else if(openFile)void openDocumentFile(openFile.dataset.openFile);
   else if(view)openManagement("view",view.dataset.view);
   else if(edit)openManagement("edit",edit.dataset.edit);
   else if(archive)archiveRecord(archive.dataset.archive);
@@ -544,6 +567,7 @@ function bindEvents(){
   showRecords(state.cache.get(cacheKey())?.records||[]);
   const input=$("recordSearch");input.focus();input.setSelectionRange(position,position);
  });
+ $("recordFields").addEventListener("click",e=>{const b=e.target.closest("[data-modal-download]");if(b)void openDocumentFile(b.dataset.modalDownload)});
  $("recordForm").addEventListener("submit",saveRecord);
  $("pageContent").addEventListener("submit",e=>{if(e.target.id==="managementForm"){e.preventDefault();void submitManagement(e.target)}});
  for(const id of ["modalClose","cancelModal","modalDismiss"])$(id).addEventListener("click",closeModal);
