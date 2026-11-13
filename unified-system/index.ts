@@ -8,7 +8,7 @@ const ALLOWED = new Set([
  "integrations","audits","audit_history","lab_accounts","lab_clients",
  "lab_orders","lab_tracking","lab_results","lab_documents","lab_billing",
  "lab_supplies","lab_analytics","lab_delivery","lab_alerts","lab_benefits",
- "lab_consortiums","policies","enrollments","clearinghouse","return_to_duty",
+ "lab_consortiums","policies","enrollments","return_to_duty",
  "staff","support","demo_sessions"
 ]);
 const uuid=(v:unknown)=>typeof v==="string"&&/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
