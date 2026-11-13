@@ -202,3 +202,9 @@ body.modal-open{overflow:hidden}
 .table-pagination button:disabled{opacity:.45;cursor:default}
 .table-pagination button:not(:disabled):hover{border-color:#fdc102}
 @media(max-width:560px){.table-pagination{justify-content:space-between}.upload-help{margin:0 15px 15px}.document-file-actions{padding:0 15px 15px}}
+
+/* Private document preview uses the same branded modal as other portal actions. */
+.document-preview{grid-column:1/-1;min-width:0;display:flex;flex-direction:column;gap:14px;align-items:flex-start}
+.document-preview iframe{display:block;width:100%;height:min(60vh,520px);border:1px solid var(--line);border-radius:9px;background:#fff}
+.document-preview .btn{align-self:flex-end}
+@media(max-width:580px){.document-preview iframe{height:48vh}.document-preview .btn{width:100%}}
