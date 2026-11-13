@@ -34,7 +34,7 @@ window.PORTAL_CONFIG=Object.freeze({
      try{
        const regs=await navigator.serviceWorker.getRegistrations();
        await Promise.all(regs.filter(r=>new URL(r.scope).origin===location.origin).map(r=>r.unregister()));
-       if('caches' in window){const keys=await caches.keys();await Promise.all(keys.filter(k=>k.startsWith('s4u-ctpa-')).map(k=>caches.delete(k)))}
+       // Keep account-scoped page caches across reloads; sign-out clears them.
      }catch(e){console.warn('Unable to retire outdated portal cache',e)}
    },{once:true});
  }
