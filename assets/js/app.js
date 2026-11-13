@@ -866,6 +866,7 @@ async function prepareTarget(url){
 }
 function updateActiveNavigation(){
   const cur=page();document.querySelectorAll('.nav a,.mobile-nav-links a').forEach(a=>{const u=new URL(a.href,location.href),id=norm(u.pathname.split('/').pop()?.replace('.html','')||'');a.classList.toggle('active',a.dataset.workspace?a.dataset.workspace===workspace()?.surface:id===cur||(id==='people'&&cur==='people_company')||(id==='pools'&&['pool_detail','pool_form'].includes(cur))||(id==='locations'&&cur==='location_form')||(id==='users_roles'&&['staff_form','staff_view','staff_invite','staff_delete'].includes(cur)))});
+  for(const group of document.querySelectorAll('.nav details.workforce-nav-group,.mobile-nav-links details.workforce-nav-group')){if(group.querySelector('a.active:not([data-workspace])'))group.open=true}
 }
 function showNavigationError(error){
  const el=document.getElementById('error');
