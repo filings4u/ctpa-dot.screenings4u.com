@@ -339,16 +339,16 @@ function leaveManagement(push=true){
  updateHeading();const stored=state.cache.get(cacheKey());
  if(stored)showRecords(stored.records);else void loadRecords();
 }
-async function uploadManagementFile(file){
+async function uploadManagementFile(file,documentData,recordContext,recordId){
  if(file.size>8*1024*1024)throw Error("The document must be 8 MB or smaller.");
  const allowed=["application/pdf","image/png","image/jpeg","image/webp","text/plain","application/msword","application/vnd.openxmlformats-officedocument.wordprocessingml.document"];
  if(!allowed.includes(file.type))throw Error("Unsupported document type.");
  const dataUrl=await new Promise((resolve,reject)=>{
   const reader=new FileReader();reader.onload=()=>resolve(String(reader.result));reader.onerror=()=>reject(Error("Unable to read document."));reader.readAsDataURL(file);
  });
- const result=await api("upload_file",{tenant_id:state.tenantId,kind:state.page,
+ return api("upload_file",{tenant_id:state.tenantId,kind:state.page,
+  record_id:recordId,record_context:recordContext,document_data:documentData,
   filename:file.name,mime_type:file.type,base64:String(dataUrl).split(",")[1]||""});
- return {storage_bucket:result.storage_bucket,storage_path:result.storage_path,file_name:result.file_name,mime_type:result.mime_type,size_bytes:result.size_bytes};
 }
 async function openDocumentFile(id,mode="download"){
  const record=state.cache.get(cacheKey())?.records.find(r=>r.id===id);
@@ -389,11 +389,14 @@ async function submitManagement(form){
  for(const f of fields(state.page))if(f.type==="number"&&data[f.name]!=="")data[f.name]=Number(data[f.name]);
  $("managementError").textContent="";
  try{
+  let uploaded=false;
   if(DOCUMENT_PAGES.has(state.page)){
-   if(file instanceof File&&file.size)Object.assign(data,await uploadManagementFile(file));
-   else if(!m.id)throw Error("Select a document file before saving.");
+   if(file instanceof File&&file.size){
+    await uploadManagementFile(file,data,recordContext,m.id||null);
+    uploaded=true;
+   }else if(!m.id)throw Error("Select a document file before saving.");
   }
-  await api("save",{tenant_id:state.tenantId,operating_context:state.context,
+  if(!uploaded)await api("save",{tenant_id:state.tenantId,operating_context:state.context,
    kind:state.page,record_context:recordContext,id:m.id||null,data});
   state.cache.delete(cacheKey());leaveManagement();
   message(m.action==="new"?"Record created successfully.":"Record updated successfully.");
