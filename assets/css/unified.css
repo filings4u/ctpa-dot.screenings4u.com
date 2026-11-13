@@ -218,3 +218,8 @@ body.modal-open{overflow:hidden}
 .lab-summary-card strong{font-size:2rem;line-height:1.1}
 .lab-summary-card small{font-size:.73rem;color:#60758b}
 @media(max-width:560px){.lab-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.lab-summary-card{padding:14px;min-height:120px}}
+
+/* Account-scoped management filters. */
+.toolbar select#statusFilter{min-width:145px;max-width:230px;min-height:39px;border:1px solid #ced9e6;background:#fff;color:#01122f;border-radius:8px;padding:8px 10px;font-size:.82rem}
+.toolbar select#statusFilter:focus-visible{outline:2px solid #fdc102;outline-offset:2px}
+@media(max-width:560px){.toolbar select#statusFilter{width:100%;max-width:none}.toolbar .search-meta{margin-left:auto}}
