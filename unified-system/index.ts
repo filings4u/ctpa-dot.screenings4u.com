@@ -300,6 +300,105 @@ Deno.serve(async request=>{
    if(result.error)throw result.error;
    return result.data||null;
   };
+
+  // Separate C/TPA private files from testing documents and Workforce operations.
+  // All actions require the authenticated C/TPA organization's active membership.
+  const privateDocument=async(id:unknown)=>{
+   if(!uuid(id))return null;
+   const q=await collection.select("id,data,operating_context,created_at,updated_at")
+    .eq("id",id).eq("tenant_id",tenantId).eq("kind","documents")
+    .eq("operating_context",context).eq("data->>visibility","ctpa_private")
+    .eq("data->>storage_bucket","ctpa-private-documents")
+    .is("archived_at",null).maybeSingle();
+   if(q.error)throw q.error;
+   return q.data||null;
+  };
+  if(action==="private_documents_list"){
+   const q=await collection.select("id,data,operating_context,created_at,updated_at")
+    .eq("tenant_id",tenantId).eq("kind","documents")
+    .eq("operating_context",context).eq("data->>visibility","ctpa_private")
+    .eq("data->>storage_bucket","ctpa-private-documents")
+    .is("archived_at",null).order("created_at",{ascending:false}).limit(500);
+   if(q.error)throw q.error;
+   return respond({ok:true,records:q.data||[]});
+  }
+  if(action==="private_document_upload"){
+   if(!canWrite)return respond({error:"This account cannot upload private files"},403);
+   const input=payload(body.document_data),companyId=text(input?.company_id,50),
+    title=text(input?.title,200),category=text(input?.document_type,70)||"other",
+    filename=text(body.filename,150),mime=text(body.mime_type,100);
+   if(!uuid(companyId)||title.length<2)return respond({error:"Choose a company and enter a document title"},400);
+   const company=await collection.select("id,data").eq("tenant_id",tenantId).eq("id",companyId)
+    .in("kind",context==="dot"?["employers","owner_operators"]:["employers"])
+    .eq("operating_context",context).is("archived_at",null).maybeSingle();
+   if(company.error)throw company.error;
+   if(!company.data)return respond({error:"Company unavailable in this workspace"},403);
+   if(!["authorization","company_record","employee_record","compliance","correspondence","other"].includes(category))
+    return respond({error:"Invalid document category"},400);
+   const mimetypes=["application/pdf","image/jpeg","image/png","image/webp","text/plain","application/msword","application/vnd.openxmlformats-officedocument.wordprocessingml.document"];
+   if(!mimetypes.includes(mime)||!/^[a-z0-9][a-z0-9 ._()\\-]{0,149}$/i.test(filename))
+    return respond({error:"Choose a supported document file"},400);
+   const encoded=typeof body.base64==="string"?body.base64:"";
+   if(!encoded||encoded.length>11200000||!/^[A-Za-z0-9+/]+={0,2}$/.test(encoded))
+    return respond({error:"File must be no more than 8 MB"},413);
+   let bytes:Uint8Array;
+   try{bytes=Uint8Array.from(atob(encoded),c=>c.charCodeAt(0))}
+   catch{return respond({error:"Invalid file data"},400)}
+   if(!bytes.length||bytes.length>8388608)return respond({error:"File exceeds 8 MB"},413);
+   const signature=Array.from(bytes.slice(0,8)),pdf=bytes[0]===37&&bytes[1]===80&&bytes[2]===68&&bytes[3]===70,
+    jpg=bytes[0]===255&&bytes[1]===216&&bytes[2]===255,
+    png=signature.join(",")==="137,80,78,71,13,10,26,10",
+    webp=String.fromCharCode(...bytes.slice(0,4))==="RIFF"&&String.fromCharCode(...bytes.slice(8,12))==="WEBP";
+   if((mime==="application/pdf"&&!pdf)||(mime==="image/jpeg"&&!jpg)||
+      (mime==="image/png"&&!png)||(mime==="image/webp"&&!webp))
+    return respond({error:"File content does not match the selected format"},400);
+   const path=tenantId+"/"+context+"/"+companyId+"/"+crypto.randomUUID()+"/"+
+    filename.replace(/[^A-Za-z0-9._-]/g,"_");
+   const uploaded=await db.storage.from("ctpa-private-documents").upload(path,bytes,{contentType:mime,upsert:false});
+   if(uploaded.error)throw uploaded.error;
+   const meta={
+    title,company_id:companyId,company_name:text(company.data.data?.legal_name,180),
+    document_type:category,description:text(input?.description,1500),status:"received",
+    visibility:"ctpa_private",storage_bucket:"ctpa-private-documents",storage_path:path,
+    file_name:filename,mime_type:mime,size_bytes:bytes.length,uploaded_by:user.id
+   };
+   const saved=await collection.insert({tenant_id:tenantId,kind:"documents",operating_context:context,
+    data:meta,created_by:user.id,updated_by:user.id}).select("id").single();
+   if(saved.error||!saved.data){
+    await db.storage.from("ctpa-private-documents").remove([path]);
+    throw saved.error||new Error("Unable to save private document");
+   }
+   return respond({ok:true,id:saved.data.id});
+  }
+  if(action==="private_document_link"){
+   const record=await privateDocument(body.id);
+   if(!record)return respond({error:"Private document unavailable"},404);
+   const path=text(record.data?.storage_path,1000);
+   if(!path.startsWith(tenantId+"/"+context+"/"+text(record.data?.company_id,50)+"/"))
+    return respond({error:"Invalid private storage path"},403);
+   const signed=await db.storage.from("ctpa-private-documents").createSignedUrl(path,60);
+   if(signed.error||!signed.data?.signedUrl)return respond({error:"Unable to open private file"},404);
+   return respond({ok:true,url:signed.data.signedUrl,filename:record.data.file_name,
+    mime_type:record.data.mime_type,expires_in:60});
+  }
+  if(action==="private_document_delete"){
+   if(!canWrite)return respond({error:"Only authorized C/TPA staff can delete files"},403);
+   const record=await privateDocument(body.id);
+   if(!record)return respond({error:"Private document unavailable"},404);
+   if(text(body.confirm_title,200)!==text(record.data?.title,200))
+    return respond({error:"Document confirmation does not match"},400);
+   const path=text(record.data?.storage_path,1000);
+   if(!path.startsWith(tenantId+"/"+context+"/"+text(record.data?.company_id,50)+"/"))
+    return respond({error:"Invalid private storage path"},403);
+   const removed=await db.storage.from("ctpa-private-documents").remove([path]);
+   if(removed.error)throw removed.error;
+   const deleted=await collection.delete().eq("id",record.id).eq("tenant_id",tenantId)
+    .eq("kind","documents").eq("operating_context",context)
+    .eq("data->>visibility","ctpa_private").eq("data->>storage_path",path);
+   if(deleted.error)return respond({error:"File removed from storage but the document record could not be deleted. Contact support."},500);
+   return respond({ok:true,deleted:true});
+  }
+
   if(action==="policy_save"){
    if(!canWrite)return respond({error:"Policy editing is not available to this role"},403);
    const input=payload(body.data);
@@ -941,6 +1040,7 @@ Deno.serve(async request=>{
   const documentKinds=new Set(["documents","testing_documents","lab_documents"]);
   if(action==="document_link"){
    const kind=text(body.kind,64);
+   if(kind==="documents")return respond({error:"Use the private document access workflow"},403);
    if(!documentKinds.has(kind)||!uuid(body.id))return respond({error:"Invalid document"},400);
    const found=await collection.select("id,data").eq("id",body.id).eq("tenant_id",tenantId)
     .eq("kind",kind).in("operating_context",[context,"shared"]).is("archived_at",null).maybeSingle();
@@ -960,6 +1060,7 @@ Deno.serve(async request=>{
   if(action==="upload_file"){
    if(!canWrite)return respond({error:"Your role is read only"},403);
    const kind=text(body.kind,64),filename=text(body.filename,150),mimetype=text(body.mime_type,90);
+   if(kind==="documents")return respond({error:"Use the private document upload workflow"},403);
    const base64=typeof body.base64==="string"?body.base64:"";
    if(!documentKinds.has(kind)||!filename||!/^[a-z0-9][a-z0-9 ._()\-]{0,149}$/i.test(filename))
     return respond({error:"Invalid document details"},400);
@@ -1058,6 +1159,7 @@ Deno.serve(async request=>{
    if(kind==="audits")return respond({error:"Use the native New Entrant Audit workflow"},403);
    if(kind==="return_to_duty")return respond({error:"Use the secure native RTD workflow"},403);
    if(kind==="policies")return respond({error:"Use the native policy editor"},403);
+   if(kind==="documents")return respond({error:"Use private document upload; generic records are disabled"},403);
    const data=payload(body.data);
    if(!data||Object.keys(data).length>40||JSON.stringify(data).length>60000)
     return respond({error:"Invalid or oversized record"},400);
@@ -1326,6 +1428,7 @@ Deno.serve(async request=>{
    if(body.kind==="testing_orders")return respond({error:"Submitted testing orders must be managed by Testing Operations"},403);
    if(body.kind==="results")return respond({error:"Official result records cannot be archived by the C/TPA"},403);
    if(body.kind==="policies")return respond({error:"Archive policies through their saved status, not by deleting the document"},403);
+   if(body.kind==="documents")return respond({error:"Use the private document deletion confirmation"},403);
    if(body.kind==="audits")return respond({error:"Audit records must be retained for compliance history"},403);
    if(["employers","owner_operators"].includes(String(body.kind))){
     const people=await collection.select("id",{count:"exact",head:true})
