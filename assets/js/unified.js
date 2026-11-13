@@ -872,7 +872,7 @@ async function hydrateProgramEnrollments(){
   if(seq!==state.sequence||state.management!==m)return;
   const prog=(state.cache.get(cacheKey())?.records||[]).find(r=>r.id===m.id);
   const enrollments=records.filter(r=>r.data?.program_id===m.id||
-   (prog?.data?.name&&r.data?.program===prog.data.name&&r.data?.company_id));
+   (prog?.data?.name&&r.data?.program===prog.data.name));
   holder.innerHTML=enrollments.length?enrollments.map(r=>
    '<div class="program-enrollment-row"><span><strong>'+esc(r.data?.participant||r.data?.name||"Company")+'</strong>'+
    '<small>'+esc(r.data?.status||"active")+'</small></span>'+
