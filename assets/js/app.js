@@ -497,13 +497,13 @@ function dashboard(ctx,d){
 
   const metrics=[
     ['Employers',employers.length,'Managed client companies'],
-    [nondot?'Employees':'Covered People',employees.length,nondot?'NON-DOT employees':'Drivers and employees'],
-    ['Active Programs',activePrograms,nondot?'NON-DOT testing programs':'DOT testing programs'],
+    ['Covered People',employees.length,'Drivers and employees'],
+    ['Active Programs',activePrograms,'Testing programs'],
     ['Active Pools',activePools,'Random pools'],
     ['Open Testing',openTests,'Orders still in progress'],
-    [nondot?'Random Selections':'Pending Randoms',pendingSelections,nondot?'NON-DOT selections':'Selection events requiring action'],
-    [nondot?'Result Records':'Open Compliance',nondot?results.length:openCases,nondot?'NON-DOT result records':criticalCases?`${criticalCases} high priority`:'No high-priority cases'],
-    [nondot?'Results Reported':'Outstanding Invoices',nondot?results.length:money(outstanding),nondot?'NON-DOT results recorded':overdueInvoices?`${overdueInvoices} overdue`:'No overdue invoices']
+    ['Pending Randoms',pendingSelections,'Selection events requiring action'],
+    ['Open Compliance',openCases,criticalCases?`${criticalCases} high priority`:'No high-priority cases'],
+    ['Outstanding Invoices',money(outstanding),overdueInvoices?`${overdueInvoices} overdue`:'No overdue invoices']
   ];
 
   const byEmployer=employers.map(e=>{
@@ -514,7 +514,7 @@ function dashboard(ctx,d){
   }).join('')||`<tr><td colspan="6"><div class="empty">No employers have been added yet.</div></td></tr>`;
 
   const attention=[];
-  if(nondot&&!openTests)attention.push(['No NON-DOT testing orders require attention.','#','Testing is current']);
+  
   if(criticalCases)attention.push([`${criticalCases} high-priority compliance case${criticalCases===1?'':'s'}`,'/compliance.html','Review compliance']);
   if(openTests)attention.push([`${openTests} testing order${openTests===1?'':'s'} still in progress`,'/testing.html','Review testing']);
   if(pendingSelections)attention.push([`${pendingSelections} random selection event${pendingSelections===1?'':'s'} requiring action`,'/selections.html','Review selections']);
@@ -529,7 +529,7 @@ function dashboard(ctx,d){
   return `<div class="metrics snapshot-metrics">${metrics.map(x=>metric(...x)).join('')}</div>
   <div class="section snapshot-grid">
     <div class="panel"><div class="panel-head"><div><h2>Attention Required</h2><p>Items that may need action today.</p></div></div><div class="snapshot-attention">${attention.map(([label,target,action])=>target==='#'?`<div class="attention-row good"><div><strong>${esc(label)}</strong><span>${esc(action)}</span></div></div>`:`<a class="attention-row" href="${route(target)}"><div><strong>${esc(label)}</strong><span>${esc(action)}</span></div><span>→</span></a>`).join('')}</div></div>
-    <div class="panel"><div class="panel-head"><div><h2>Plan Snapshot</h2><p>Current subscription and enabled premium services.</p></div></div><div class="snapshot-plan"><strong>${esc(d.subscription?.plans?.name||(nondot?'C/TPA Plan':'DOT C/TPA Plan'))}</strong><span>${esc(d.subscription?.status?pretty(d.subscription.status):'Active')}</span><div class="plan-chips">${[['Advanced Reports','advanced_reports'],['Employer Portal Delivery','customer_portal_delivery'],['White Label','white_label'],['Branded Email','branded_email'],['Payment Processing','client_payments']].filter(([,k])=>entitlement[k]).map(([l])=>`<span>${esc(l)}</span>`).join('')||'<span>Core C/TPA Management</span>'}</div></div></div>
+    <div class="panel"><div class="panel-head"><div><h2>Plan Snapshot</h2><p>Current subscription and enabled premium services.</p></div></div><div class="snapshot-plan"><strong>${esc(d.subscription?.plans?.name||'Workforce C/TPA Plan')}</strong><span>${esc(d.subscription?.status?pretty(d.subscription.status):'Active')}</span><div class="plan-chips">${[['Advanced Reports','advanced_reports'],['Employer Portal Delivery','customer_portal_delivery'],['White Label','white_label'],['Branded Email','branded_email'],['Payment Processing','client_payments']].filter(([,k])=>entitlement[k]).map(([l])=>`<span>${esc(l)}</span>`).join('')||'<span>Core C/TPA Management</span>'}</div></div></div>
   </div>
   <div class="section"><div class="panel"><div class="panel-head"><div><h2>Employer Health</h2><p>Operational snapshot across every managed client.</p></div><a class="snapshot-link" href="/employers.html">Manage Employers</a></div><div class="table-wrap"><table><thead><tr><th>Employer</th><th>People</th><th>Programs</th><th>Open Tests</th><th>Health</th><th></th></tr></thead><tbody>${byEmployer}</tbody></table></div></div></div>
   <div class="section snapshot-grid">
