@@ -35,7 +35,23 @@ function installSupportDiagnostics(){
   window.addEventListener('error',e=>rememberSupportError(e?.message||e?.error?.message||'JavaScript error','window.error'),true);
   window.addEventListener('unhandledrejection',e=>rememberSupportError(e?.reason?.message||e?.reason||'Unhandled promise rejection','unhandledrejection'));
   const scan=()=>{if(page()==='support')return;const sels=['#error','[data-error]','.testing-modal-error','.documents-error','.selection-error','.employer-modal-error','[role="alert"]'];for(const el of document.querySelectorAll(sels.join(','))){const t=String(el.textContent||'').trim();if(t&&!el.hidden&&t.length>1){rememberSupportError(t,'page-message');break}}};
-  const start=()=>{rememberSupportPage();scan();const mo=new MutationObserver(scan);mo.observe(document.body,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:['hidden','class']});};
+  const start=()=>{
+    rememberSupportPage();scan();
+    // Ignore clock ticks, tables and routine DOM updates. Only inspect
+    // explicitly marked error elements when their message changes.
+    const markers=['#error','[data-error]','.testing-modal-error','.documents-error','.selection-error','.employer-modal-error','[role="alert"]'].join(',');
+    let queued=false;
+    const mo=new MutationObserver(changes=>{
+      const important=changes.some(change=>{
+        const target=change.target;
+        if(target.nodeType===1&&target.closest?.(markers))return true;
+        if(target.parentElement?.closest?.(markers))return true;
+        return [...change.addedNodes].some(node=>node.nodeType===1&&(node.matches?.(markers)||node.querySelector?.(markers)));
+      });
+      if(important&&!queued){queued=true;requestAnimationFrame(()=>{queued=false;scan()})}
+    });
+    mo.observe(document.body,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:['hidden','class']});
+  };
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});else start();
 }
 installSupportDiagnostics();
