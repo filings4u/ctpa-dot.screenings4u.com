@@ -11,8 +11,9 @@ async function api(action,extra={}){
 function unsubscribe(){if(channel){context?.supabase?.removeChannel(channel);channel=null}}
 function status(text){const p=$("ctpaChatStatus");if(p)p.textContent=text}
 function shell(){
- $("pageContent").innerHTML='<div class="private-chat"><div class="private-chat-heading"><div><small>WORKFORCE C/TPA · PRIVATE COMMUNICATIONS</small><h2>Messages</h2><p>Chat directly with your associated employers and owner-operators.</p></div><button class="btn primary" id="privateChatNew">New Conversation</button></div><div class="private-chat-privacy" title="Messages are accessible to authorized conversation participants only. Workforce management staff cannot view messages from their management portal."><span class="chat-lock">♢</span><div><strong>Private conversations</strong><p>Only the C/TPA and authorized employer or owner-operator participants can view these chats. Workforce staff do not have a Messages viewing page or access through Workforce Management.</p></div><span class="chat-privacy-tooltip" title="Private between verified account participants; do not include sensitive test results or medical records.">ⓘ</span></div><div class="private-chat-workspace"><aside class="private-chat-inbox"><div class="private-chat-search"><input type="search" id="chatSearch" placeholder="Search conversations" aria-label="Search conversations"></div><div id="privateChatThreads" class="private-chat-threads"></div></aside><section class="private-chat-main" id="privateChatMain"><div class="chat-welcome"><strong>Choose a conversation</strong><p>Start a private chat with an employer or owner-operator from your account.</p></div></section></div><p id="ctpaChatStatus" role="status" class="private-chat-status"></p></div>';
+ $("pageContent").innerHTML='<div class="private-chat"><div class="private-chat-heading"><div><small>WORKFORCE C/TPA · PRIVATE COMMUNICATIONS</small><h2>Messages</h2><p>Chat directly with your associated employers and owner-operators.</p></div><button class="btn primary" id="privateChatNew">New Conversation</button></div><div class="private-chat-privacy" title="Messages are accessible to authorized conversation participants only. Workforce management staff cannot view messages from their management portal."><span class="chat-lock">♢</span><div><strong>Private conversations</strong><p>Only the C/TPA and authorized employer or owner-operator participants can view these chats. Workforce staff do not have a Messages viewing page or access through Workforce Management.</p></div><span class="chat-privacy-tooltip" title="Private between verified account participants; do not include sensitive test results or medical records.">ⓘ</span></div><div class="private-chat-workspace"><aside class="private-chat-inbox"><div class="private-chat-picker"><label for="ctpaChatRecipient">Employer or owner-operator</label><select id="ctpaChatRecipient"><option value="">Loading associated accounts…</option></select><button class="btn primary" type="button" id="ctpaChatStart">Start Chat</button></div><div class="private-chat-search"><input type="search" id="chatSearch" placeholder="Search conversations" aria-label="Search conversations"></div><div id="privateChatThreads" class="private-chat-threads"></div></aside><section class="private-chat-main" id="privateChatMain"><div class="chat-welcome"><strong>Choose a conversation</strong><p>Start a private chat with an employer or owner-operator from your account.</p></div></section></div><p id="ctpaChatStatus" role="status" class="private-chat-status"></p></div>';
  $("privateChatNew").onclick=()=>void compose();
+ $("ctpaChatStart").onclick=()=>void startSelected();
  $("chatSearch").oninput=e=>{search=e.target.value;drawThreads()};
 }
 function drawThreads(){
@@ -42,16 +43,40 @@ function subscribe(id){
   channel=context.supabase.channel("ctpa-private-"+id).on("postgres_changes",{event:"INSERT",schema:"public",table:"workforce_ctpa_private_messages",filter:"thread_id=eq."+id},()=>{void messages(id);void list()}).subscribe();
  }catch(error){status("Live updates unavailable; reopen the conversation to refresh messages.")}
 }
+function populateRecipientPicker(){
+ const el=$("ctpaChatRecipient");if(!el)return;
+ const prior=el.value;
+ el.innerHTML='<option value="">Select an employer or owner-operator</option>'+recipients.map(r=>'<option value="'+safe(r.id)+'"'+(!r.ready?' disabled':'')+'>'+safe(r.name)+' — '+safe(r.kind==="owner_operators"?"Owner-Operator":"Employer")+' ('+safe(r.operating_context==="nondot"?"NON-DOT":r.operating_context==="dot"?"DOT":"Shared")+')'+(r.ready?"":" — contact email required")+'</option>').join("");
+ if(recipients.some(r=>r.id===prior))el.value=prior;
+ const button=$("ctpaChatStart");if(button)button.disabled=!el.value;
+ el.onchange=()=>{button.disabled=!el.value};
+}
+async function getRecipients(){
+ const result=await api("recipients");
+ recipients=result.recipients||[];
+ populateRecipientPicker();
+ if(!recipients.length)status("No associated employers or owner-operators are available for this C/TPA. Add them under People & Programs first.");
+}
+async function startSelected(){
+ const id=$("ctpaChatRecipient")?.value;if(!id){status("Select an employer or owner-operator to begin.");return}
+ const selectedRecipient=recipients.find(r=>r.id===id);if(!selectedRecipient?.ready){status("The selected account needs a contact email.");return}
+ const button=$("ctpaChatStart");button.disabled=true;
+ try{
+  const match=threads.find(t=>t.recipient_record_id===id);
+  const result=match?{id:match.id}:await api("start",{recipient_id:id});
+  await list();await select(result.id);status("");
+ }catch(e){status(e.message)}finally{button.disabled=false}
+}
 async function compose(){
  try{
   const data=await api("recipients");recipients=data.recipients||[];
   const overlay=document.createElement("div");overlay.className="private-chat-overlay";
-  overlay.innerHTML='<div class="private-chat-modal" role="dialog" aria-modal="true"><div class="chat-modal-head"><h3>New Private Conversation</h3><button type="button" id="chatModalClose" aria-label="Close">×</button></div><form id="chatNewForm"><p>Select an associated employer or owner-operator. Their verified portal account will be able to reply.</p><label>Recipient<select name="recipient_id" required><option value="">Choose employer or owner-operator</option>'+recipients.map(r=>'<option value="'+safe(r.id)+'" '+(!r.ready?"disabled":"")+'>'+safe(r.name)+' — '+safe(r.kind==="owner_operators"?"Owner-Operator":"Employer")+(r.ready?"":" (email required)")+'</option>').join("")+'</select></label><label>Subject<input type="text" name="subject" maxlength="140" placeholder="General correspondence"></label><p id="chatNewStatus" role="status"></p><div class="chat-modal-actions"><button type="button" id="chatModalCancel" class="btn secondary">Cancel</button><button type="submit" class="btn primary" id="chatModalStart">Start Conversation</button></div></form></div>';
+  overlay.innerHTML='<div class="private-chat-modal" role="dialog" aria-modal="true"><div class="chat-modal-head"><h3>New Private Conversation</h3><button type="button" id="chatModalClose" aria-label="Close">×</button></div><form id="chatNewForm"><p>Select an associated employer or owner-operator. Their verified portal account will be able to reply.</p><label>Recipient<select name="recipient_id" required><option value="">Choose employer or owner-operator</option>'+recipients.map(r=>'<option value="'+safe(r.id)+'" '+(!r.ready?"disabled":"")+'>'+safe(r.name)+' — '+safe(r.kind==="owner_operators"?"Owner-Operator":"Employer")+' ('+safe(r.operating_context==="nondot"?"NON-DOT":r.operating_context==="dot"?"DOT":"Shared")+')'+(r.ready?"":" (email required)")+'</option>').join("")+'</select></label><label>Subject<input type="text" name="subject" maxlength="140" placeholder="General correspondence"></label><p id="chatNewStatus" role="status"></p><div class="chat-modal-actions"><button type="button" id="chatModalCancel" class="btn secondary">Cancel</button><button type="submit" class="btn primary" id="chatModalStart">Start Conversation</button></div></form></div>';
   const close=()=>overlay.remove();overlay.querySelector("#chatModalClose").onclick=overlay.querySelector("#chatModalCancel").onclick=close;document.body.append(overlay);
   overlay.querySelector("#chatNewForm").onsubmit=async e=>{e.preventDefault();const button=overlay.querySelector("#chatModalStart");button.disabled=true;try{const values=Object.fromEntries(new FormData(e.currentTarget));const result=await api("start",values);close();await list();await select(result.id)}catch(err){overlay.querySelector("#chatNewStatus").textContent=err.message;button.disabled=false}};
   overlay.querySelector("select").focus();
  }catch(e){status(e.message)}
 }
-async function open(value){unsubscribe();context=value;selected=null;search="";const tick=++serial;shell();status("Loading private conversations…");try{await list();if(tick!==serial||!context.active())return;status("")}catch(e){if(tick===serial)status(e.message)}}
+async function open(value){unsubscribe();context=value;selected=null;search="";const tick=++serial;shell();$("main")?.scrollTo({top:0,behavior:"instant"});status("Loading private conversations…");try{await Promise.all([list(),getRecipients()]);if(tick!==serial||!context.active())return;if(recipients.length)status("")}catch(e){if(tick===serial)status(e.message)}}
 window.WorkforcePrivateChat=Object.freeze({open,refresh:()=>list()});
 })();
