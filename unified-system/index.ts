@@ -83,9 +83,12 @@ Deno.serve(async request=>{
   const role=text(member.data.data?.role,20);
   const canWrite=["owner","admin","editor"].includes(role);
   const context=body.operating_context==="nondot"?"nondot":"dot";
+  const companyKind=(kind:string)=>kind==="employers"||kind==="owner_operators";
   if(action==="list"){
    const kind=text(body.kind,64);
    if(kind!=="all"&&!ALLOWED.has(kind))return respond({error:"Unknown application module"},400);
+   if(kind==="owner_operators"&&context==="nondot")
+    return respond({ok:true,tenant_id:tenantId,operating_context:context,records:[],limit:1000});
    let query=collection.select("id,kind,operating_context,data,created_at,updated_at")
     .eq("tenant_id",tenantId).is("archived_at",null)
     .in("operating_context",[context,"shared"])
@@ -94,7 +97,10 @@ Deno.serve(async request=>{
    else query=query.eq("kind",kind);
    const result=await query;
    if(result.error)throw result.error;
-   return respond({ok:true,tenant_id:tenantId,operating_context:context,records:result.data||[],limit:1000});
+   // Employers and owner-operators are exclusively DOT or NON-DOT, never shared.
+   // Shared records for other modules retain their existing behavior.
+   const records=(result.data||[]).filter((r:any)=>!companyKind(r.kind)||r.operating_context===context);
+   return respond({ok:true,tenant_id:tenantId,operating_context:context,records,limit:1000});
   }
   if(action==="lab_summary"){
    const types=["lab_accounts","lab_orders","lab_tracking","lab_results","lab_documents","lab_supplies","lab_analytics"];
@@ -185,10 +191,13 @@ Deno.serve(async request=>{
   if(action==="save"){
    const kind=text(body.kind,64);
    if(!ALLOWED.has(kind))return respond({error:"Unknown application module"},400);
+   if(kind==="owner_operators"&&context==="nondot")
+    return respond({error:"Owner-Operators belong to the DOT workspace"},403);
    const data=payload(body.data);
    if(!data||Object.keys(data).length>40||JSON.stringify(data).length>60000)
     return respond({error:"Invalid or oversized record"},400);
-   const allowedContext=body.record_context==="shared"?"shared":context;
+   let allowedContext=body.record_context==="shared"?"shared":context;
+   if(companyKind(kind))allowedContext=context;
    if(allowedContext==="shared"&&role==="editor")return respond({error:"Shared records require an administrator"},403);
    // Never accept tenant, privilege, or actor fields from the record payload.
    const clean=Object.fromEntries(Object.entries(data).filter(([k,v])=>
@@ -197,35 +206,54 @@ Deno.serve(async request=>{
     (v===null||typeof v==="string"||typeof v==="number"||typeof v==="boolean")));
    if(!Object.keys(clean).length)return respond({error:"Nothing to save"},400);
    const id=body.id;
+   // New company account classification determines both its module and workspace.
+   // This is enforced server-side, regardless of the selected frontend tab.
+   const choice=typeof clean.account_type==="string"?clean.account_type:"";
+   if(!id&&companyKind(kind)&&!["dot_employer","owner_operator","nondot_employer"].includes(choice))
+    return respond({error:"Choose DOT Employer, Owner-Operator, or NON-DOT Employer"},400);
+   if(id&&companyKind(kind)&&choice&&
+     (kind==="owner_operators"&&choice!=="owner_operator"||
+      kind==="employers"&&!["dot_employer","nondot_employer"].includes(choice)))
+    return respond({error:"Account classification does not match its management module"},400);
    if(id){
     if(!uuid(id))return respond({error:"Invalid record"},400);
     const existing=await collection.select("id,data,operating_context").eq("id",id)
      .eq("tenant_id",tenantId).eq("kind",kind).is("archived_at",null).maybeSingle();
     if(existing.error)throw existing.error;
-    if(!existing.data||![context,"shared"].includes(existing.data.operating_context))
+    if(!existing.data||!(companyKind(kind)?
+       existing.data.operating_context===context:
+       [context,"shared"].includes(existing.data.operating_context)))
      return respond({error:"Record not found in this operating context"},404);
     if(existing.data.operating_context==="shared"&&role==="editor")
      return respond({error:"Shared records require an administrator"},403);
     const merged={...existing.data.data,...clean};
+    if(companyKind(kind))merged.account_type=kind==="owner_operators"?"owner_operator":
+      context==="nondot"?"nondot_employer":"dot_employer";
     const updated=await collection.update({data:merged,updated_at:new Date().toISOString(),updated_by:user.id})
      .eq("id",id).eq("tenant_id",tenantId).eq("kind",kind)
      .eq("operating_context",existing.data.operating_context).is("archived_at",null).select("id").single();
     if(updated.error)throw updated.error;
     return respond({ok:true,id:updated.data.id});
    }
+   const actualKind=companyKind(kind)&&choice==="owner_operator"?"owner_operators":
+     companyKind(kind)?"employers":kind;
+   if(companyKind(kind))allowedContext=choice==="nondot_employer"?"nondot":"dot";
    const inserted=await collection.insert({
-    tenant_id:tenantId,kind,operating_context:allowedContext,data:clean,
+    tenant_id:tenantId,kind:actualKind,operating_context:allowedContext,data:clean,
     created_by:user.id,updated_by:user.id
    }).select("id").single();
    if(inserted.error)throw inserted.error;
-   return respond({ok:true,id:inserted.data.id});
+   return respond({ok:true,id:inserted.data.id,kind:actualKind,operating_context:allowedContext});
   }
   if(action==="archive"){
    if(!uuid(body.id)||!ALLOWED.has(text(body.kind,64)))return respond({error:"Invalid record"},400);
+   if(body.kind==="owner_operators"&&context==="nondot")
+    return respond({error:"Owner-Operators belong to the DOT workspace"},403);
    const q=await collection.select("id,operating_context").eq("id",body.id).eq("tenant_id",tenantId)
     .eq("kind",body.kind).is("archived_at",null).maybeSingle();
    if(q.error)throw q.error;
-   if(!q.data||![context,"shared"].includes(q.data.operating_context))
+   if(!q.data||!(companyKind(text(body.kind,64))?
+      q.data.operating_context===context:[context,"shared"].includes(q.data.operating_context)))
     return respond({error:"Record not found"},404);
    if(q.data.operating_context==="shared"&&role==="editor")
     return respond({error:"Shared records require an administrator"},403);
