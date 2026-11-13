@@ -37,7 +37,7 @@ const CONFIG={
  pools:["Pools","Manage random testing pools, eligibility and program assignments.","name|Pool name|text|required;pool_type|Pool type|select:consortium,employer;dot_agency|DOT agency|select:FMCSA,FAA,FRA,FTA,PHMSA,USCG;drug_testing_rate|Annual drug selection rate (%)|number;alcohol_testing_rate|Annual alcohol selection rate (%)|number;selection_schedule|Selection schedule|select:monthly,quarterly,semiannual,annual;effective_date|Effective date|date;status|Status|select:active,draft,inactive;notes|Internal notes|textarea"],
  selections:["Selections","Secure random selection records and results.","name|Selection reference|text|required;pool_name|Pool name|text;selection_date|Selection date|date;status|Status|select:locked,completed"],
  testing_orders:["Testing Orders","Submit testing requests to Workforce Testing Operations.","name|Reference|text|required;employee|Donor|text;employer|Company|text;test_type|Test type|text;status|Status|select:awaiting_schedule,scheduled,completed,cancelled"],
- testing_documents:["Testing Documents","Manage testing-related documents.","title|Document title|text|required;document_type|Document type|text;order_reference|Order reference|text;document_file|Upload document|file;status|Status|select:pending,complete"],
+ testing_documents:["Testing Documents","Secure management of all drug and alcohol testing files.","title|Document title|text|required;document_type|Document category|text;order_reference|Testing order|text;status|Status|select:received,verified,archived"],
  results:["Results","Track confidential test result metadata.","name|Result reference|text|required;order_reference|Order reference|text;status|Status|select:pending,received,reviewed;reported_at|Date reported|date;notes|Notes|textarea"],
  occupational_health:["Occupational Health","Manage occupational health service requests.","name|Service reference|text|required;employee_name|Employee name|text;service|Service|text;appointment_date|Appointment date|date;status|Status|select:requested,scheduled,completed"],
  compliance:["Compliance","Manage compliance cases and required actions.","name|Case title|text|required;employer|Employer|text;due_date|Due date|date;priority|Priority|select:low,normal,high;status|Status|select:open,in_progress,complete"],
@@ -185,7 +185,7 @@ function updateHeading(){
  updateBreadcrumbs();
  $("pageActions").innerHTML=state.page==="account"?"":state.page==="dashboard"||state.page==="lab_analytics"
   ?'<button class="btn secondary" type="button" id="refreshPage">Refresh</button>'
-  :'<button class="btn secondary" type="button" id="refreshPage">Refresh</button><button class="btn secondary" type="button" id="exportPage">Export CSV</button><button class="btn primary" type="button" id="newRecord">'+(state.page==="selections"?"Run Selection":state.page==="testing_orders"?"Order a Test":"Add "+esc(title))+'</button>';
+  :'<button class="btn secondary" type="button" id="refreshPage">Refresh</button><button class="btn secondary" type="button" id="exportPage">Export CSV</button><button class="btn primary" type="button" id="newRecord">'+(state.page==="selections"?"Run Selection":state.page==="testing_orders"?"Order a Test":state.page==="testing_documents"?"Upload Document":"Add "+esc(title))+'</button>';
 }
 function switchPage(page,push=true){
  if(!CONFIG[page])page="dashboard";
@@ -1501,6 +1501,145 @@ async function submitDrugOrder(form){
   message("Testing order "+res.case_number+" submitted for processing.");
  }catch(e){$("drugError").textContent=e.message;button.disabled=false}
 }
+
+const TEST_DOC_CATEGORIES=[
+ ["chain_of_custody","Chain of Custody (CCF)"],["donor_pass","Donor Pass"],
+ ["collection_form","Collection / Specimen Form"],["lab_report","Laboratory Report"],
+ ["mro_report","MRO Report"],["test_result","Test Result"],
+ ["consent_authorization","Consent / Authorization"],["random_selection","Random Selection Record"],
+ ["program_policy","Program / Policy Document"],["medical_document","Medical / Occupational Document"],
+ ["invoice_receipt","Invoice / Receipt"],["correspondence","Correspondence"],["other","Other Testing Document"]
+];
+const testingDocCategory=k=>TEST_DOC_CATEGORIES.find(item=>item[0]===k)?.[1]||String(k||"Uncategorized").replaceAll("_"," ");
+async function prepareTestingDocumentRelations(record){
+ const m=state.management,seq=state.sequence,company=$("testingDocCompany"),person=$("testingDocPerson"),order=$("testingDocOrder");
+ if(!company||!person||!order)return;
+ try{
+  const refs=await poolReferenceRecords(state.context==="dot"?
+   ["employers","owner_operators","people","testing_orders"]:["employers","people","testing_orders"]);
+  if(state.management!==m||state.page!=="testing_documents"||seq!==state.sequence)return;
+  state.testingDocRefs=refs;
+  const companies=[...(refs.employers||[]),...(refs.owner_operators||[])].filter(r=>r.operating_context===state.context);
+  company.innerHTML='<option value="">No company association</option>'+companies.map(r=>
+   '<option value="'+esc(r.id)+'">'+esc(r.data?.legal_name||"Company")+'</option>').join("");
+  company.value=record?.data?.company_id||"";
+  company.disabled=false;
+  refreshTestingDocumentRelations(record?.data?.person_id||"",record?.data?.testing_order_id||"");
+ }catch(e){const hint=$("testingDocRelationHint");if(hint)hint.textContent="Unable to load company, person, or order associations: "+e.message;}
+}
+function refreshTestingDocumentRelations(personId="",orderId=""){
+ const companyId=$("testingDocCompany")?.value,refs=state.testingDocRefs||{},person=$("testingDocPerson"),order=$("testingDocOrder");
+ if(!person||!order)return;
+ const people=(refs.people||[]).filter(r=>!companyId||r.data?.company_id===companyId);
+ person.innerHTML='<option value="">No person association</option>'+people.map(r=>
+  '<option value="'+esc(r.id)+'">'+esc([r.data?.first_name,r.data?.last_name].filter(Boolean).join(" ")||"Person")+'</option>').join("");
+ const orders=(refs.testing_orders||[]).filter(r=>!companyId||r.data?.company_id===companyId);
+ order.innerHTML='<option value="">No testing order association</option>'+orders.map(r=>
+  '<option value="'+esc(r.id)+'">'+esc(r.data?.name||"Testing order")+'</option>').join("");
+ if(personId&&people.some(r=>r.id===personId))person.value=personId;
+ if(orderId&&orders.some(r=>r.id===orderId))order.value=orderId;
+ person.disabled=false;order.disabled=false;
+}
+function testingDocumentsList(records){
+ const q=state.search.trim().toLowerCase(),category=state.statusFilter;
+ const visible=records.filter(r=>(!q||[r.data?.title,r.data?.document_type,r.data?.file_name,r.data?.order_reference,r.data?.description].some(v=>
+  String(v||"").toLowerCase().includes(q)))&&(!category||r.data?.document_type===category));
+ const categories=[...new Set(records.map(r=>r.data?.document_type).filter(Boolean))];
+ const rows=visible.map(r=>{
+  const d=r.data||{},hasFile=!!d.storage_path,date=r.created_at?new Date(r.created_at).toLocaleDateString():"—";
+  const name=d.title||d.file_name||"Testing document";
+  return '<div class="testing-doc-row"><span class="testing-doc-icon">'+navIcon("testing_documents")+'</span>'+
+   '<div class="testing-doc-name"><button type="button" data-view="'+esc(r.id)+'">'+esc(name)+'</button>'+
+   '<small>'+esc(d.file_name||"Existing testing document")+'</small></div>'+
+   '<span class="testing-doc-type">'+esc(testingDocCategory(d.document_type))+'</span>'+
+   '<span class="testing-doc-context">'+esc(d.order_reference||date)+'</span>'+
+   '<span class="mgmt-status '+(hasFile?"positive":"pending")+'">'+(hasFile?"Available":"No file")+'</span>'+
+   '<div class="testing-doc-actions"><button type="button" class="btn secondary btn-sm" data-view="'+esc(r.id)+'">Details</button>'+
+   (hasFile?'<button type="button" class="btn secondary btn-sm" data-preview-file="'+esc(r.id)+'">View</button>'+
+   '<button type="button" class="btn secondary btn-sm" data-open-file="'+esc(r.id)+'">Download</button>':"")+'</div></div>';
+ }).join("");
+ $("pageContent").innerHTML='<div class="testing-doc-workspace"><div class="testing-doc-stats">'+
+  '<div><small>Testing documents</small><strong>'+records.length+'</strong></div>'+
+  '<div><small>Files available</small><strong>'+records.filter(r=>r.data?.storage_path).length+'</strong></div>'+
+  '<div><small>Document categories</small><strong>'+categories.length+'</strong></div></div>'+
+  '<section class="testing-doc-list"><div class="directory-toolbar">'+
+  '<div class="directory-search"><input id="recordSearch" type="search" aria-label="Search testing documents" placeholder="Search documents or orders" value="'+esc(state.search)+'"></div>'+
+  '<select id="statusFilter" aria-label="Filter by document category"><option value="">All document categories</option>'+
+  TEST_DOC_CATEGORIES.filter(([value])=>categories.includes(value)).map(([value,name])=>
+   '<option value="'+esc(value)+'"'+(category===value?" selected":"")+'>'+esc(name)+'</option>').join("")+'</select>'+
+  '<span class="directory-total">'+visible.length+' documents</span></div>'+
+  (rows||'<div class="directory-empty"><h2>No matching documents</h2><p>Upload a testing document to add it to your secure file library.</p></div>')+
+  '</section></div>';
+}
+function renderTestingDocumentManagement(record,action){
+ const d=record?.data||{},view=action==="view",file=!!d.storage_path;
+ if(view){
+  $("pageContent").innerHTML='<div class="testing-doc-workspace"><div class="testing-doc-profile">'+
+   '<div class="testing-doc-profile-header"><span class="testing-doc-icon">'+navIcon("testing_documents")+'</span>'+
+   '<div><strong>'+esc(d.title||"Testing document")+'</strong><small>'+esc(testingDocCategory(d.document_type))+'</small></div>'+
+   '<span class="mgmt-status '+(file?"positive":"pending")+'">'+(file?"File available":"File unavailable")+'</span></div>'+
+   managementOverviewGroup("Document information",[
+    ["Document title",d.title],["Document category",testingDocCategory(d.document_type)],
+    ["File name",d.file_name],["Document date",d.document_date],
+    ["Order reference",d.order_reference],["Description",d.description],
+    ["Status",d.status],["Uploaded",record.created_at?new Date(record.created_at).toLocaleDateString():"—"]])+
+   '<div class="testing-doc-profile-actions">'+(file?
+    '<button type="button" class="btn secondary" data-preview-file="'+esc(record.id)+'">View document</button>'+
+    '<button type="button" class="btn primary" data-open-file="'+esc(record.id)+'">Download</button>':"")+
+    '<button type="button" class="btn secondary" data-edit="'+esc(record.id)+'">Edit details</button>'+
+    '<button type="button" class="btn secondary" data-back-list>Back to documents</button></div>'+
+   '</div></div>';
+  return;
+ }
+ const opts=(list,selected)=>'<option value="">Select document category</option>'+
+  list.map(([value,label])=>'<option value="'+esc(value)+'"'+(selected===value?" selected":"")+'>'+esc(label)+'</option>').join("");
+ $("pageContent").innerHTML='<div class="testing-doc-workspace"><form id="testingDocForm" class="testing-doc-form">'+
+  '<section class="testing-doc-section"><h2>Document details</h2><div class="testing-doc-grid">'+
+  '<label class="testing-doc-field"><span>Document title *</span><input name="title" required maxlength="180" value="'+esc(d.title||"")+'" placeholder="Enter document title"></label>'+
+  '<label class="testing-doc-field"><span>Document category *</span><select name="document_type" required>'+opts(TEST_DOC_CATEGORIES,d.document_type)+'</select></label>'+
+  '<label class="testing-doc-field"><span>Document date</span><input type="date" name="document_date" value="'+esc(d.document_date||"")+'"></label>'+
+  '<label class="testing-doc-field"><span>Status</span><select name="status"><option value="received"'+(d.status==="received"?" selected":"")+'>Received</option>'+
+  '<option value="verified"'+(d.status==="verified"?" selected":"")+'>Verified</option></select></label>'+
+  '<label class="testing-doc-field full"><span>Description / notes</span><textarea name="description" rows="3" maxlength="2000" placeholder="Internal description">'+esc(d.description||"")+'</textarea></label></div></section>'+
+  '<section class="testing-doc-section"><h2>Related testing records</h2><div class="testing-doc-grid">'+
+  '<label class="testing-doc-field"><span>Company</span><select id="testingDocCompany" name="company_id" disabled><option value="">Loading companies…</option></select></label>'+
+  '<label class="testing-doc-field"><span>Person / donor</span><select id="testingDocPerson" name="person_id" disabled><option value="">Loading people…</option></select></label>'+
+  '<label class="testing-doc-field full"><span>Testing order</span><select id="testingDocOrder" name="testing_order_id" disabled><option value="">Loading orders…</option></select></label></div>'+
+  '<p class="testing-doc-hint" id="testingDocRelationHint">Optional associations help organize documents by customer, donor, or order.</p></section>'+
+  '<section class="testing-doc-section"><h2>'+ (record?"Replace document file":"Upload document")+'</h2>'+
+  '<label class="testing-doc-dropzone" for="testingDocFile"><span class="testing-doc-upload-symbol">'+navIcon("testing_documents")+'</span>'+
+  '<strong id="testingDocFileName">'+(record&&d.file_name?esc(d.file_name):"Choose a document to upload")+'</strong>'+
+  '<small>PDF, JPG, PNG, WEBP, TXT, DOC, DOCX · Maximum 8 MB</small>'+
+  '<input type="file" id="testingDocFile" name="document_file" accept=".pdf,.jpg,.jpeg,.png,.webp,.txt,.doc,.docx"'+(record?"":" required")+'></label>'+
+  (record?'<p class="testing-doc-hint">Leave the file empty to update document details without replacing the existing file.</p>':"")+
+  '</section><p id="testingDocError" class="manage-form-error" role="alert"></p>'+
+  '<footer class="program-actions"><button type="button" class="btn secondary" data-back-list>Cancel</button>'+
+  '<button type="submit" class="btn primary" id="testingDocSave">'+(record?"Save changes":"Upload document")+'</button></footer>'+
+  '</form></div>';
+ void prepareTestingDocumentRelations(record);
+}
+async function submitTestingDocument(form){
+ if(!form.reportValidity())return;
+ const m=state.management,btn=$("testingDocSave");btn.disabled=true;
+ const d=Object.fromEntries(new FormData(form).entries()),file=d.document_file;delete d.document_file;
+ d.visibility="internal";
+ const refs=state.testingDocRefs||{},company=(refs.employers||[]).concat(refs.owner_operators||[]).find(r=>r.id===d.company_id);
+ const order=(refs.testing_orders||[]).find(r=>r.id===d.testing_order_id);
+ if(d.company_id&&!company){$("testingDocError").textContent="Company selection is unavailable.";btn.disabled=false;return}
+ if(d.testing_order_id&&!order){$("testingDocError").textContent="Select a valid testing order.";btn.disabled=false;return}
+ d.order_reference=order?.data?.name||"";
+ try{
+  if(file instanceof File&&file.size){
+   await uploadManagementFile(file,d,state.context,m?.id||null);
+  }else if(m?.id){
+   await api("save",{tenant_id:state.tenantId,operating_context:state.context,kind:"testing_documents",id:m.id,
+    record_context:state.context,data:d});
+  }else throw Error("Choose a document file to upload.");
+  state.cache.delete(cacheKey());leaveManagement();
+  message(m?.id?"Testing document details updated.":"Testing document uploaded securely.");
+  void loadRecords();
+ }catch(e){$("testingDocError").textContent=e.message;btn.disabled=false}
+}
 function renderManagementPage(){
  const m=state.management;
  if(!m||m.section!==state.page)return;
@@ -1535,6 +1674,7 @@ function renderManagementPage(){
  }
  if(state.page==="selections"){renderSelections(record);return;}
  if(state.page==="testing_orders"){renderDrugOrder(record);return;}
+ if(state.page==="testing_documents"){renderTestingDocumentManagement(record,m.action);return;}
  if(m.action==="view"){
   const d=record.data||{};
   const sections=isEmployer?[
@@ -1765,6 +1905,7 @@ function showRecords(records){
  if(state.page==="dashboard"){renderDashboard(records);return}
  if(state.page==="selections"){selectionList(records);return}
  if(state.page==="testing_orders"){renderDrugOrderList(records);return}
+ if(state.page==="testing_documents"){testingDocumentsList(records);return}
  const count=records.length,query=state.search.trim().toLowerCase();
  const statuses=[...new Set(records.map(r=>String(r.data?.status||"").trim()).filter(Boolean))].sort();
  const visible=records.filter(r=>(!query||Object.values(r.data||{}).some(v=>String(v??"").toLowerCase().includes(query)))&&
@@ -2104,6 +2245,8 @@ function bindEvents(){
  $("pageContent").addEventListener("change",e=>{
   if(e.target.id==="selectionPool"){void selectionPreviewPool();return}
   if(e.target.id==="drugCompany"){refreshDrugDonors();return}
+  if(e.target.id==="testingDocCompany"){refreshTestingDocumentRelations();return}
+  if(e.target.id==="testingDocFile"){$("testingDocFileName").textContent=e.target.files?.[0]?.name||"Choose a document to upload";return}
   if(e.target.id==="statusFilter"){
    state.statusFilter=e.target.value;state.pageIndex=0;
    showRecords(state.cache.get(cacheKey())?.records||[]);
@@ -2118,7 +2261,7 @@ function bindEvents(){
  });
  $("recordFields").addEventListener("click",e=>{const b=e.target.closest("[data-modal-download]");if(b)void openDocumentFile(b.dataset.modalDownload)});
  $("recordForm").addEventListener("submit",saveRecord);
- $("pageContent").addEventListener("submit",e=>{if(e.target.id==="drugOrderForm"){e.preventDefault();void submitDrugOrder(e.target);return}if(e.target.id==="managementForm"){e.preventDefault();void submitManagement(e.target)}});
+ $("pageContent").addEventListener("submit",e=>{if(e.target.id==="testingDocForm"){e.preventDefault();void submitTestingDocument(e.target);return}if(e.target.id==="drugOrderForm"){e.preventDefault();void submitDrugOrder(e.target);return}if(e.target.id==="managementForm"){e.preventDefault();void submitManagement(e.target)}});
  for(const id of ["modalClose","cancelModal","modalDismiss"])$(id).addEventListener("click",closeModal);
  document.addEventListener("keydown",e=>{if(e.key==="Escape"){if(!$("modal").hidden)closeModal();$("accountDropdown").hidden=true;$("accountTrigger").setAttribute("aria-expanded","false")}});
  const setFont=n=>{state.font=Math.max(13,Math.min(21,n));document.documentElement.style.fontSize=state.font+"px";localStorage.setItem("workforce_unified_font",String(state.font))};
