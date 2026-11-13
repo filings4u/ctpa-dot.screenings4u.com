@@ -1180,6 +1180,43 @@ async function savePoolMember(){
   void hydratePoolRoster();
  }catch(error){$("formMessage").textContent=error.message;button.disabled=false}
 }
+async function refreshPoolLock(){
+ const m=state.management,seq=state.sequence;
+ if(state.page!=="pools"||!m?.id)return;
+ const warning=$("poolLockNotice"),editButton=$("poolEditButton"),
+  form=$("managementForm"),saveButton=$("managementSave");
+ if(editButton)editButton.disabled=true;
+ if(form){form.querySelectorAll("input,select,textarea").forEach(el=>el.disabled=true);
+  if(saveButton)saveButton.disabled=true;}
+ if(warning)warning.textContent="Checking pool membership…";
+ try{
+  const result=await api("pool_lock_status",{tenant_id:state.tenantId,
+   operating_context:state.context,pool_id:m.id});
+  if(state.page!=="pools"||state.management!==m||seq!==state.sequence)return;
+  if(result.locked){
+   if(m.action==="edit"){
+    state.management={...m,action:"view"};
+    history.replaceState({management:true},"",managementUrl("view",m.id));
+    renderManagementPage();return;
+   }
+   if(warning)warning.innerHTML='<span class="program-lock-symbol" aria-hidden="true">🔒</span>'+
+    '<span><strong>Pool locked · '+result.employee_count+' enrolled '+
+    (result.employee_count===1?"employee":"employees")+'</strong>'+
+    '<small>Pool settings cannot be edited while employees are enrolled. Remove all members to unlock editing.</small></span>';
+   if(editButton)editButton.hidden=true;
+  }else{
+   if(warning)warning.innerHTML='<span class="program-lock-symbol" aria-hidden="true">✓</span>'+
+    '<span><strong>Pool editable</strong><small>No employees are currently enrolled in this pool.</small></span>';
+   if(editButton)editButton.disabled=false;
+   if(form){form.querySelectorAll("input,select,textarea").forEach(el=>el.disabled=false);
+    if(saveButton)saveButton.disabled=false;}
+  }
+ }catch(error){
+  if(warning)warning.innerHTML='<span class="program-lock-symbol" aria-hidden="true">!</span>'+
+   '<span><strong>Lock verification unavailable</strong><small>'+
+   esc(error.message)+'. Editing remains disabled until the pool membership can be verified.</small></span>';
+ }
+}
 function renderPoolManagement(record,mode,canWrite){
  const view=mode==="view",data=record?.data||{},name=data.name||"New pool";
  const head='<div class="program-head"><span class="program-head-icon">'+navIcon("pools")+'</span>'+
@@ -1209,19 +1246,19 @@ function renderPoolManagement(record,mode,canWrite){
   '<section class="program-enrollments"><div class="program-enrollments-heading">'+
   '<h2>Selection history <span id="poolSelectionCount"></span></h2></div>'+
   '<div id="poolSelections" class="program-enrollment-list">Loading selections…</div></section>':"";
- const grid='<div class="program-management-grid"><div class="program-primary">'+blocks+relation+roster+'</div>'+related+'</div>';
+ const grid='<div class="program-management-grid"><div class="program-primary">'+(record?'<div class="program-lock-notice" id="poolLockNotice">Checking pool membership…</div>':'')+blocks+relation+roster+'</div>'+related+'</div>';
  if(view){
   $("pageContent").innerHTML='<div class="program-management">'+head+grid+
   '<footer class="program-actions"><button type="button" class="btn secondary" data-back-list>Back to Pools</button>'+
-  (canWrite?'<button type="button" class="btn primary" data-manage-edit="'+esc(record.id)+'">Edit pool</button>':"")+'</footer></div>';
-  void hydratePoolRoster();return;
+  (canWrite?'<button type="button" id="poolEditButton" class="btn primary" data-manage-edit="'+esc(record.id)+'" disabled>Edit pool</button>':"")+'</footer></div>';
+  void hydratePoolRoster();void refreshPoolLock();return;
  }
  $("pageContent").innerHTML='<div class="program-management">'+head+'<form id="managementForm">'+grid+
   '<p id="poolReferenceError" class="manage-form-error"></p>'+
   '<p class="manage-form-error" id="managementError" role="alert"></p>'+
   '<footer class="program-actions"><button type="button" class="btn secondary" data-back-list>Cancel</button>'+
   '<button class="btn primary" type="submit" id="managementSave">'+(record?"Save changes":"Create pool")+'</button></footer></form></div>';
- if(record)void hydratePoolRoster();
+ if(record){void hydratePoolRoster();void refreshPoolLock();}
  void preparePoolManagement();
  $("managementForm").querySelector('input[name="name"]')?.focus({preventScroll:true});
 }
