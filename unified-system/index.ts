@@ -260,6 +260,124 @@ Deno.serve(async request=>{
     population:size,status:"locked"});
   }
 
+
+  // Self-contained 2026 FMCSA New Entrant audit preparation reference.
+  // These are independent portal definitions, not calls to legacy C/TPA audit APIs.
+  const auditChecklist=[{"code":"drivers_1","section":"drivers","section_title":"Driver Qualification","title":"Driver roster","citation":"49 CFR 391","conditional":false},{"code":"drivers_2","section":"drivers","section_title":"Driver Qualification","title":"Driver application for employment","citation":"49 CFR 391.21","conditional":false},{"code":"drivers_3","section":"drivers","section_title":"Driver Qualification","title":"Driver license / CDL and endorsements","citation":"49 CFR 383 / 391","conditional":false},{"code":"drivers_4","section":"drivers","section_title":"Driver Qualification","title":"Initial motor vehicle record","citation":"49 CFR 391.23","conditional":false},{"code":"drivers_5","section":"drivers","section_title":"Driver Qualification","title":"Annual MVR and driver review","citation":"49 CFR 391.25","conditional":false},{"code":"drivers_6","section":"drivers","section_title":"Driver Qualification","title":"Prior-employer safety history","citation":"49 CFR 391.23","conditional":true},{"code":"drivers_7","section":"drivers","section_title":"Driver Qualification","title":"Road test or qualifying equivalent","citation":"49 CFR 391.31","conditional":true},{"code":"drivers_8","section":"drivers","section_title":"Driver Qualification","title":"Medical qualification","citation":"49 CFR 391","conditional":false},{"code":"hos_1","section":"hos","section_title":"Hours of Service","title":"RODS, ELD, or qualifying time records","citation":"49 CFR 395","conditional":false},{"code":"hos_2","section":"hos","section_title":"Hours of Service","title":"Hours-of-service supporting records","citation":"49 CFR 395","conditional":true},{"code":"vehicles_1","section":"vehicles","section_title":"Vehicles and Maintenance","title":"Vehicle and trailer roster","citation":"49 CFR 396","conditional":false},{"code":"vehicles_2","section":"vehicles","section_title":"Vehicles and Maintenance","title":"Annual or periodic inspection reports","citation":"49 CFR 396.17","conditional":false},{"code":"vehicles_3","section":"vehicles","section_title":"Vehicles and Maintenance","title":"Inspection, repair, and maintenance records","citation":"49 CFR 396.3","conditional":false},{"code":"vehicles_4","section":"vehicles","section_title":"Vehicles and Maintenance","title":"Inspector / brake inspector qualifications","citation":"49 CFR 396.19 / 396.25","conditional":true},{"code":"carrier_1","section":"carrier","section_title":"Carrier and Program","title":"Proof of insurance / financial responsibility","citation":"49 CFR 387","conditional":false},{"code":"drug_alcohol_1","section":"drug_alcohol","section_title":"Drug and Alcohol","title":"DOT testing program / consortium enrollment","citation":"49 CFR 40 / 382","conditional":true},{"code":"drug_alcohol_2","section":"drug_alcohol","section_title":"Drug and Alcohol","title":"Pre-employment controlled-substance testing","citation":"49 CFR 382.301","conditional":true},{"code":"drug_alcohol_3","section":"drug_alcohol","section_title":"Drug and Alcohol","title":"Random testing and selection records","citation":"49 CFR 382.305","conditional":true},{"code":"drug_alcohol_4","section":"drug_alcohol","section_title":"Drug and Alcohol","title":"FMCSA Clearinghouse compliance","citation":"49 CFR 382 Subpart G","conditional":true},{"code":"drug_alcohol_5","section":"drug_alcohol","section_title":"Drug and Alcohol","title":"Other required testing records","citation":"49 CFR 382","conditional":true},{"code":"accidents_1","section":"accidents","section_title":"Crash Records","title":"Accident register","citation":"49 CFR 390.15","conditional":true},{"code":"hazmat_1","section":"hazmat","section_title":"Hazardous Materials","title":"Hazardous materials shipping papers","citation":"49 CFR 172 / 177 / 397","conditional":true}];
+  const auditRecord=async(id:unknown)=>{
+   if(!uuid(id))return null;
+   const q=await collection.select("id,data,tenant_id,operating_context,updated_at")
+    .eq("id",id).eq("tenant_id",tenantId).eq("kind","audits")
+    .eq("operating_context","dot").is("archived_at",null).maybeSingle();
+   if(q.error)throw q.error;
+   return q.data||null;
+  };
+  if(action==="audit_catalog"){
+   return respond({ok:true,items:auditChecklist});
+  }
+  if(action==="audit_save"){
+   if(context!=="dot")return respond({error:"FMCSA New Entrant audits belong to the DOT workspace"},403);
+   if(!canWrite)return respond({error:"You cannot modify audits"},403);
+   const companyId=text(body.company_id,50),id=body.id,company=await collection.select("id,data").eq("tenant_id",tenantId)
+    .eq("id",companyId).in("kind",["employers","owner_operators"])
+    .eq("operating_context","dot").is("archived_at",null).maybeSingle();
+   if(company.error)throw company.error;
+   if(!company.data)return respond({error:"Choose a DOT carrier or owner-operator company"},400);
+   const name=text(body.name,180)||"New Entrant Audit - "+text(company.data.data?.legal_name,100);
+   const due=text(body.due_date,10),notice=text(body.notice_date,10);
+   if([due,notice].some(x=>x&&(!/^\d{4}-\d{2}-\d{2}$/.test(x)||!Number.isFinite(Date.parse(x+"T12:00:00Z")))))
+    return respond({error:"Enter valid audit dates"},400);
+   const status=text(body.status,20)||"draft";
+   if(!["draft","in_progress","ready","submitted","completed"].includes(status))
+    return respond({error:"Invalid audit status"},400);
+   const current=id?await auditRecord(id):null;
+   if(id&&!current)return respond({error:"Audit not found in this DOT workspace"},404);
+   const old=current?.data||{};
+   const data={...old,name,carrier:text(company.data.data?.legal_name,180),company_id:companyId,
+    dot_number:text(company.data.data?.dot_number,30),due_date:due,
+    notice_date:notice,status,notes:text(body.notes,5000),
+    checklist:old.checklist||{},audit_source:"workforce_unified_native_v1"};
+   // Remove obsolete cross-system lookup hints from unified audit records.
+   delete data._legacy_id;delete data._legacy_table;
+   const update=current?await collection.update({data,updated_by:user.id,updated_at:new Date().toISOString()})
+     .eq("id",current.id).eq("tenant_id",tenantId).eq("kind","audits")
+     .eq("operating_context","dot").select("id").single():
+     await collection.insert({tenant_id:tenantId,kind:"audits",operating_context:"dot",
+      data,created_by:user.id,updated_by:user.id}).select("id").single();
+   if(update.error)throw update.error;
+   return respond({ok:true,id:update.data.id});
+  }
+  if(action==="audit_item_update"){
+   if(context!=="dot"||!canWrite)return respond({error:"Audit editing not permitted"},403);
+   const audit=await auditRecord(body.audit_id);
+   if(!audit)return respond({error:"Audit record not available"},404);
+   const code=text(body.item_code,70),definition=auditChecklist.find((x:any)=>x.code===code);
+   if(!definition)return respond({error:"Unknown audit requirement"},400);
+   const status=text(body.status,30);
+   if(!["missing","requested","received","reviewed","not_applicable"].includes(status))
+    return respond({error:"Invalid checklist status"},400);
+   if(status==="not_applicable"&&!definition.conditional)
+    return respond({error:"This checklist item is required. It cannot be marked not applicable."},400);
+   const old=audit.data||{},checklist={...(old.checklist||{})};
+   checklist[code]={...(checklist[code]||{}),status,notes:text(body.notes,1600),
+    reviewed_by:user.id,reviewed_at:new Date().toISOString()};
+   const count=auditChecklist.filter((x:any)=>{
+     const v=checklist[x.code];
+     return v?.status==="reviewed"||(x.conditional&&v?.status==="not_applicable");
+   }).length;
+   const data={...old,checklist,readiness_percent:Math.round(100*count/auditChecklist.length)};
+   delete data._legacy_id;delete data._legacy_table;
+   const updated=await collection.update({data,updated_at:new Date().toISOString(),updated_by:user.id})
+    .eq("id",audit.id).eq("tenant_id",tenantId).eq("kind","audits").eq("operating_context","dot")
+    .select("id").single();
+   if(updated.error)throw updated.error;
+   return respond({ok:true,readiness_percent:data.readiness_percent});
+  }
+  if(action==="audit_document_upload"){
+   if(context!=="dot"||!canWrite)return respond({error:"Audit upload not permitted"},403);
+   const audit=await auditRecord(body.audit_id);
+   if(!audit)return respond({error:"Audit not found"},404);
+   const code=text(body.item_code,70),definition=auditChecklist.find((x:any)=>x.code===code);
+   if(!definition)return respond({error:"Unknown audit checklist item"},400);
+   const filename=text(body.filename,140),mime=text(body.mime_type,100),encoded=typeof body.base64==="string"?body.base64:"";
+   if(!filename||!/^[a-z0-9][a-z0-9 ._()\-]{0,139}$/i.test(filename)||
+    !["application/pdf","image/jpeg","image/png","image/webp"].includes(mime))
+    return respond({error:"Upload a PDF or supported image"},400);
+   if(!encoded||encoded.length>11200000||!/^[A-Za-z0-9+/]+={0,2}$/.test(encoded))
+    return respond({error:"File must be 8 MB or smaller"},413);
+   let bytes:Uint8Array;
+   try{bytes=Uint8Array.from(atob(encoded),v=>v.charCodeAt(0))}
+   catch{return respond({error:"Invalid file contents"},400)}
+   if(bytes.length>8*1024*1024)return respond({error:"File exceeds 8 MB"},413);
+   const safe=filename.replace(/[^a-zA-Z0-9._-]/g,"_");
+   const storagePath=tenantId+"/audits/"+audit.id+"/"+code+"/"+crypto.randomUUID()+"-"+safe;
+   const file=await db.storage.from("workforce-documents").upload(storagePath,bytes,{contentType:mime,upsert:false});
+   if(file.error)throw file.error;
+   const old=audit.data||{},checklist={...(old.checklist||{})},prev=checklist[code]||{};
+   const documents=[...(prev.documents||[]),{path:storagePath,name:filename,mime,uploaded_at:new Date().toISOString()}];
+   checklist[code]={...prev,documents,status:prev.status==="reviewed"?"reviewed":"received"};
+   const data={...old,checklist};
+   delete data._legacy_id;delete data._legacy_table;
+   const saved=await collection.update({data,updated_by:user.id,updated_at:new Date().toISOString()})
+    .eq("id",audit.id).eq("tenant_id",tenantId).eq("kind","audits").eq("operating_context","dot")
+    .select("id").single();
+   if(saved.error){await db.storage.from("workforce-documents").remove([storagePath]);throw saved.error}
+   return respond({ok:true,filename});
+  }
+  if(action==="audit_document_link"){
+   if(context!=="dot")return respond({error:"Audit document is available only in DOT"},403);
+   const audit=await auditRecord(body.audit_id);
+   if(!audit)return respond({error:"Audit not available"},404);
+   const code=text(body.item_code,70),index=Number(body.document_index);
+   if(!Number.isSafeInteger(index)||index<0)return respond({error:"Invalid attachment"},400);
+   const document=audit.data?.checklist?.[code]?.documents?.[index];
+   if(!document?.path||!document.path.startsWith(tenantId+"/audits/"+audit.id+"/"+code+"/"))
+    return respond({error:"Attachment not available"},404);
+   const link=await db.storage.from("workforce-documents").createSignedUrl(document.path,60);
+   if(link.error||!link.data?.signedUrl)return respond({error:"Attachment could not be opened"},404);
+   return respond({ok:true,url:link.data.signedUrl,name:document.name,expires_in:60});
+  }
+
   if(action==="testing_order_submit"){
    if(!canWrite)return respond({error:"You cannot submit testing orders"},403);
    const existingId=body.request_id;
@@ -739,6 +857,7 @@ Deno.serve(async request=>{
    if(kind==="selections")return respond({error:"Use the secure selection workflow; locked selections cannot be manually edited"},403);
    if(kind==="testing_orders")return respond({error:"Use the drug testing order submission workflow"},403);
    if(kind==="results")return respond({error:"Results are issued and finalized by Testing Operations and cannot be edited here"},403);
+   if(kind==="audits")return respond({error:"Use the native New Entrant Audit workflow"},403);
    const data=payload(body.data);
    if(!data||Object.keys(data).length>40||JSON.stringify(data).length>60000)
     return respond({error:"Invalid or oversized record"},400);
@@ -1006,6 +1125,7 @@ Deno.serve(async request=>{
    if(body.kind==="selections")return respond({error:"Selection audit records cannot be archived"},403);
    if(body.kind==="testing_orders")return respond({error:"Submitted testing orders must be managed by Testing Operations"},403);
    if(body.kind==="results")return respond({error:"Official result records cannot be archived by the C/TPA"},403);
+   if(body.kind==="audits")return respond({error:"Audit records must be retained for compliance history"},403);
    if(["employers","owner_operators"].includes(String(body.kind))){
     const people=await collection.select("id",{count:"exact",head:true})
      .eq("tenant_id",tenantId).eq("kind","people").eq("operating_context",context)
