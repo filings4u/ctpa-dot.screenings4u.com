@@ -251,6 +251,22 @@ Deno.serve(async request=>{
      clean.employer=company.data.data?.legal_name||"";
     }else{clean.company_id="";clean.employer=""}
    }
+   if(kind==="enrollments"&&clean.program_id&&clean.company_id){
+    if(!uuid(clean.program_id)||!uuid(clean.company_id))
+     return respond({error:"Invalid program or company reference"},400);
+    const [program,company]=await Promise.all([
+     collection.select("id,data").eq("id",clean.program_id).eq("tenant_id",tenantId)
+      .eq("kind","programs").eq("operating_context",context).is("archived_at",null).maybeSingle(),
+     collection.select("id,data").eq("id",clean.company_id).eq("tenant_id",tenantId)
+      .in("kind",context==="dot"?["employers","owner_operators"]:["employers"])
+      .eq("operating_context",context).is("archived_at",null).maybeSingle()
+    ]);
+    if(program.error)throw program.error;
+    if(company.error)throw company.error;
+    if(!program.data||!company.data)return respond({error:"Program or company is unavailable in this workspace"},400);
+    clean.program=program.data.data?.name||"";
+    clean.participant=company.data.data?.legal_name||"";
+   }
    const id=body.id;
    // New company account classification determines both its module and workspace.
    // This is enforced server-side, regardless of the selected frontend tab.
