@@ -83,3 +83,12 @@
 .ent-mini-cta{display:inline-block;margin-top:3px;padding:7px 10px;background:var(--brand-accent);color:var(--brand-primary);font-size:8px;font-weight:800;border-radius:5px}
 @media(max-width:1100px){.ent-brand-preview-card{position:static}}
 @media(max-width:480px){.ent-portal-preview{grid-template-columns:minmax(82px,27%) minmax(0,1fr)}.ent-mini-header-actions span:last-child{display:none}.ent-mini-menu span{font-size:8px}.ent-mini-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}
+
+
+#employerFeatureControls{display:grid;gap:12px}
+#entEmployerSettingsForm{display:grid;gap:14px}
+.ent-employer-feature-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.ent-employer-feature-grid label{display:flex;align-items:center;gap:10px;border:1px solid #dee7ef;border-radius:9px;padding:12px 14px;font-size:.82rem;font-weight:700}
+.ent-employer-feature-grid input{width:16px;height:16px;accent-color:#01122f;flex:0 0 auto}
+#entEmployerSettingsForm .btn{justify-self:start}
+@media(max-width:650px){.ent-employer-feature-grid{grid-template-columns:1fr}}
