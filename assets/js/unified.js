@@ -761,10 +761,15 @@ function renderEmployerManagement(record,mode,canWrite,kind="employers"){
  if(view){
   $("pageContent").innerHTML='<div class="employer-workspace">'+employerSummary(record,false,kind)+
    '<div class="employer-management-grid"><div class="employer-management-main employer-profile-main">'+groups+contactProfile+contextBlock+
+   (kind==="employers"&&record?'<section id="employerFeatureControls" class="management-section"><h2>Employer Portal Feature Controls</h2><p>Loading configuration…</p></section>':'')+
    '<div class="employer-workspace-footer"><button type="button" class="btn secondary" data-back-list>Back to '+esc(plural)+'</button>'+
    (canWrite?'<button type="button" class="btn primary" data-manage-edit="'+esc(id)+'">Edit company details</button>':'')+
    '</div></div>'+side+'</div></div>';
-  if(record)void hydrateCompanyRelations();
+  if(record){void hydrateCompanyRelations();if(kind==="employers"&&window.WorkforceEnterprisePages){
+    const tenantId=state.tenantId,employerId=record.id;
+    void window.WorkforceEnterprisePages.mountEmployerControls({tenantId,employerId,context:current,
+      supabase:state.supabase,active:()=>state.page==="employers"&&state.tenantId===tenantId&&state.management?.id===employerId});
+   }}
   return;
  }
  $("pageContent").innerHTML='<div class="employer-workspace">'+employerSummary(record,true,kind)+
