@@ -37,3 +37,5 @@
 #fuMsg:empty{display:none}
 @media(max-width:900px){.fu-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:650px){.fu-card{padding:15px}.fu-toolbar,.fu-title{align-items:flex-start;flex-direction:column}.fu-fields,.fu-metrics{grid-template-columns:1fr}}
+
+.fu-attest{display:grid;gap:11px;padding:13px;border:1px solid #d5e4f0;background:#f7fafc;border-radius:9px}.fu-attest label,.fu-check{display:flex;align-items:flex-start;gap:10px;font-size:.81rem;font-weight:650;line-height:1.45}.fu-attest input[type=checkbox],.fu-check input[type=checkbox]{margin-top:3px;min-width:17px;width:17px;height:17px;accent-color:#01122f}
