@@ -65,8 +65,26 @@ function drawBrand(){
   if(signature.some((value,index)=>header[index]!==value))throw Error("The selected file is not a valid PNG.");
   warn("Uploading PNG logo to Supabase Storage…");
   const signed=await api("branding_upload","branding_suite",{file_name:file.name});
-  const uploaded=await ctx.supabase.storage.from("workforce-branding").uploadToSignedUrl(signed.path,signed.token,file,{contentType:"image/png",cacheControl:"3600"});
-  if(uploaded.error)throw uploaded.error;
+  if(file.size>6*1024*1024){
+    if(!window.tus?.Upload)throw Error("The resumable upload component is unavailable. Please reload the page.");
+    await new Promise((resolve,reject)=>{
+      const upload=new window.tus.Upload(file,{
+        endpoint:"https://elpbnytpciqnbexiaebp.storage.supabase.co/storage/v1/upload/resumable",
+        headers:{"x-signature":signed.token,"apikey":"sb_publishable_xVI6Mjkk1bNVMGHZCPuK6w_8FSHKdkC"},
+        retryDelays:[0,3000,5000,10000,20000],
+        uploadDataDuringCreation:true,
+        removeFingerprintOnSuccess:true,
+        chunkSize:6*1024*1024,
+        metadata:{bucketName:"workforce-branding",objectName:signed.path,contentType:"image/png",cacheControl:"3600"},
+        onProgress:(bytes,total)=>warn("Uploading PNG logo: "+Math.round(bytes/total*100)+"%"),
+        onError:reject,onSuccess:resolve
+      });
+      upload.start();
+    });
+  }else{
+    const uploaded=await ctx.supabase.storage.from("workforce-branding").uploadToSignedUrl(signed.path,signed.token,file,{contentType:"image/png",cacheControl:"3600"});
+    if(uploaded.error)throw uploaded.error;
+  }
   logo_path=signed.path;
 }
  const settings={portal_name:f.elements.portal_name.value,primary_color:f.elements.primary_color.value,accent_color:f.elements.accent_color.value,logo_path,
