@@ -31,22 +31,25 @@ function draw(){
  el.querySelector("#laPrev").addEventListener("click",()=>{if(state.page>0){state.page--;void load()}});
  el.querySelector("#laNext").addEventListener("click",()=>{if((state.page+1)*PAGE_SIZE<state.total){state.page++;void load()}});
 }
-function query(){
- let q=state.supabase.from("ctpa_activity_events").select("id,actor_name,actor_email,actor_type,event_type,occurred_at,source_portal",{count:"exact"})
- .eq("tenant_id",state.tenantId).in("event_type",["auth.login","auth.logout"]);
- if(state.kind!=="all")q=q.eq("actor_type",state.kind);
- if(state.event!=="all")q=q.eq("event_type",state.event);
- if(state.days!=="all")q=q.gte("occurred_at",new Date(Date.now()-Number(state.days)*86400000).toISOString());
- if(state.search){const s=state.search.replace(/[,().%*_\\]/g,"").trim();if(s)q=q.or("actor_name.ilike.%"+s+"%,actor_email.ilike.%"+s+"%")}
- return q.order("occurred_at",{ascending:false}).range(state.page*PAGE_SIZE,(state.page+1)*PAGE_SIZE-1)
+async function query(){
+ const {data:{session},error:sessionError}=await state.supabase.auth.getSession();
+ if(sessionError||!session?.access_token)throw Error("Sign in required.");
+ const response=await fetch("https://elpbnytpciqnbexiaebp.supabase.co/functions/v1/workforce-ctpa-business-management",{
+  method:"POST",cache:"no-store",headers:{"Content-Type":"application/json","apikey":"sb_publishable_xVI6Mjkk1bNVMGHZCPuK6w_8FSHKdkC","Authorization":"Bearer "+session.access_token},
+  body:JSON.stringify({action:"activity_list",feature:"audit_history",tenant_id:state.tenantId,operating_context:"shared",
+   kind:state.kind==="all"?null:state.kind,event:state.event==="all"?null:state.event,
+   days:state.days==="all"?null:Number(state.days),page:state.page,search:state.search})
+ });
+ const result=await response.json().catch(()=>({}));
+ if(!response.ok||result.error)throw Error(result.error||"Unable to retrieve login activity");
+ return {data:result.rows||[],count:result.total||0};
 }
 async function load(){
  const rid=++state.request;
  if(!isActive())return;
  if(root())root().innerHTML='<div class="la-loading" role="status">Loading authorized login activity…</div>';
  try{
-  const {data,error,count}=await query();
-  if(error)throw error;
+  const {data,count}=await query();
   if(rid!==state.request||!isActive())return;
   state.rows=data||[];state.total=count||0;draw();
  }catch(e){
