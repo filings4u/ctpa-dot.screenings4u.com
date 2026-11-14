@@ -2203,7 +2203,7 @@ async function hydrateAuditCarrier(record){
   const select=$("auditCompany"),save=$("auditSave");if(!select||!save)return;
   const companies=responses.flat();
   select.innerHTML='<option value="">Select DOT carrier</option>'+
-   companies.map(r=>'<option value="'+esc(r.id)+'">'+esc(r.data?.legal_name||"Carrier")+'</option>').join("");
+   companies.map(r=>'<option value="'+esc(r.id)+'">'+esc(companyDisplayName(r))+'</option>').join("");
   if(record?.data?.company_id&&companies.some(c=>c.id===record.data.company_id))select.value=record.data.company_id;
   else if(record?.data?.carrier){
    const matched=companies.find(c=>c.data?.legal_name===record.data.carrier);
@@ -2634,7 +2634,7 @@ async function confirmPolicySend(id){
   if($("recordForm").dataset.mode!=="send-policy"||state.policyDelivery?.id!==id)return;
   const list=data.flat(2),select=$("policySendCompany");
   select.innerHTML='<option value="">Select a company</option>'+list.map(c=>
-   '<option value="'+esc(c.id)+'">'+esc(c.data?.legal_name||"Employer")+' ('+esc(c.operating_context==="dot"?"DOT":"NON-DOT")+')</option>').join("");
+   '<option value="'+esc(c.id)+'">'+esc(companyDisplayName(c))+' ('+esc(c.operating_context==="dot"?"DOT":"NON-DOT")+')</option>').join("");
   select.disabled=!list.length;
   if(!list.length)$("policySendRecipient").textContent="No employers or owner-operators are available yet.";
   select.addEventListener("change",async()=>{
@@ -3141,7 +3141,7 @@ function supplyStorePage(){
  }).join("");
  const cart=supplyCartItems(),count=cart.reduce((a,p)=>a+p.quantity,0);
  const total=cart.reduce((a,p)=>a+p.quantity*Number(p.unit_price),0);
- const companies=supplyStore.companies.map(c=>'<option value="'+esc(c.id)+'">'+esc(c.data?.legal_name||"Employer")+'</option>').join("");
+ const companies=supplyStore.companies.map(c=>'<option value="'+esc(c.id)+'">'+esc(companyDisplayName(c))+'</option>').join("");
  $("pageContent").innerHTML='<div class="supply-store"><section class="results-intro"><span class="results-intro-icon">'+navIcon("lab_supplies")+'</span>'+
  '<div><strong>Workforce Supply Store</strong><p>Purchase drug-testing collection kits and laboratory supplies for your C/TPA or your DOT and NON-DOT employers. Every order is paid upfront through secure checkout.</p></div></section>'+
  '<div class="supply-store-layout"><div><div class="supply-catalog-toolbar"><div><h2>Shop collection supplies</h2><p>'+supplyStore.products.length+' products in Workforce catalog</p></div>'+
