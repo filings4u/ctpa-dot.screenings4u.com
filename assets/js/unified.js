@@ -1860,6 +1860,16 @@ async function populateOfficialResult(id){
 function renderOfficialResult(record){
  state.officialResult=null;
  $("pageActions").innerHTML='<button type="button" class="btn secondary" data-back-list>Back to Results</button>';
+ // Basic result summaries remain included in Essential. Confidential donor details
+ // and the official MRO file require the separate results_sensitive entitlement.
+ if(currentGrant().features?.results_sensitive!==true){
+  $("pageContent").innerHTML='<div class="results-workspace official-result-profile">'+
+   '<div class="program-head"><span class="program-head-icon">'+navIcon("results")+'</span><div><strong>Result summary</strong><small>Subscription access</small></div></div>'+
+   '<section class="management-section"><h2>Sensitive results are not included in this plan</h2>'+
+   '<p>You can review the available result summaries. Confidential donor details and official MRO documents require a subscription that includes Sensitive Results.</p></section>'+
+   '<footer class="program-actions"><button class="btn secondary" type="button" data-back-list>Back to Results</button></footer></div>';
+  return;
+ }
  $("pageContent").innerHTML='<div class="results-workspace official-result-profile">'+
   '<div class="program-head"><span class="program-head-icon">'+navIcon("results")+'</span><div>'+
   '<strong>'+esc(record?.data?.name||"Official testing result")+'</strong>'+
