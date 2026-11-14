@@ -600,7 +600,7 @@ async function hydrateCompanyRelations(){
     '</div></div>';
    }).join(""):'<p class="company-related-empty">No '+(kind==="people"?"staff":"locations")+' linked yet.</p>';
   };
-  render("people",people.filter(r=>r.data?.relationship==="staff"||r.data?.relationship==="contact"||r.data?.company_id===company.id));
+  render("people",people);
   render("locations",locations);
   const billingHolder=document.querySelector("[data-company-invoices]");
   if(billingHolder)billingHolder.innerHTML=invoices.length?
@@ -2083,7 +2083,7 @@ async function hydrateComplianceCompanies(record){
   if(record?.data?.company_id&&companies.some(r=>r.id===record.data.company_id))company.value=record.data.company_id;
   company.disabled=!companies.length;
   const sync=()=>{
-   const related=people.filter(p=>p.data?.company_id===company.value);
+   const related=people.filter(p=>employeeLinkedToCompany(p,companies.find(c=>c.id===company.value),companies));
    const selected=person.value||record?.data?.person_id||"";
    person.innerHTML='<option value="">Company-wide record</option>'+
     related.map(p=>'<option value="'+esc(p.id)+'">'+esc([p.data?.first_name,p.data?.last_name].filter(Boolean).join(" ")||"Person")+'</option>').join("");
@@ -3420,7 +3420,7 @@ async function submitManagement(form,continueEditing=false){
   const companies=kinds.flatMap(kind=>state.cache.get(cacheKey(kind))?.records||[]);
   const company=companies.find(r=>r.id===companyId&&r.operating_context===state.context);
   const people=state.cache.get(cacheKey("people"))?.records||[];
-  const person=personId?people.find(r=>r.id===personId&&r.data?.company_id===companyId):null;
+  const person=personId?people.find(r=>r.id===personId&&employeeLinkedToCompany(r,company,companies)):null;
   if(!company||(personId&&!person)){
    $("managementError").textContent="Choose a valid employer and employee association.";button.disabled=false;return;
   }
