@@ -26,6 +26,14 @@ function drawBrand(){
  '<div class="ent-two"><label>Primary color<input name="primary_color" type="color" value="'+esc(/^#[0-9a-f]{6}$/i.test(d.primary_color||"")?d.primary_color:"#01122f")+'"></label><label>Accent color<input name="accent_color" type="color" value="'+esc(/^#[0-9a-f]{6}$/i.test(d.accent_color||"")?d.accent_color:"#fdc102")+'"></label></div>'+
  '<label>Logo<input id="entLogoFile" type="file" accept="image/png,image/jpeg,image/webp" '+(canEdit?"":"disabled")+'><small>PNG, JPEG or WebP. Maximum 1 MB.</small></label>'+
  '<p id="entLogoStatus" class="ent-muted">'+(d.logo_path?"An existing logo is saved.":"No custom logo has been uploaded.")+'</p>'+
+ '<h3>Client portal branding preferences</h3><p>Save which future customer portals should use your brand when those portals are connected.</p>'+
+ '<div class="ent-brand-checks">'+
+ '<label><input type="checkbox" name="show_on_employer_portal" '+(d.show_on_employer_portal!==false?"checked":"")+'>Employer portals</label>'+
+ '<label><input type="checkbox" name="show_on_employee_portal" '+(d.show_on_employee_portal!==false?"checked":"")+'>Employer employee portals</label>'+
+ '<label><input type="checkbox" name="show_on_owner_operator_portal" '+(d.show_on_owner_operator_portal!==false?"checked":"")+'>Owner-operator portals</label></div>'+
+ '<h3>Branded email presentation</h3><p>These settings are saved for future email templates. They do not change the verified sender domain.</p>'+
+ '<label><input type="checkbox" name="branded_email_enabled" '+(d.branded_email_enabled?"checked":"")+'>Use my branding in supported customer emails</label>'+
+ '<label>Sender display name<input name="email_display_name" maxlength="90" value="'+esc(d.email_display_name||"")+'" placeholder="Your C/TPA company"></label>'+
  '<button class="btn primary" type="submit" '+(canEdit?"":"disabled")+'>Save branding</button></form>'+
  '<div class="ent-card"><h3>Brand preview</h3><div class="ent-preview" id="entPreview"><div class="ent-preview-head"><strong id="entPreviewName">'+esc(d.portal_name||"Your C/TPA company")+'</strong></div><div class="ent-preview-body"><p>Branded client portal</p><span id="entPreviewAction">Continue to account</span></div></div><p class="ent-muted">Preview only. Employer, employee and owner-operator portals must read the verified brand assignment before displaying this design.</p></div></div>';
  const f=$("entBrandForm");function preview(){const n=f.elements.portal_name.value,pc=f.elements.primary_color.value,ac=f.elements.accent_color.value;$("entPreviewName").textContent=n||"Your C/TPA company";$("entPreview").style.setProperty("--brand-primary",pc);$("entPreview").style.setProperty("--brand-accent",ac)};f.addEventListener("input",preview);preview();
@@ -35,7 +43,13 @@ function drawBrand(){
   $("entPreview").querySelector(".ent-preview-head").prepend(image);
  }
  f.onsubmit=async e=>{e.preventDefault();const b=f.querySelector('button[type="submit"]');b.disabled=true;warn("Saving branding…");try{const file=$("entLogoFile").files?.[0];let logo_path=d.logo_path||"";if(file){if(!["image/png","image/jpeg","image/webp"].includes(file.type)||file.size>1048576)throw Error("Choose a PNG, JPEG or WebP under 1 MB.");const bytes=new Uint8Array(await file.arrayBuffer());let binary="";for(let i=0;i<bytes.length;i+=8192)binary+=String.fromCharCode(...bytes.slice(i,i+8192));const upload=await api("branding_upload","branding_suite",{file_name:file.name,mime_type:file.type,file_base64:btoa(binary)});logo_path=upload.path;}
- await api("branding_save","branding_suite",{portal_name:f.elements.portal_name.value,primary_color:f.elements.primary_color.value,accent_color:f.elements.accent_color.value,logo_path});brand={portal_name:f.elements.portal_name.value,primary_color:f.elements.primary_color.value,accent_color:f.elements.accent_color.value,logo_path};warn("Brand settings saved.");drawBrand()}catch(ex){warn(ex.message)}finally{b.disabled=false}};
+ const settings={portal_name:f.elements.portal_name.value,primary_color:f.elements.primary_color.value,accent_color:f.elements.accent_color.value,logo_path,
+  show_on_employer_portal:f.elements.show_on_employer_portal.checked,
+  show_on_employee_portal:f.elements.show_on_employee_portal.checked,
+  show_on_owner_operator_portal:f.elements.show_on_owner_operator_portal.checked,
+  branded_email_enabled:f.elements.branded_email_enabled.checked,
+  email_display_name:f.elements.email_display_name.value};
+ await api("branding_save","branding_suite",settings);brand=settings;warn("Brand settings saved.");drawBrand()}catch(ex){warn(ex.message)}finally{b.disabled=false}};
 }
 function drawSites(){
  $("entBody").innerHTML='<div class="ent-card"><div class="ent-card-header"><div><h3>C/TPA collection address directory</h3><p>'+sites.length+' site'+(sites.length===1?"":"s")+' in this C/TPA account</p></div><button class="btn primary" id="entSiteAdd" '+(canEdit?"":"disabled")+'>Add collection site</button></div>'+
