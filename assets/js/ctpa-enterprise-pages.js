@@ -109,5 +109,29 @@ function showPreview(){
  dest.querySelectorAll("[data-remove]").forEach(el=>el.onclick=()=>{rows.splice(Number(el.dataset.remove),1);showPreview()});
  $("entCommit").onclick=async()=>{const btn=$("entCommit");btn.disabled=true;warn("Validating and importing approved employers…");try{const d=await api("employer_import_commit","employer_import",{rows,file_name:fileName});warn(d.created+" employers created. Open Employers to view them.");rows=[];dest.innerHTML='<div class="ent-card"><h3>Import complete</h3><p>'+esc(d.created)+' employers were added to your C/TPA portal.</p><button class="btn secondary" id="entImportAgain">Upload another CSV</button></div>';$("entImportAgain").onclick=drawImport}catch(ex){warn(ex.message);btn.disabled=false}};
 }
-window.WorkforceEnterprisePages=Object.freeze({open,openImport:(options)=>{ctx=options;screen="employer_import";++serial;drawImport()}});
+async function mountEmployerControls(options){
+ const holder=document.getElementById("employerFeatureControls");if(!holder)return;
+ const active=()=>options.active?.()===true&&holder.isConnected;
+ const fields=[["client_portal","Client portal access"],["testing_order_requests","Employer test order requests"],["results_visibility","Results visibility"],["document_access","Documents"],["billing_visibility","Billing information"],["email_notifications","Email notifications"]];
+ holder.innerHTML='<h2>Employer Portal Feature Controls</h2><p class="ent-muted">Configure what this employer may use in its future portal. These settings do not grant access until the new employer portal enforces them.</p><p role="status">Loading employer settings…</p>';
+ ctx=options;
+ try{
+  const response=await api("employer_settings_list","employer_settings",{employer_id:options.employerId});
+  if(!active())return;
+  const values=Object.fromEntries((response.settings||[]).map(x=>[x.setting_key,x.enabled===true]));
+  holder.innerHTML='<h2>Employer Portal Feature Controls</h2><p class="ent-muted">These options are saved for this employer only. Customer portals must enforce them during the new portal build.</p>'+
+   '<form id="entEmployerSettingsForm"><div class="ent-employer-feature-grid">'+fields.map(([key,name])=>'<label><input type="checkbox" name="'+key+'" '+(values[key]?"checked":"")+' '+(response.can_edit?"":"disabled")+'>'+esc(name)+'</label>').join("")+'</div>'+
+   '<button class="btn primary" type="submit" '+(response.can_edit?"":"disabled")+'>Save employer feature controls</button><p class="ent-muted" id="entEmployerSettingsMessage" role="status"></p></form>';
+  holder.querySelector("form").onsubmit=async e=>{
+   e.preventDefault();
+   const form=e.currentTarget,button=form.querySelector('button[type="submit"]'),message=holder.querySelector("#entEmployerSettingsMessage");
+   button.disabled=true;message.textContent="Saving employer configuration…";
+   const settings=Object.fromEntries(fields.map(([key])=>[key,form.elements[key].checked]));
+   try{await api("employer_settings_save","employer_settings",{employer_id:options.employerId,settings});if(active())message.textContent="Employer feature controls saved."}
+   catch(error){if(active())message.textContent=error.message}
+   finally{if(active())button.disabled=!response.can_edit}
+  };
+ }catch(error){if(active())holder.innerHTML='<h2>Employer Portal Feature Controls</h2><p class="ent-muted">'+esc(error.message)+'</p>'}
+}
+window.WorkforceEnterprisePages=Object.freeze({open,openImport:(options)=>{ctx=options;screen="employer_import";++serial;drawImport()},mountEmployerControls});
 })();
