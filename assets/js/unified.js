@@ -233,13 +233,8 @@ function switchPage(page,push=true){
  if(page==="lab_documents")page="testing_documents";
  if(page==="enrollments")page="programs";
  if(!CONFIG[page])page="dashboard";
- if(!canViewPage(page)){
-  // A deep link never bypasses subscription limits.
-  const requested=page;
-  page="dashboard";
-  message("The "+label(requested)+" feature is not included in your C/TPA subscription.",true);
- }
- if(state.locationSetupRequired&&page!=="locations")page="locations";
+ if(!canViewPage(page))page="dashboard";
+ if(state.locationSetupRequired&&!["locations","account","support","dashboard"].includes(page))page="locations";
  if(state.context==="nondot"&&["owner_operators","audits","return_to_duty","follow_up_testing"].includes(page))page=page==="owner_operators"?"employers":"dashboard";
  state.page=page;state.search="";state.statusFilter="";state.pageIndex=0;state.companyFilter=null;state.companyDraft=null;state.management=null;state.pendingManagement=null;const seq=++state.sequence;
  if(push)history.pushState(null,"","/unified.html?page="+encodeURIComponent(page));
