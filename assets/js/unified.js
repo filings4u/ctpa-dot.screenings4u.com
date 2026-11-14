@@ -1510,9 +1510,10 @@ async function loadDrugOrderOptions(){
  }catch(e){$("drugOrderHint").textContent=e.message}
 }
 function employeeLinkedToCompany(person,company,companies){
- if(!person||!company||company.kind==="owner_operators")return false;
+ if(!person||!company)return false;
  const data=person.data||{},parent=data.company_id||data.employer_id;
  if(parent)return parent===company.id;
+ if(company.kind==="owner_operators")return false;
  const claimed=String(data.employer||data.company||"").trim().toLocaleLowerCase();
  const name=String(company.data?.legal_name||"").trim().toLocaleLowerCase();
  if(!claimed||!name||claimed!==name)return false;
