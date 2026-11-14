@@ -79,8 +79,16 @@ const $=id=>document.getElementById(id);
 const esc=value=>String(value??"").replace(/[&<>"']/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
 const label=id=>CONFIG[id]?.[0]||id.replaceAll("_"," ").replace(/\b\w/g,x=>x.toUpperCase());
 const fields=id=>(CONFIG[id]?.[2]||"name|Name|text|required").split(";").map(x=>{const a=x.split("|");return {name:a[0],label:a[1]||a[0],type:a[2]||"text",required:a[3]==="required"}});
+const companyDisplayName=(record)=>{
+ const d=record?.data||{},name=String(d.legal_name||d.name||"Company").trim();
+ const kind=record?.kind==="owner_operators"||d.account_type==="owner_operator"?"Owner-Operator":
+   record?.operating_context==="nondot"||d.account_type==="nondot_employer"?"NON-DOT Employer":"DOT Employer";
+ const marker=String(record?.id||"").slice(0,8).toUpperCase();
+ return name+" · "+kind+(marker?" #"+marker:"");
+};
 const recordTitle=r=>{
  const d=r?.data||{};
+ if(["employers","owner_operators"].includes(r?.kind))return companyDisplayName(r);
  return d.name||d.title||d.legal_name||[d.first_name,d.last_name].filter(Boolean).join(" ")||d.summary||d.file_name||d.invoice_number||d.order_reference||d.account_number||r?.id||"Record";
 };
 const DOCUMENT_PAGES=new Set(["documents","testing_documents"]);
@@ -822,8 +830,7 @@ async function loadPersonCompanies(){
   }
   if(seq!==state.sequence||state.page!=="people"||state.management!==m)return;
   selector.innerHTML='<option value="">Select company (required)</option>'+options.map(r=>
-   '<option value="'+esc(r.id)+'">'+esc(r.data?.legal_name||"Unnamed company")+
-   (r.kind==="owner_operators"?" · Owner-Operator":"")+'</option>').join("");
+   '<option value="'+esc(r.id)+'">'+esc(companyDisplayName(r))+'</option>').join("");
   if(currentId&&options.some(r=>r.id===currentId))selector.value=currentId;
   else if(!currentId){
    const prior=m.id?(state.cache.get(cacheKey())?.records||[]).find(r=>r.id===m.id)?.data?.employer||"":state.companyDraft?.companyName||"";
@@ -936,8 +943,7 @@ async function prepareProgramManagement(){
   }
   if(state.page!=="programs"||state.management!==m||seq!==state.sequence)return;
   select.innerHTML='<option value="">Unassigned</option>'+choices.map(r=>
-   '<option value="'+esc(r.id)+'">'+esc(r.data?.legal_name||"Unnamed company")+
-   (r.kind==="owner_operators"?" · Owner-Operator":"")+'</option>').join("");
+   '<option value="'+esc(r.id)+'">'+esc(companyDisplayName(r))+'</option>').join("");
   const existing=current.company_id||state.companyDraft?.companyId||"";
   const selected=choices.find(r=>r.id===existing)||
    choices.find(r=>String(r.data?.legal_name||"").toLowerCase()===
@@ -1015,7 +1021,7 @@ async function openProgramEnrollment(){
  $("recordFields").innerHTML='<div class="company-modal-sections"><section class="company-modal-section"><h3>Program enrollment</h3>'+
   '<div class="company-modal-grid"><label class="company-modal-field span-all"><span>Company *</span>'+
   '<select name="company_id" required class="program-enrollment-select"><option value="">Select company</option>'+
-  companies.map(r=>'<option value="'+esc(r.id)+'">'+esc(r.data?.legal_name||"Company")+'</option>').join("")+
+  companies.map(r=>'<option value="'+esc(r.id)+'">'+esc(companyDisplayName(r))+'</option>').join("")+
   '</select></label><label class="company-modal-field span-all"><span>Status</span>'+
   '<select name="status" class="program-enrollment-select"><option value="active">Active</option>'+
   '<option value="pending">Pending</option></select></label></div></section></div>';
@@ -1184,7 +1190,7 @@ async function preparePoolManagement(){
   program.innerHTML='<option value="">Select program</option>'+programs.filter(r=>r.operating_context===state.context).map(r=>
    '<option value="'+esc(r.id)+'">'+esc(r.data?.name||"Program")+'</option>').join("");
   company.innerHTML='<option value="">All participating employers</option>'+companies.map(r=>
-   '<option value="'+esc(r.id)+'">'+esc(r.data?.legal_name||"Company")+'</option>').join("");
+   '<option value="'+esc(r.id)+'">'+esc(companyDisplayName(r))+'</option>').join("");
   const matchProgram=programs.find(r=>r.id===data.program_id||
    r.data?._legacy_id===data._legacy_program_id||r.data?.name===data.program);
   const matchCompany=companies.find(r=>r.id===data.company_id||
@@ -1510,7 +1516,7 @@ async function loadDrugOrderOptions(){
   const labResponse=await api("lab_accounts_list",{tenant_id:state.tenantId,operating_context:state.context});
   if(seq!==state.sequence||state.management!==m)return;
   state.drugLabAccounts=(labResponse.records||[]).filter(r=>r.data?.issued_by_testing===true&&r.data?.ready_for_orders===true&&r.data?.status==="issued");
-  company.innerHTML='<option value="">Select company</option>'+state.drugCompanies.map(r=>'<option value="'+esc(r.id)+'">'+esc(r.data?.legal_name||"Company")+'</option>').join("");
+  company.innerHTML='<option value="">Select company</option>'+state.drugCompanies.map(r=>'<option value="'+esc(r.id)+'">'+esc(companyDisplayName(r))+'</option>').join("");
   company.disabled=false;
   if(state.companyDraft?.page==="testing_orders"&&state.drugCompanies.some(r=>r.id===state.companyDraft.companyId))
    company.value=state.companyDraft.companyId;
@@ -1659,7 +1665,7 @@ async function prepareTestingDocumentRelations(record){
   state.testingDocRefs=refs;
   const companies=[...(refs.employers||[]),...(refs.owner_operators||[])].filter(r=>r.operating_context===state.context);
   company.innerHTML='<option value="">No company association</option>'+companies.map(r=>
-   '<option value="'+esc(r.id)+'">'+esc(r.data?.legal_name||"Company")+'</option>').join("");
+   '<option value="'+esc(r.id)+'">'+esc(companyDisplayName(r))+'</option>').join("");
   company.value=record?.data?.company_id||"";
   company.disabled=false;
   refreshTestingDocumentRelations(record?.data?.person_id||"",record?.data?.testing_order_id||"");
@@ -1971,7 +1977,7 @@ async function hydratePhysicalOrder(){
   const people=res[kinds.indexOf("people")].records||[];
   const company=$("physicalCompany"),person=$("physicalPerson"),submit=$("physicalOrderSubmit");
   if(!company||!person)return;
-  company.innerHTML='<option value="">Select employer</option>'+companies.map(r=>'<option value="'+esc(r.id)+'">'+esc(r.data?.legal_name||"Employer")+'</option>').join("");
+  company.innerHTML='<option value="">Select employer</option>'+companies.map(r=>'<option value="'+esc(r.id)+'">'+esc(companyDisplayName(r))+'</option>').join("");
   company.disabled=false;
   const update=()=>{
    const candidates=people.filter(p=>employeeLinkedToCompany(p,companies.find(c=>c.id===company.value),companies)&&p.data?.status!=="inactive");
@@ -2089,7 +2095,7 @@ async function hydrateComplianceCompanies(record){
   const company=$("complianceCompany"),person=$("compliancePerson"),save=$("managementSave");
   if(!company||!person||!save)return;
   company.innerHTML='<option value="">Select employer or owner-operator</option>'+
-   companies.map(r=>'<option value="'+esc(r.id)+'">'+esc(r.data?.legal_name||"Company")+'</option>').join("");
+   companies.map(r=>'<option value="'+esc(r.id)+'">'+esc(companyDisplayName(r))+'</option>').join("");
   if(record?.data?.company_id&&companies.some(r=>r.id===record.data.company_id))company.value=record.data.company_id;
   company.disabled=!companies.length;
   const sync=()=>{
@@ -2432,7 +2438,7 @@ async function loadRTDCompanies(record){
   const company=$("rtdCompany"),person=$("rtdPerson"),submit=$("rtdSave");
   if(!company||!person||!submit)return;
   company.innerHTML='<option value="">Select DOT employer / owner-operator</option>'+
-   companies.map(r=>'<option value="'+esc(r.id)+'">'+esc(r.data?.legal_name||"Company")+'</option>').join("");
+   companies.map(r=>'<option value="'+esc(r.id)+'">'+esc(companyDisplayName(r))+'</option>').join("");
   company.disabled=!companies.length;
   if(record?.data?.company_id&&companies.some(r=>r.id===record.data.company_id))company.value=record.data.company_id;
   const sync=()=>{
@@ -2745,7 +2751,7 @@ async function hydratePrivateDocumentCompanies(){
   if(m!==state.management||seq!==state.sequence)return;
   const company=$("privateDocCompany"),save=$("privateDocSave");if(!company||!save)return;
   const companies=lists.flat();
-  company.innerHTML='<option value="">Select company</option>'+companies.map(x=>'<option value="'+esc(x.id)+'">'+esc(x.data?.legal_name||"Company")+'</option>').join("");
+  company.innerHTML='<option value="">Select company</option>'+companies.map(x=>'<option value="'+esc(x.id)+'">'+esc(companyDisplayName(x))+'</option>').join("");
   company.disabled=!companies.length;
   if(state.companyDraft?.companyId&&companies.some(x=>x.id===state.companyDraft.companyId))company.value=state.companyDraft.companyId;
   save.disabled=!company.value;
@@ -2853,7 +2859,7 @@ async function loadReportCompanies(){
   if(state.sequence!==seq||state.page!=="reports"||state.context!==context||!$("reportCompany"))return;
   const companies=result.flat();
   field.innerHTML='<option value="">Choose employer or owner-operator</option>'+
-   companies.map(c=>'<option value="'+esc(c.id)+'">'+esc(c.data?.legal_name||"Company")+'</option>').join("");
+   companies.map(c=>'<option value="'+esc(c.id)+'">'+esc(companyDisplayName(c))+'</option>').join("");
   field.disabled=!companies.length;
   const run=$("runCompanyReport");
   const sync=()=>{run.disabled=!field.value;generatedReport=null;};
@@ -3056,7 +3062,7 @@ async function loadLabAccountCompanies(){
   if(!company||!save)return;
   const companies=lists.flat();
   company.innerHTML='<option value="">Choose employer or owner-operator</option>'+
-   companies.map(r=>'<option value="'+esc(r.id)+'">'+esc(r.data?.legal_name||"Company")+'</option>').join("");
+   companies.map(r=>'<option value="'+esc(r.id)+'">'+esc(companyDisplayName(r))+'</option>').join("");
   company.disabled=!companies.length;
   company.addEventListener("change",()=>save.disabled=!company.value);
   if(!companies.length)$("labAccountError").textContent="Add an employer or owner-operator before requesting a lab account.";
