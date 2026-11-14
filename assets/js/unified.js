@@ -1509,9 +1509,20 @@ async function loadDrugOrderOptions(){
   $("drugOrderHint").textContent=state.drugCompanies.length?"Select a company and an active donor to place an order.":"No active companies are available in this workspace.";
  }catch(e){$("drugOrderHint").textContent=e.message}
 }
+function employeeLinkedToCompany(person,company,companies){
+ if(!person||!company||company.kind==="owner_operators")return false;
+ const data=person.data||{},parent=data.company_id||data.employer_id;
+ if(parent)return parent===company.id;
+ const claimed=String(data.employer||data.company||"").trim().toLocaleLowerCase();
+ const name=String(company.data?.legal_name||"").trim().toLocaleLowerCase();
+ if(!claimed||!name||claimed!==name)return false;
+ // Legacy name association is accepted only when one employer matches in this workspace.
+ return (companies||[]).filter(c=>c.kind==="employers"&&c.operating_context===company.operating_context&&
+ String(c.data?.legal_name||"").trim().toLocaleLowerCase()===claimed).length===1;
+}
 function refreshDrugDonors(){
  const companyId=$("drugCompany")?.value,person=$("drugPerson");if(!person)return;
- const choices=(state.drugPeople||[]).filter(r=>r.data?.company_id===companyId&&r.data?.status==="active");
+ const choices=(state.drugPeople||[]).filter(r=>employeeLinkedToCompany(r,state.drugCompanies.find(c=>c.id===companyId),state.drugCompanies)&&r.data?.status==="active");
  person.innerHTML='<option value="">Select a donor</option>'+choices.map(r=>'<option value="'+esc(r.id)+'">'+
   esc([r.data?.first_name,r.data?.last_name].filter(Boolean).join(" ")||"Person")+'</option>').join("");
  person.disabled=!companyId;
@@ -1647,7 +1658,7 @@ async function prepareTestingDocumentRelations(record){
 function refreshTestingDocumentRelations(personId="",orderId=""){
  const companyId=$("testingDocCompany")?.value,refs=state.testingDocRefs||{},person=$("testingDocPerson"),order=$("testingDocOrder");
  if(!person||!order)return;
- const people=(refs.people||[]).filter(r=>!companyId||r.data?.company_id===companyId);
+ const people=(refs.people||[]).filter(r=>!companyId||employeeLinkedToCompany(r,(refs.employers||[]).concat(refs.owner_operators||[]).find(c=>c.id===companyId),(refs.employers||[]).concat(refs.owner_operators||[])));
  person.innerHTML='<option value="">No person association</option>'+people.map(r=>
   '<option value="'+esc(r.id)+'">'+esc([r.data?.first_name,r.data?.last_name].filter(Boolean).join(" ")||"Person")+'</option>').join("");
  const orders=(refs.testing_orders||[]).filter(r=>!companyId||r.data?.company_id===companyId);
@@ -1953,7 +1964,7 @@ async function hydratePhysicalOrder(){
   company.innerHTML='<option value="">Select employer</option>'+companies.map(r=>'<option value="'+esc(r.id)+'">'+esc(r.data?.legal_name||"Employer")+'</option>').join("");
   company.disabled=false;
   const update=()=>{
-   const candidates=people.filter(p=>p.data?.company_id===company.value&&p.data?.status!=="inactive");
+   const candidates=people.filter(p=>employeeLinkedToCompany(p,companies.find(c=>c.id===company.value),companies)&&p.data?.status!=="inactive");
    person.innerHTML='<option value="">Select employee</option>'+candidates.map(p=>'<option value="'+esc(p.id)+'">'+esc([p.data?.first_name,p.data?.last_name].filter(Boolean).join(" ")||"Employee")+'</option>').join("");
    person.disabled=!company.value;submit.disabled=!company.value||!person.value;
   };
@@ -2416,7 +2427,7 @@ async function loadRTDCompanies(record){
   if(record?.data?.company_id&&companies.some(r=>r.id===record.data.company_id))company.value=record.data.company_id;
   const sync=()=>{
    const selected=person.value||record?.data?.person_id||"";
-   const available=people.filter(r=>r.data?.company_id===company.value);
+   const available=people.filter(r=>employeeLinkedToCompany(r,companies.find(c=>c.id===company.value),companies));
    person.innerHTML='<option value="">Select employee</option>'+available.map(r=>
     '<option value="'+esc(r.id)+'">'+esc([r.data?.first_name,r.data?.last_name].filter(Boolean).join(" ")||"Person")+'</option>').join("");
    if(selected&&available.some(r=>r.id===selected))person.value=selected;
