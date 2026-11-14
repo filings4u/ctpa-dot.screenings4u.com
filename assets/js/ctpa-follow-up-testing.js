@@ -11,7 +11,7 @@ async function api(action,extra={}){
  const d=await r.json().catch(()=>({}));if(!r.ok||d.error)throw Error(d.error||"Request failed");return d;
 }
 const company=id=>db.companies.find(c=>c.id===id);
-const name=p=>company(p.company_id)?.name||"Unknown company";
+const name=p=>company(p.company_id)?.display_name||company(p.company_id)?.name||"Unknown company";
 const person=p=>company(p.company_id)?.kind==="owner_operators"?name(p):db.people.find(x=>x.id===p.subject_id)?.name||"Unknown employee";
 const tests=p=>db.completed.filter(t=>t.case_id===p.id);
 function frame(body){
@@ -27,7 +27,7 @@ function editor(p){
  const option=(key,value,label)=>'<option value="'+esc(value)+'" '+(String(p?.[key]||"")===value?"selected":"")+'>'+esc(label)+'</option>';
  const field=(label,key,type="text",required=false)=>'<label>'+esc(label)+'<input name="'+key+'" type="'+type+'" '+(required?"required":"")+' value="'+esc(p?.[key]??"")+'"></label>';
  frame('<section class="fu-card"><header class="fu-toolbar"><h3>'+(p?"Edit":"New")+' SAP follow-up testing plan</h3><button id="fuBack" class="btn secondary">Back</button></header><form id="fuForm" class="fu-form"><h4>DOT company and covered person</h4><div class="fu-fields">'+
- '<label>Employer / owner-operator<select name="company_id" id="fuCompany" required><option value="">Select company</option>'+db.companies.map(c=>'<option value="'+c.id+'" '+(p?.company_id===c.id?"selected":"")+'>'+esc(c.name)+' · '+(c.kind==="owner_operators"?"Owner-Operator":"Employer")+'</option>').join("")+'</select></label>'+
+ '<label>Employer / owner-operator<select name="company_id" id="fuCompany" required><option value="">Select company</option>'+db.companies.map(c=>'<option value="'+c.id+'" '+(p?.company_id===c.id?"selected":"")+'>'+esc(c.display_name||c.name)+'</option>').join("")+'</select></label>'+
  '<label>Employee / owner-operator<select name="subject_id" id="fuSubject" required></select></label>'+
  '<label>DOT agency<select name="agency" id="fuAgency" required><option value="">Select agency</option>'+Object.entries(agencies).map(([a,n])=>option("agency",a,a+" — "+n)).join("")+'</select></label>'+
  '<label id="fuFraWrap">FRA position<select name="fra_role" id="fuFraRole">'+[["other","Other FRA employee"],["engineer","Locomotive engineer"],["conductor","Conductor"]].map(([v,n])=>option("fra_role",v,n)).join("")+'</select></label></div><div class="fu-guidance" id="fuGuidance"></div>'+
