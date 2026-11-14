@@ -1,0 +1,39 @@
+/* Dedicated DOT follow-up testing management - unified Workforce shell */
+.fu-root{max-width:1450px;margin:0 auto;display:grid;gap:16px;color:#01122f}
+.fu-card{background:#fff;border:1px solid #d8e3ef;border-radius:14px;padding:22px;min-width:0}
+.fu-title{display:flex;align-items:center;justify-content:space-between;gap:18px}
+.fu-title small{font-size:.7rem;letter-spacing:.07em;font-weight:800;color:#53749a}
+.fu-title h2{font-size:1.45rem;margin:7px 0}
+.fu-root p{font-size:.82rem;color:#657890;line-height:1.55}
+.fu-title p{margin:4px 0}
+.fu-chip{background:#fff1be;padding:9px 14px;border-radius:18px;font-size:.76rem;font-weight:800}
+.fu-toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:18px}
+.fu-toolbar h3,.fu-toolbar h4{margin:0;font-size:1.03rem}
+.fu-toolbar p{margin:5px 0}
+.fu-scroll{overflow-x:auto}
+.fu-table{width:100%;border-collapse:collapse;text-align:left}
+.fu-table th,.fu-table td{padding:14px 12px;border-bottom:1px solid #e8edf4;white-space:nowrap}
+.fu-table th{font-size:.68rem;letter-spacing:.05em;text-transform:uppercase;color:#567394;background:#f7f9fc}
+.fu-table td{font-size:.79rem}
+.fu-empty{padding:45px 12px;text-align:center}
+.fu-empty h3{margin:0 0 8px}
+.fu-root .fu-warning{background:#fff8e5;border:1px solid #f1dfa4;border-radius:9px;padding:14px 16px;color:#765819;margin:5px 0}
+.fu-form{display:grid;gap:18px}
+.fu-form h4,.fu-root h4{font-size:.97rem;margin:8px 0 3px}
+.fu-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px}
+.fu-fields label,.fu-form>label{display:grid;gap:7px;font-size:.78rem;font-weight:750}
+.fu-fields input,.fu-fields select,.fu-form textarea{width:100%;min-height:42px;border:1px solid #cddbeb;border-radius:8px;padding:10px 12px;background:#fff;color:#01122f;font:inherit}
+.fu-form textarea{min-height:105px;resize:vertical}
+.fu-guidance{background:#eff5fb;border:1px solid #d4e4f2;border-radius:8px;color:#234567;font-size:.8rem;padding:14px;line-height:1.55}
+.fu-form .fu-toolbar{margin:0;justify-content:flex-end}
+.fu-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:15px 0}
+.fu-metrics>div{border:1px solid #dde6f0;border-radius:10px;padding:16px;display:grid;gap:8px}
+.fu-metrics small,.fu-detail-grid small{font-size:.73rem;color:#697d98}
+.fu-metrics strong{font-size:1.4rem}
+.fu-detail-grid{padding:14px 0}
+.fu-detail-grid>div{display:grid;gap:6px;padding:12px 0}
+.fu-instructions{white-space:pre-wrap;background:#f7f9fc;border-radius:8px;padding:15px}
+#fuMsg{margin:0;font-weight:700;color:#245584}
+#fuMsg:empty{display:none}
+@media(max-width:900px){.fu-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:650px){.fu-card{padding:15px}.fu-toolbar,.fu-title{align-items:flex-start;flex-direction:column}.fu-fields,.fu-metrics{grid-template-columns:1fr}}
