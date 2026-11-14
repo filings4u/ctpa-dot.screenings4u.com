@@ -51,8 +51,8 @@ function edit(person){
 function field(name,title,required,value,type="text"){return '<label>'+title+(required?" *":"")+'<input name="'+name+'" type="'+type+'" value="'+value+'" '+(required?"required":"")+' maxlength="'+(name==="email"?250:100)+'"></label>'}
 async function reload(){const r=await api("list");records=r.people||[];canManage=!!r.can_manage}
 async function open(value){
- ctx=value;const marker=++seq;query="";filter="all";shell();$("staffV2Panel").innerHTML='<div class="staff-v2-empty">Loading your team directory…</div>';
- try{await reload();if(marker!==seq||!ctx.active())return;list();status("")}catch(e){if(marker!==seq||!ctx.active())return;status(e.message);$("staffV2Panel").innerHTML='<div class="staff-v2-empty"><strong>Unable to load your staff directory</strong><p>'+esc(e.message)+'</p><button id="staffV2Retry" class="btn secondary" type="button">Try Again</button></div>';$("staffV2Retry").onclick=()=>void open(value)}
+ context=value;const marker=++seq;query="";filter="all";shell();$("staffV2Panel").innerHTML='<div class="staff-v2-empty">Loading your team directory…</div>';
+ try{await reload();if(marker!==seq||!context.active())return;list();status("")}catch(e){if(marker!==seq||!context.active())return;status(e.message);$("staffV2Panel").innerHTML='<div class="staff-v2-empty"><strong>Unable to load your staff directory</strong><p>'+esc(e.message)+'</p><button id="staffV2Retry" class="btn secondary" type="button">Try Again</button></div>';$("staffV2Retry").onclick=()=>void open(value)}
 }
 function exportCsv(){const keys=["first_name","last_name","email","phone","office_phone","office_number","extension","employee_number","department","position","job_title","role_code","employment_type","status","start_date"],rows=[keys,...records.map(p=>keys.map(k=>p[k]??""))],csv=rows.map(r=>r.map(v=>'"'+String(v).replaceAll('"','""')+'"').join(",")).join("\r\n");const url=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));const a=document.createElement("a");a.href=url;a.download="workforce-ctpa-staff.csv";a.click();setTimeout(()=>URL.revokeObjectURL(url),1200)}
 window.WorkforceStaffV2=Object.freeze({open,exportCsv});
