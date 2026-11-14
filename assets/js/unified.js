@@ -138,12 +138,12 @@ function setupSidebarToggle(){
  addEventListener("resize",updateSidebarToggle,{passive:true});
  updateSidebarToggle();
 }
-function renderNav(){
+function renderNav(previewGroup=null){
  const nav=$("sidebarNavigation");
  const top=SIDEBAR_TOP.map(([id,name])=>'<button type="button" class="nav-item nav-top-link'+
  ((state.page===id||(state.page==="employer_import"&&id==="employers"))?" active":"")+'" data-page="'+id+'" '+(state.page===id?'aria-current="page"':"")+
  '><span class="symbol" aria-hidden="true">'+navIcon(id)+'</span><span>'+esc(name)+'</span></button>').join("");
- const activeGroup=navGroupForPage(state.page);
+ const activeGroup=previewGroup||navGroupForPage(state.page);
  openNavGroups.clear();
  if(activeGroup)openNavGroups.add(activeGroup);
  saveNavGroups();
@@ -3749,7 +3749,7 @@ function bindEvents(){
    // An accordion with at most one expanded section.
    const expanded=!openNavGroups.has(title)||navGroupForPage(state.page)===title;
    openNavGroups.clear();if(expanded)openNavGroups.add(title);
-   saveNavGroups();renderNav();
+   saveNavGroups();renderNav(expanded?title:null);
    return;
   }
   const b=e.target.closest("[data-page]");if(b)switchPage(b.dataset.page);
