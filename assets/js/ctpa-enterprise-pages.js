@@ -35,12 +35,29 @@ function drawBrand(){
  '<label><input type="checkbox" name="branded_email_enabled" '+(d.branded_email_enabled?"checked":"")+'>Use my branding in supported customer emails</label>'+
  '<label>Sender display name<input name="email_display_name" maxlength="90" value="'+esc(d.email_display_name||"")+'" placeholder="Your C/TPA company"></label>'+
  '<button class="btn primary" type="submit" '+(canEdit?"":"disabled")+'>Save branding</button></form>'+
- '<div class="ent-card"><h3>Brand preview</h3><div class="ent-preview" id="entPreview"><div class="ent-preview-head"><strong id="entPreviewName">'+esc(d.portal_name||"Your C/TPA company")+'</strong></div><div class="ent-preview-body"><p>Branded client portal</p><span id="entPreviewAction">Continue to account</span></div></div><p class="ent-muted">Preview only. Employer, employee and owner-operator portals must read the verified brand assignment before displaying this design.</p></div></div>';
+ '<div class="ent-card ent-brand-preview-card"><h3>Live portal preview</h3><p>See how your colors and logo will look inside the C/TPA portal.</p>'+
+ '<div class="ent-preview ent-portal-preview" id="entPreview"><aside class="ent-mini-sidebar">'+
+ '<div class="ent-mini-logo-box" id="entMiniLogoBox"><strong id="entMiniLogoText">C/TPA</strong></div>'+
+ '<div class="ent-mini-menu"><small>WORKSPACE</small><span>▦ &nbsp; Dashboard</span><span>♧ &nbsp; Employers</span><span>♙ &nbsp; Employees</span><span>▣ &nbsp; Testing Orders</span><span>▤ &nbsp; Results</span><small>ACCOUNT &amp; SUPPORT</small><span class="ent-mini-active">◈ &nbsp; Branding</span><span>⚙ &nbsp; Settings</span></div>'+
+ '<div class="ent-mini-foot">● &nbsp; C/TPA Portal</div></aside>'+
+ '<div class="ent-mini-main"><header class="ent-mini-header"><div><small>WORKFORCE C/TPA</small><strong id="entPreviewName">'+esc(d.portal_name||"Your C/TPA company")+'</strong></div><div class="ent-mini-header-actions"><span>DOT</span><span>Account ▾</span></div></header>'+
+ '<div class="ent-mini-content"><div class="ent-mini-title"><strong>Dashboard</strong><small>Company activity overview</small></div><div class="ent-mini-kpis"><div><small>Employers</small><strong>24</strong></div><div><small>Employees</small><strong>189</strong></div><div><small>Orders</small><strong>42</strong></div></div>'+
+ '<div class="ent-mini-panel"><strong>Recent activity</strong><p>Company records, orders, and updates</p><div class="ent-mini-rule"></div><div class="ent-mini-rule short"></div><span class="ent-mini-cta">View details</span></div></div></div></div>'+
+ '<p class="ent-muted">This preview mirrors the unified portal layout. Employer, employee, and owner-operator portals will be connected when their new builds are ready.</p></div></div>';
  const f=$("entBrandForm");function preview(){const n=f.elements.portal_name.value,pc=f.elements.primary_color.value,ac=f.elements.accent_color.value;$("entPreviewName").textContent=n||"Your C/TPA company";$("entPreview").style.setProperty("--brand-primary",pc);$("entPreview").style.setProperty("--brand-accent",ac)};f.addEventListener("input",preview);preview();
+ $("entLogoFile").addEventListener("change",e=>{
+  const file=e.target.files?.[0];if(!file)return;
+  if(!/\.png$/i.test(file.name)||(file.type&&file.type!=="image/png")){warn("Please choose a PNG file.");e.target.value="";return}
+  const temp=URL.createObjectURL(file),box=$("entMiniLogoBox");
+  box.querySelector("img")?.remove();
+  const image=document.createElement("img");image.className="ent-mini-logo";image.alt="Logo preview";image.src=temp;image.onload=()=>URL.revokeObjectURL(temp);
+  $("entMiniLogoText").hidden=true;box.prepend(image);
+  $("entLogoStatus").textContent=file.name+" · "+(file.size/1048576).toFixed(1)+" MB · ready to upload";
+ });
  if(d.logo_path&&/^ctpa-branding\/[0-9a-f-]{36}\/[a-zA-Z0-9_.-]+$/.test(d.logo_path)){
   const image=document.createElement("img");image.className="ent-logo-preview";image.alt="C/TPA brand logo";
   image.src="https://elpbnytpciqnbexiaebp.supabase.co/storage/v1/object/public/workforce-branding/"+encodeURI(d.logo_path);
-  $("entPreview").querySelector(".ent-preview-head").prepend(image);
+  $("entMiniLogoText").hidden=true;$("entMiniLogoBox").prepend(image);
  }
  f.onsubmit=async e=>{e.preventDefault();const b=f.querySelector('button[type="submit"]');b.disabled=true;warn("Saving branding…");try{const file=$("entLogoFile").files?.[0];let logo_path=d.logo_path||"";if(file){
   if(!/\.png$/i.test(file.name)||(file.type&&file.type!=="image/png"))throw Error("Please choose a PNG logo.");
