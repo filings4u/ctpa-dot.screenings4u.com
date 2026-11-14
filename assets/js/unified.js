@@ -92,6 +92,24 @@ const recordTitle=r=>{
  return d.name||d.title||d.legal_name||[d.first_name,d.last_name].filter(Boolean).join(" ")||d.summary||d.file_name||d.invoice_number||d.order_reference||d.account_number||r?.id||"Record";
 };
 const DOCUMENT_PAGES=new Set(["documents","testing_documents"]);
+const CTPA_PLAN_FEATURES={
+ employers:"employer_management",owner_operators:"employer_management",people:"employee_management",
+ programs:"programs",pools:"consortium_pools",selections:"random_selections",
+ testing_orders:"testing_orders",testing_documents:"documents",results:"results_summary",
+ occupational_health:"testing_orders",compliance:"compliance",audits:"compliance",
+ return_to_duty:"compliance",follow_up_testing:"compliance",policies:"policy_builder",
+ reports:"standard_reports",collection_sites:"collection_sites",documents:"documents",
+ lab_accounts:"employer_management",lab_tracking:"testing_orders",lab_supplies:"testing_orders",
+ lab_analytics:"advanced_reports",orders:"billing_tools",price_list:"billing_tools",
+ services:"billing_tools",billing:"client_invoicing",invoices:"billing_tools",
+ settlements:"billing_tools",subscriptions:"billing_tools",locations:"locations",
+ messages:"notifications",notifications:"notifications",staff:"team_users",
+ integrations:"integrations",branding:"white_label",audit_history:"audit_history",
+ employer_import:"employer_import"
+};
+const CTPA_ALWAYS=new Set(["account","support","dashboard","demo_sessions"]);
+const currentGrant=()=>state.workspaces.find(w=>w.tenant_id===state.tenantId)?.subscription||{tier:0,features:{}};
+const canViewPage=page=>CTPA_ALWAYS.has(page)||currentGrant().features?.[CTPA_PLAN_FEATURES[page]||"__restricted__"]===true;
 const cacheKey=(p=state.page)=>state.tenantId+"|"+state.context+"|"+p;
 let notificationTimer=null;
 function message(text,isError=false){
@@ -162,7 +180,7 @@ function renderNav(previewGroup=null){
    '<button type="button" class="nav-group-toggle" data-nav-group="'+esc(title)+'" aria-controls="nav-group-'+index+
    '" aria-expanded="'+String(expanded)+'"><span>'+esc(title)+'</span><span class="group-indicator" aria-hidden="true">'+(expanded?"−":"+")+'</span></button>'+
    '<div class="nav-group-links" id="nav-group-'+index+'"'+(expanded?"":' hidden')+'>'+
-   modules.filter(id=>!(state.context==="nondot"&&["owner_operators","audits","return_to_duty"].includes(id))).map(id=>'<button type="button" class="nav-item nav-child'+((state.page===id||(state.page==="employer_import"&&id==="employers"))?" active":"")+
+   modules.filter(id=>canViewPage(id)&&!(state.context==="nondot"&&["owner_operators","audits","return_to_duty","follow_up_testing"].includes(id))).map(id=>'<button type="button" class="nav-item nav-child'+((state.page===id||(state.page==="employer_import"&&id==="employers"))?" active":"")+
     '" data-page="'+esc(id)+'"'+(state.page===id?' aria-current="page"':"")+
     '><span class="symbol" aria-hidden="true">'+navIcon(id)+'</span><span>'+esc(label(id))+'</span></button>').join("")+'</div></section>';
  }).join("");
@@ -215,6 +233,12 @@ function switchPage(page,push=true){
  if(page==="lab_documents")page="testing_documents";
  if(page==="enrollments")page="programs";
  if(!CONFIG[page])page="dashboard";
+ if(!canViewPage(page)){
+  // A deep link never bypasses subscription limits.
+  const requested=page;
+  page="dashboard";
+  message("The "+label(requested)+" feature is not included in your C/TPA subscription.",true);
+ }
  if(state.locationSetupRequired&&page!=="locations")page="locations";
  if(state.context==="nondot"&&["owner_operators","audits","return_to_duty","follow_up_testing"].includes(page))page=page==="owner_operators"?"employers":"dashboard";
  state.page=page;state.search="";state.statusFilter="";state.pageIndex=0;state.companyFilter=null;state.companyDraft=null;state.management=null;state.pendingManagement=null;const seq=++state.sequence;
@@ -309,8 +333,8 @@ async function renderAccount(){
   '<div><small>C/TPA Company</small><strong>'+esc(w?.name||"Workforce C/TPA")+'</strong></div>'+
   '<div><small>Role</small><strong>'+esc(w?.role||"Member")+'</strong></div></div>'+
  '<div class="management-account-actions"><button type="button" class="btn primary" id="editProfile">Edit Profile</button>'+
- '<button type="button" class="btn secondary" data-goto="staff">Manage Staff</button>'+
- '<button type="button" class="btn secondary" data-goto="employers">Manage Employers</button></div></section>';
+ (canViewPage('staff')?'<button type="button" class="btn secondary" data-goto="staff">Manage Staff</button>':'')+
+ (canViewPage('employers')?'<button type="button" class="btn secondary" data-goto="employers">Manage Employers</button>':'')+'</div></section>';
 }
 
 const labAnalyticsState={months:6,cache:null,fetching:false,request:0};
@@ -3717,6 +3741,10 @@ async function initializeWorkspaces(){
  state.workspaces=r.workspaces||[];
  if(!state.workspaces.length){showView("workspaceSetup");return}
  state.tenantId=state.workspaces[0].tenant_id;
+ // Company setup / help remains usable even without a purchased feature.
+ const hasLocationFeature=canViewPage("locations");
+ if(!hasLocationFeature){state.locationSetupRequired=false;startApp();return;}
+
  try{
   const context={tenantId:state.tenantId,context:state.context,supabase:state.supabase,active:()=>state.page==="locations"&&state.tenantId===context.tenantId};
   if(!window.WorkforceLocations)throw Error("Location onboarding module is unavailable");
