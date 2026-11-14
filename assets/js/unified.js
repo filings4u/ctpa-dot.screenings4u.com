@@ -818,8 +818,8 @@ async function loadPersonCompanies(){
   if(currentId&&options.some(r=>r.id===currentId))selector.value=currentId;
   else if(!currentId){
    const prior=m.id?(state.cache.get(cacheKey())?.records||[]).find(r=>r.id===m.id)?.data?.employer||"":state.companyDraft?.companyName||"";
-   const match=options.find(r=>prior&&r.data?.legal_name?.toLowerCase()===prior.toLowerCase());
-   if(match)selector.value=match.id;
+   const candidates=options.filter(r=>r.kind==="employers"&&prior&&r.data?.legal_name?.trim().toLowerCase()===prior.trim().toLowerCase());
+   if(candidates.length===1)selector.value=candidates[0].id;
   }
   selector.disabled=!options.length;
   const submit=$("managementSave");
