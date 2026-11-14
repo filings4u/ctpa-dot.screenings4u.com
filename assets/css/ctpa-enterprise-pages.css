@@ -44,3 +44,5 @@
 @media(max-width:640px){.ent-hero,.ent-card{padding:16px}.ent-card-header{align-items:flex-start;flex-direction:column}.ent-two,.ent-checks{grid-template-columns:1fr}}
 
 .ent-logo-preview{max-width:170px;max-height:70px;width:auto;height:auto;object-fit:contain;display:block;margin:0 0 12px}
+
+.ent-brand-checks{display:grid;gap:10px;padding:12px 0}.ent-brand-checks label,.ent-form label:has(input[type="checkbox"]){display:flex;align-items:center;gap:10px;font-weight:650}.ent-brand-checks input[type="checkbox"]{width:17px;height:17px;accent-color:#01122f}
