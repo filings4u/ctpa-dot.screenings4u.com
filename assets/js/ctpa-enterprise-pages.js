@@ -24,7 +24,7 @@ function drawBrand(){
  const d=brand||{};$("entBody").innerHTML='<div class="ent-columns"><form class="ent-card ent-form" id="entBrandForm"><h3>Brand identity</h3><p>Your branding will be published to linked client portals once their brand handoff is configured.</p>'+
  '<label>Company or portal display name<input name="portal_name" maxlength="90" required value="'+esc(d.portal_name||"")+'"></label>'+
  '<div class="ent-two"><label>Primary color<input name="primary_color" type="color" value="'+esc(/^#[0-9a-f]{6}$/i.test(d.primary_color||"")?d.primary_color:"#01122f")+'"></label><label>Accent color<input name="accent_color" type="color" value="'+esc(/^#[0-9a-f]{6}$/i.test(d.accent_color||"")?d.accent_color:"#fdc102")+'"></label></div>'+
- '<label>Logo<input id="entLogoFile" type="file" accept="image/png,image/jpeg,image/webp" '+(canEdit?"":"disabled")+'><small>PNG, JPEG or WebP. Maximum 1 MB.</small></label>'+
+ '<label>Company logo (PNG only)<input id="entLogoFile" type="file" accept=".png,image/png" '+(canEdit?"":"disabled")+'><small>PNG only. No fixed page-level size limit; your Supabase storage plan limit applies.</small></label>'+
  '<p id="entLogoStatus" class="ent-muted">'+(d.logo_path?"An existing logo is saved.":"No custom logo has been uploaded.")+'</p>'+
  '<h3>Client portal branding preferences</h3><p>Save which future customer portals should use your brand when those portals are connected.</p>'+
  '<div class="ent-brand-checks">'+
@@ -42,7 +42,16 @@ function drawBrand(){
   image.src="https://elpbnytpciqnbexiaebp.supabase.co/storage/v1/object/public/workforce-branding/"+encodeURI(d.logo_path);
   $("entPreview").querySelector(".ent-preview-head").prepend(image);
  }
- f.onsubmit=async e=>{e.preventDefault();const b=f.querySelector('button[type="submit"]');b.disabled=true;warn("Saving branding…");try{const file=$("entLogoFile").files?.[0];let logo_path=d.logo_path||"";if(file){if(!["image/png","image/jpeg","image/webp"].includes(file.type)||file.size>1048576)throw Error("Choose a PNG, JPEG or WebP under 1 MB.");const bytes=new Uint8Array(await file.arrayBuffer());let binary="";for(let i=0;i<bytes.length;i+=8192)binary+=String.fromCharCode(...bytes.slice(i,i+8192));const upload=await api("branding_upload","branding_suite",{file_name:file.name,mime_type:file.type,file_base64:btoa(binary)});logo_path=upload.path;}
+ f.onsubmit=async e=>{e.preventDefault();const b=f.querySelector('button[type="submit"]');b.disabled=true;warn("Saving branding…");try{const file=$("entLogoFile").files?.[0];let logo_path=d.logo_path||"";if(file){
+  if(!/\.png$/i.test(file.name)||(file.type&&file.type!=="image/png"))throw Error("Please choose a PNG logo.");
+  const signature=[137,80,78,71,13,10,26,10],header=new Uint8Array(await file.slice(0,8).arrayBuffer());
+  if(signature.some((value,index)=>header[index]!==value))throw Error("The selected file is not a valid PNG.");
+  warn("Uploading PNG logo to Supabase Storage…");
+  const signed=await api("branding_upload","branding_suite",{file_name:file.name});
+  const uploaded=await ctx.supabase.storage.from("workforce-branding").uploadToSignedUrl(signed.path,signed.token,file,{contentType:"image/png",cacheControl:"3600"});
+  if(uploaded.error)throw uploaded.error;
+  logo_path=signed.path;
+}
  const settings={portal_name:f.elements.portal_name.value,primary_color:f.elements.primary_color.value,accent_color:f.elements.accent_color.value,logo_path,
   show_on_employer_portal:f.elements.show_on_employer_portal.checked,
   show_on_employee_portal:f.elements.show_on_employee_portal.checked,
